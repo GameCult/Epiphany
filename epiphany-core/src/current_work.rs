@@ -2039,7 +2039,6 @@ pub fn accept_frontier_verification_result(
     };
     audit.validate()?;
     let verdict = crate::SoulVerdictReceipt {
-        schema_version: crate::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION.into(),
         receipt_id: format!("soul-verdict-{}", result.result_id),
         source_result_id: result.result_id.clone(),
         source_job_id: result.job_id.clone(),
@@ -2048,7 +2047,6 @@ pub fn accept_frontier_verification_result(
         evidence_ids,
         risks: result.risks.clone(),
         emitted_at: accepted_at.to_string(),
-        contract: "Soul verdict emitted by the exact Verification Mind admission owner.".into(),
         verification_request_id: request.request_id.clone(),
         frontier_route_id: request.route_id.clone(),
     };
@@ -4533,7 +4531,6 @@ mod tests {
             Sha256::digest(rmp_serde::to_vec_named(&frontier_item)?)
         );
         let route = crate::RepoFrontierRoute {
-            schema_version: crate::REPO_FRONTIER_ROUTE_SCHEMA_VERSION.into(),
             route_id: "route-proposal-frontier".into(),
             next_organ: crate::RepoFrontierNextOrgan::Hands,
             model_projection_digest: model.projection_digest.clone(),
@@ -4547,7 +4544,6 @@ mod tests {
             authorized_paths: frontier_item.repository_scope.clone(),
             adopted_plan: frontier_item.adopted_plan.clone(),
             selected_at: "2026-08-17T00:00:14Z".into(),
-            contract: crate::REPO_FRONTIER_ROUTE_CONTRACT.into(),
         };
         accepted_cache.put(&route.route_id, &route)?;
 
@@ -4591,7 +4587,6 @@ mod tests {
         ];
         crate::put_hands_action_review(&store, &hands_review)?;
         let hands_authority = crate::RepoFrontierHandsAuthority {
-            schema_version: crate::REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION.into(),
             authority_id: "repo-frontier-hands-authority-verification-fixture".into(),
             route_id: route.route_id.clone(),
             model_projection_digest: route.model_projection_digest.clone(),
@@ -4603,7 +4598,6 @@ mod tests {
             substrate_grant_receipt_id: grant.receipt_id.clone(),
             requested_paths: route.authorized_paths.clone(),
             granted_at: hands_review.reviewed_at.clone(),
-            contract: crate::REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT.into(),
         };
         crate::put_repo_frontier_hands_authority(&store, &hands_authority)?;
         let hands_patch = crate::hands_patch_receipt_for_review(
@@ -5474,7 +5468,6 @@ mod tests {
             crate::EpiphanyDecisionContext::new(&planning_basis, planning_native, Vec::new())?;
         crate::put_decision_context(&store, &planning_context)?;
         let mut candidate = crate::RepoFrontierPlanCandidate {
-            schema_version: crate::REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION.into(),
             candidate_id: "pending".into(),
             planning_request_id: planning_request.request_id.clone(),
             model_projection_digest: planning_request.model_projection_digest.clone(),
@@ -5489,7 +5482,6 @@ mod tests {
             rollback_steps: vec!["revert the keyed Planning commit".into()],
             commit_message: "Migrate Planning to keyed Mind authority".into(),
             proposed_at: "2026-08-17T00:00:21.800Z".into(),
-            contract: crate::REPO_FRONTIER_PLANNING_CONTRACT.into(),
         };
         candidate.candidate_id = crate::canonical_repo_frontier_plan_candidate_id(&candidate)?;
         let planning_result = crate::EpiphanyRuntimeRoleWorkerResult {

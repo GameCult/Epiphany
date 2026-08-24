@@ -9,18 +9,6 @@ use crate::eyes_gateway::EyesEvidencePacket;
 use crate::eyes_gateway::EyesSourceLookupReceipt;
 use crate::hands_gateway::*;
 use crate::repo_model_gateway::{
-    REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT, REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION,
-    REPO_FRONTIER_MODELING_REQUEST_CONTRACT, REPO_FRONTIER_MODELING_REQUEST_SCHEMA_VERSION,
-    REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION, REPO_FRONTIER_PLAN_DECISION_CONTRACT,
-    REPO_FRONTIER_PLAN_DECISION_RECEIPT_SCHEMA_VERSION, REPO_FRONTIER_PLAN_MIND_REQUEST_CONTRACT,
-    REPO_FRONTIER_PLAN_MIND_REQUEST_SCHEMA_VERSION, REPO_FRONTIER_PLANNING_CONTRACT,
-    REPO_FRONTIER_PLANNING_FAILURE_REVIEW_SCHEMA_VERSION,
-    REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION,
-    REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_CONTRACT,
-    REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_SCHEMA_VERSION,
-    REPO_FRONTIER_RESEARCH_REQUEST_CONTRACT, REPO_FRONTIER_RESEARCH_REQUEST_SCHEMA_VERSION,
-    REPO_FRONTIER_ROUTE_CONTRACT, REPO_FRONTIER_ROUTE_SCHEMA_VERSION,
-    REPO_FRONTIER_WORK_PROPOSAL_CONTRACT, REPO_FRONTIER_WORK_PROPOSAL_SCHEMA_VERSION,
     RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY, RepoFrontierHandsAuthority, RepoFrontierModelingRequest,
     RepoFrontierNextOrgan, RepoFrontierPlanCandidate, RepoFrontierPlanDecision,
     RepoFrontierPlanDecisionReceipt, RepoFrontierPlanMindDecision, RepoFrontierPlanMindRequest,
@@ -69,7 +57,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v32";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v33";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
@@ -4865,9 +4853,7 @@ pub(crate) fn runtime_typed_request_fulfillment(
 pub(crate) fn validate_repo_frontier_work_proposal(
     proposal: &RepoFrontierWorkProposal,
 ) -> Result<()> {
-    if proposal.schema_version != REPO_FRONTIER_WORK_PROPOSAL_SCHEMA_VERSION
-        || proposal.contract != REPO_FRONTIER_WORK_PROPOSAL_CONTRACT
-        || proposal.proposal_id.trim().is_empty()
+    if proposal.proposal_id.trim().is_empty()
         || proposal.title.trim().is_empty()
         || proposal.body.trim().is_empty()
     {
@@ -5030,9 +5016,7 @@ pub(crate) fn validate_autonomous_proposal_origin(
 pub(crate) fn validate_repo_frontier_proposal_modeling_request(
     request: &RepoFrontierProposalModelingRequest,
 ) -> Result<()> {
-    if request.schema_version != REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_SCHEMA_VERSION
-        || request.contract != REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_CONTRACT
-        || request.request_id.trim().is_empty()
+    if request.request_id.trim().is_empty()
         || request.proposal_id.trim().is_empty()
         || request.proposal_payload_sha256.trim().is_empty()
         || request.runtime_id.trim().is_empty()
@@ -5245,18 +5229,15 @@ pub(crate) fn promote_autonomous_direction_options_for_modeling(
                 &evidence_refs,
             )?;
             let proposal = RepoFrontierWorkProposal {
-                schema_version: REPO_FRONTIER_WORK_PROPOSAL_SCHEMA_VERSION.into(),
                 proposal_id: proposal_id.clone(),
                 payload_sha256: payload_sha256.clone(),
                 title: option.title.clone(),
                 body: option.summary.clone(),
                 constraints: result.uncertainties.clone(),
                 evidence_refs,
-                contract: REPO_FRONTIER_WORK_PROPOSAL_CONTRACT.into(),
             };
             validate_repo_frontier_work_proposal(&proposal)?;
             let selection = RepoFrontierProposalModelingRequest {
-                schema_version: REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_SCHEMA_VERSION.into(),
                 request_id: crate::proposal_modeling_request_id(
                     &identity.runtime_id,
                     &proposal_id,
@@ -5269,7 +5250,6 @@ pub(crate) fn promote_autonomous_direction_options_for_modeling(
                 repository: repository.into(),
                 workspace: body_binding.git_top_level.clone(),
                 selected_at: selected_at.into(),
-                contract: REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_CONTRACT.into(),
                 direction_result_id: result.result_id.clone(),
                 direction_option_ordinal: ordinal as u32,
                 direction_worker_job_id: direction_worker.job_id.clone(),
@@ -5444,7 +5424,6 @@ pub fn select_and_commit_repo_frontier_planning_request(
         return Ok(existing);
     }
     let request = RepoFrontierPlanningRequest {
-        schema_version: REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION.into(),
         request_id: request_id.clone(),
         model_projection_digest: basis.projection_digest.clone(),
         model_source_documents: basis.source_documents.clone(),
@@ -5453,7 +5432,6 @@ pub fn select_and_commit_repo_frontier_planning_request(
         selected_organ: "Imagination".into(),
         repository_scope: item.repository_scope.clone(),
         requested_at: at.into(),
-        contract: REPO_FRONTIER_PLANNING_CONTRACT.into(),
         runtime_id: identity.runtime_id,
         frontier_authority_documents,
         claim_obligation_documents,
@@ -5493,9 +5471,7 @@ fn validate_repo_frontier_planning_request(
         source_documents: request.model_source_documents.clone(),
     };
     basis.validate()?;
-    if request.schema_version != REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION
-        || request.contract != REPO_FRONTIER_PLANNING_CONTRACT
-        || request.runtime_id.trim().is_empty()
+    if request.runtime_id.trim().is_empty()
         || request.frontier_item_id.trim().is_empty()
         || request.frontier_item_hash.trim().is_empty()
         || request.selected_organ != "Imagination"
@@ -5657,7 +5633,6 @@ pub fn commit_repo_frontier_plan_mind_request(
         &candidate_sha256,
     );
     let request = RepoFrontierPlanMindRequest {
-        schema_version: REPO_FRONTIER_PLAN_MIND_REQUEST_SCHEMA_VERSION.into(),
         request_id: request_id.clone(),
         planning_request_id: planning.request_id.clone(),
         imagination_result_id: result.result_id.clone(),
@@ -5666,7 +5641,6 @@ pub fn commit_repo_frontier_plan_mind_request(
         candidate_sha256,
         runtime_id: planning.runtime_id.clone(),
         requested_at: requested_at.into(),
-        contract: REPO_FRONTIER_PLAN_MIND_REQUEST_CONTRACT.into(),
     };
     if let Some(existing) = cache.get::<RepoFrontierPlanMindRequest>(&request_id)? {
         let mut retry = request.clone();
@@ -5719,10 +5693,7 @@ fn validate_repo_frontier_plan_mind_request_identity(
     cache: &CultCache,
     request: &RepoFrontierPlanMindRequest,
 ) -> Result<(RepoFrontierPlanningRequest, RepoFrontierPlanCandidate)> {
-    if request.schema_version != REPO_FRONTIER_PLAN_MIND_REQUEST_SCHEMA_VERSION
-        || request.contract != REPO_FRONTIER_PLAN_MIND_REQUEST_CONTRACT
-        || chrono::DateTime::parse_from_rfc3339(&request.requested_at).is_err()
-    {
+    if chrono::DateTime::parse_from_rfc3339(&request.requested_at).is_err() {
         return Err(anyhow!("invalid typed Mind request"));
     }
     let result = cache
@@ -5792,9 +5763,7 @@ fn validate_repo_frontier_plan_candidate_against_request(
     candidate: &RepoFrontierPlanCandidate,
     request: &RepoFrontierPlanningRequest,
 ) -> Result<()> {
-    if candidate.schema_version != REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION
-        || candidate.contract != REPO_FRONTIER_PLANNING_CONTRACT
-        || candidate.selected_fields_invalid()
+    if candidate.selected_fields_invalid()
         || candidate.planning_request_id != request.request_id
         || candidate.model_projection_digest != request.model_projection_digest
         || candidate.model_source_documents != request.model_source_documents
@@ -5914,7 +5883,6 @@ fn commit_repo_frontier_plan_decision_inner(
         Sha256::digest(planning.request_id.as_bytes())
     );
     let receipt = RepoFrontierPlanDecisionReceipt {
-        schema_version: REPO_FRONTIER_PLAN_DECISION_RECEIPT_SCHEMA_VERSION.into(),
         decision_id: decision_id.clone(),
         planning_request_id: planning.request_id.clone(),
         candidate_id: candidate.candidate_id.clone(),
@@ -5926,7 +5894,6 @@ fn commit_repo_frontier_plan_decision_inner(
         decision,
         rationale,
         decided_at: decided_at.clone(),
-        contract: REPO_FRONTIER_PLAN_DECISION_CONTRACT.into(),
         decision_source: decision_source.clone(),
     };
     if let Some(existing) = cache.get::<RepoFrontierPlanDecisionReceipt>(&decision_id)? {
@@ -6088,7 +6055,6 @@ pub fn select_and_commit_repo_frontier_route(
         Sha256::digest(route_seed.as_bytes())
     );
     let route = RepoFrontierRoute {
-        schema_version: REPO_FRONTIER_ROUTE_SCHEMA_VERSION.to_string(),
         route_id: route_id.clone(),
         next_organ: RepoFrontierNextOrgan::Hands,
         model_projection_digest: basis.projection_digest.clone(),
@@ -6106,7 +6072,6 @@ pub fn select_and_commit_repo_frontier_route(
             .unwrap_or_else(|| item.repository_scope.clone()),
         adopted_plan: item.adopted_plan.clone(),
         selected_at: at.to_string(),
-        contract: REPO_FRONTIER_ROUTE_CONTRACT.to_string(),
     };
     if let Some(existing) = cache.get::<RepoFrontierRoute>(&route_id)? {
         let mut retry = route.clone();
@@ -6298,9 +6263,7 @@ fn planning_claim_obligation_envelopes(
 fn validate_repo_frontier_research_request(
     request: &RepoFrontierResearchRequest,
 ) -> Result<crate::RepoFrontierItem> {
-    if request.schema_version != REPO_FRONTIER_RESEARCH_REQUEST_SCHEMA_VERSION
-        || request.contract != REPO_FRONTIER_RESEARCH_REQUEST_CONTRACT
-        || request.runtime_id.is_empty()
+    if request.runtime_id.is_empty()
         || chrono::DateTime::parse_from_rfc3339(&request.requested_at).is_err()
         || request.frontier_item_id.is_empty()
         || request.frontier_item_hash.is_empty()
@@ -6509,7 +6472,6 @@ fn repo_frontier_research_request_for_admitted_item(
         ));
     }
     Ok(RepoFrontierResearchRequest {
-        schema_version: REPO_FRONTIER_RESEARCH_REQUEST_SCHEMA_VERSION.to_string(),
         request_id: crate::frontier_research_request_id(runtime_id, &item.id, &item_hash),
         model_projection_digest: basis.projection_digest.clone(),
         model_source_documents: basis.source_documents.clone(),
@@ -6519,7 +6481,6 @@ fn repo_frontier_research_request_for_admitted_item(
         repository_scope: item.repository_scope.clone(),
         requested_at: requested_at.to_string(),
         runtime_id: runtime_id.to_string(),
-        contract: REPO_FRONTIER_RESEARCH_REQUEST_CONTRACT.to_string(),
         public_source_refs,
     })
 }
@@ -6807,9 +6768,7 @@ fn repo_frontier_research_request_is_actionable(
     cache: &CultCache,
     request: &RepoFrontierResearchRequest,
 ) -> Result<bool> {
-    if request.schema_version != REPO_FRONTIER_RESEARCH_REQUEST_SCHEMA_VERSION
-        || request.contract != REPO_FRONTIER_RESEARCH_REQUEST_CONTRACT
-        || request.repository_scope.is_empty()
+    if request.repository_scope.is_empty()
         || !crate::memory_graph::repo_paths_are_canonical_and_safe(&request.repository_scope)
     {
         return Err(anyhow!("invalid frontier Research request"));
@@ -6831,8 +6790,7 @@ pub(crate) fn repo_frontier_planning_failure_review(
     let Some(review) = cache.get::<RepoFrontierPlanningFailureReview>(&review_id)? else {
         return Ok(None);
     };
-    if review.schema_version != REPO_FRONTIER_PLANNING_FAILURE_REVIEW_SCHEMA_VERSION
-        || review.review_id != review_id
+    if review.review_id != review_id
         || review.planning_request_id != planning_request_id
         || review.pass_kind != pass_kind
         || review.job_id != result.job_id
@@ -6875,7 +6833,6 @@ pub fn review_repo_frontier_planning_failure(
         .get::<EpiphanyRuntimeRoleWorkerResult>(job_id)?
         .ok_or_else(|| anyhow!("planning failure review lost its typed result"))?;
     let review = RepoFrontierPlanningFailureReview {
-        schema_version: REPO_FRONTIER_PLANNING_FAILURE_REVIEW_SCHEMA_VERSION.into(),
         review_id: repo_frontier_planning_failure_review_id(&result.result_id),
         planning_request_id: planning_request_id.clone(),
         pass_kind: pass_kind.into(),
@@ -7461,9 +7418,7 @@ fn validate_repo_frontier_hands_authority_chain(
                 && intent.plan_action.is_empty()
         }
     };
-    if route.schema_version != REPO_FRONTIER_ROUTE_SCHEMA_VERSION
-        || route.contract != REPO_FRONTIER_ROUTE_CONTRACT
-        || intent.schema_version != HANDS_ACTION_INTENT_SCHEMA_VERSION
+    if intent.schema_version != HANDS_ACTION_INTENT_SCHEMA_VERSION
         || review.schema_version != HANDS_ACTION_REVIEW_SCHEMA_VERSION
         || grant.schema_version != SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION
         || intent.contract.trim().is_empty()
@@ -7518,9 +7473,7 @@ pub fn put_repo_frontier_hands_authority(
     authority: &RepoFrontierHandsAuthority,
 ) -> Result<()> {
     let store_path = store_path.as_ref();
-    if authority.schema_version != REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION
-        || authority.contract != REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT
-        || chrono::DateTime::parse_from_rfc3339(&authority.granted_at).is_err()
+    if chrono::DateTime::parse_from_rfc3339(&authority.granted_at).is_err()
         || !crate::memory_graph::repo_paths_are_canonical_and_safe(&authority.requested_paths)
         || authority.requested_paths.is_empty()
     {
@@ -7549,9 +7502,7 @@ pub fn put_repo_frontier_hands_authority(
             path == scope || path.starts_with(&format!("{}/", scope.trim_end_matches(['/', '\\'])))
         })
     });
-    if route.schema_version != REPO_FRONTIER_ROUTE_SCHEMA_VERSION
-        || route.contract != REPO_FRONTIER_ROUTE_CONTRACT
-        || route.next_organ != RepoFrontierNextOrgan::Hands
+    if route.next_organ != RepoFrontierNextOrgan::Hands
         || authority.route_id != route.route_id
         || authority.model_projection_digest != route.model_projection_digest
         || authority.model_source_documents != route.model_source_documents
@@ -7647,9 +7598,7 @@ fn worker_result_has_keyed_mind_commit(
 pub(crate) fn validate_repo_frontier_verification_request_intrinsic(
     request: &RepoFrontierVerificationRequest,
 ) -> Result<crate::RepoFrontierItem> {
-    if request.schema_version != REPO_FRONTIER_VERIFICATION_REQUEST_SCHEMA_VERSION
-        || request.contract != REPO_FRONTIER_VERIFICATION_REQUEST_CONTRACT
-        || chrono::DateTime::parse_from_rfc3339(&request.requested_at).is_err()
+    if chrono::DateTime::parse_from_rfc3339(&request.requested_at).is_err()
         || [
             request.request_id.as_str(),
             request.route_id.as_str(),
@@ -7800,8 +7749,7 @@ pub(crate) fn derive_repo_frontier_modeling_request(
     verdict: &SoulVerdictReceipt,
 ) -> Result<RepoFrontierModelingRequest> {
     let identity = require_identity(cache)?;
-    if verdict.schema_version != SOUL_VERDICT_RECEIPT_SCHEMA_VERSION
-        || verdict.receipt_id.trim().is_empty()
+    if verdict.receipt_id.trim().is_empty()
         || verdict.source_result_id.trim().is_empty()
         || verdict.source_job_id.trim().is_empty()
         || chrono::DateTime::parse_from_rfc3339(&verdict.emitted_at).is_err()
@@ -7851,8 +7799,6 @@ pub(crate) fn derive_repo_frontier_modeling_request(
         || verdict.summary != result.summary
         || verdict.risks != result.risks
         || verdict_evidence != result_evidence
-        || verification_request.schema_version != REPO_FRONTIER_VERIFICATION_REQUEST_SCHEMA_VERSION
-        || verification_request.contract != REPO_FRONTIER_VERIFICATION_REQUEST_CONTRACT
         || verification_request.route_id != route.route_id
         || verification_request.model_projection_digest != route.model_projection_digest
         || verification_request.model_source_documents != route.model_source_documents
@@ -7873,7 +7819,6 @@ pub(crate) fn derive_repo_frontier_modeling_request(
         &route.route_id,
     );
     let request = RepoFrontierModelingRequest {
-        schema_version: REPO_FRONTIER_MODELING_REQUEST_SCHEMA_VERSION.to_string(),
         request_id: request_id.clone(),
         model_projection_digest: route.model_projection_digest.clone(),
         model_source_documents: route.model_source_documents.clone(),
@@ -7886,7 +7831,6 @@ pub(crate) fn derive_repo_frontier_modeling_request(
         verification_job_id: result.job_id.clone(),
         allowed_disposition: disposition,
         requested_at: verdict.emitted_at.clone(),
-        contract: REPO_FRONTIER_MODELING_REQUEST_CONTRACT.to_string(),
     };
     Ok(request)
 }
@@ -7941,7 +7885,6 @@ fn derive_repo_frontier_verification_request_for_chain(
         .map(|existing| existing.requested_at)
         .unwrap_or_else(|| commit.emitted_at.clone());
     let request = RepoFrontierVerificationRequest {
-        schema_version: REPO_FRONTIER_VERIFICATION_REQUEST_SCHEMA_VERSION.to_string(),
         request_id,
         route_id: authority.route_id.clone(),
         model_projection_digest: authority.model_projection_digest.clone(),
@@ -7954,7 +7897,6 @@ fn derive_repo_frontier_verification_request_for_chain(
         hands_command_receipt_id: command.receipt_id.clone(),
         hands_commit_receipt_id: commit.receipt_id.clone(),
         requested_at,
-        contract: REPO_FRONTIER_VERIFICATION_REQUEST_CONTRACT.to_string(),
         frontier_authority_documents,
     };
     Ok(request)
@@ -8031,8 +7973,6 @@ fn validate_hands_consequence_grant(
                 .is_some_and(|plan| command != plan.effective_command())
         })
         || !paths_covered
-        || authority.schema_version != REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION
-        || authority.contract != REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT
         || authority.hands_review_id != review.review_id
         || authority.substrate_grant_receipt_id != grant.receipt_id
         || authority.requested_paths != intent.requested_paths

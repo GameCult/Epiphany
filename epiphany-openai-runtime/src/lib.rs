@@ -1824,7 +1824,6 @@ fn role_worker_result_from_ingress(
         safe_paths.sort();
         safe_paths.dedup();
         let mut candidate = epiphany_core::RepoFrontierPlanCandidate {
-            schema_version: epiphany_core::REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION.to_string(),
             candidate_id: String::new(),
             planning_request_id: frontier_planning_context
                 .map(|context| context.request_id.clone())
@@ -1849,7 +1848,6 @@ fn role_worker_result_from_ingress(
             rollback_steps: clean_string_vec(&ingress.rollback_steps),
             commit_message: ingress.commit_message.trim().to_string(),
             proposed_at: completed_at.to_string(),
-            contract: epiphany_core::REPO_FRONTIER_PLANNING_CONTRACT.to_string(),
         };
         match epiphany_core::canonical_repo_frontier_plan_candidate_id(&candidate) {
             Ok(candidate_id) => {
@@ -2975,10 +2973,6 @@ mod tests {
             candidate.candidate_id,
             epiphany_core::canonical_repo_frontier_plan_candidate_id(&candidate)?
         );
-        assert_eq!(
-            candidate.schema_version,
-            epiphany_core::REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION
-        );
         assert_eq!(candidate.safe_paths, ["src", "tests"]);
         Ok(())
     }
@@ -3234,8 +3228,6 @@ mod tests {
             schema_version: epiphany_core::REPO_FRONTIER_PLAN_MIND_CONTEXT_SCHEMA_VERSION.into(),
             contract: epiphany_core::REPO_FRONTIER_PLAN_MIND_CONTEXT_CONTRACT.into(),
             request: epiphany_core::RepoFrontierPlanMindRequest {
-                schema_version: epiphany_core::REPO_FRONTIER_PLAN_MIND_REQUEST_SCHEMA_VERSION
-                    .into(),
                 request_id: "mind-request-1".into(),
                 planning_request_id: "planning-request-1".into(),
                 imagination_result_id: "imagination-result-1".into(),
@@ -3244,10 +3236,8 @@ mod tests {
                 candidate_sha256: "candidate-hash-1".into(),
                 runtime_id: "runtime-1".into(),
                 requested_at: "2026-07-15T09:59:00Z".into(),
-                contract: epiphany_core::REPO_FRONTIER_PLAN_MIND_REQUEST_CONTRACT.into(),
             },
             planning_request: epiphany_core::RepoFrontierPlanningRequest {
-                schema_version: epiphany_core::REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION.into(),
                 request_id: "planning-request-1".into(),
                 model_projection_digest: "model-projection-1".into(),
                 model_source_documents: Vec::new(),
@@ -3258,11 +3248,9 @@ mod tests {
                 selected_organ: "Imagination".into(),
                 repository_scope: vec!["epiphany-openai-runtime".into()],
                 requested_at: "2026-07-15T09:58:00Z".into(),
-                contract: epiphany_core::REPO_FRONTIER_PLANNING_CONTRACT.into(),
                 runtime_id: "runtime-1".into(),
             },
             candidate: epiphany_core::RepoFrontierPlanCandidate {
-                schema_version: epiphany_core::REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION.into(),
                 candidate_id: "candidate-1".into(),
                 planning_request_id: "planning-request-1".into(),
                 model_projection_digest: "model-projection-1".into(),
@@ -3277,7 +3265,6 @@ mod tests {
                 rollback_steps: vec!["revert".into()],
                 commit_message: "Derive Mind identity".into(),
                 proposed_at: "2026-07-15T09:59:00Z".into(),
-                contract: epiphany_core::REPO_FRONTIER_PLANNING_CONTRACT.into(),
             },
         };
         let result = role_worker_result_from_ingress(

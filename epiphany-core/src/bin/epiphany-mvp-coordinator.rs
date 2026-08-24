@@ -10,8 +10,6 @@ use epiphany_core::HANDS_COMMAND_RECEIPT_TYPE;
 use epiphany_core::HANDS_COMMIT_RECEIPT_TYPE;
 use epiphany_core::HANDS_PATCH_RECEIPT_TYPE;
 use epiphany_core::HandsActionIntent;
-use epiphany_core::REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT;
-use epiphany_core::REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION;
 use epiphany_core::RepoFrontierHandsAuthority;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::finalize_coordinator_run;
@@ -1612,7 +1610,6 @@ fn record_hands_implementation_gate(
     ];
     put_hands_action_review(runtime_store, &review)?;
     let authority = RepoFrontierHandsAuthority {
-        schema_version: REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION.to_string(),
         authority_id: format!("repo-frontier-hands-authority-{}", intent.intent_id),
         route_id: route.route_id.clone(),
         model_projection_digest: route.model_projection_digest.clone(),
@@ -1624,7 +1621,6 @@ fn record_hands_implementation_gate(
         substrate_grant_receipt_id: grant_id.clone(),
         requested_paths: requested_paths.clone(),
         granted_at: review.reviewed_at.clone(),
-        contract: REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT.to_string(),
     };
     put_repo_frontier_hands_authority(runtime_store, &authority)?;
 

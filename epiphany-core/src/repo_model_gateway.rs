@@ -33,43 +33,7 @@ use cultcache_rs::DatabaseEntry;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-pub const REPO_FRONTIER_ROUTE_SCHEMA_VERSION: &str = "epiphany.self.repo_frontier_route.v2";
-pub const REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION: &str =
-    "epiphany.hands.repo_frontier_authority.v0";
-pub const REPO_FRONTIER_ROUTE_CONTRACT: &str = "epiphany.repo_frontier_route.v2";
-pub const REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT: &str =
-    "epiphany.repo_frontier_hands_authority.v0";
-pub const REPO_FRONTIER_MODELING_REQUEST_SCHEMA_VERSION: &str =
-    "epiphany.modeling.repo_frontier_verdict_request.v1";
-pub const REPO_FRONTIER_MODELING_REQUEST_CONTRACT: &str =
-    "epiphany.repo_frontier_verdict_modeling_request.v1";
-pub const REPO_FRONTIER_WORK_PROPOSAL_SCHEMA_VERSION: &str =
-    "epiphany.repo_frontier_work_proposal.v3";
-pub const REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION: &str =
-    "epiphany.self.repo_frontier_planning_request.v4";
-pub const REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION: &str =
-    "epiphany.imagination.repo_frontier_plan_candidate.v0";
-pub const REPO_FRONTIER_PLAN_DECISION_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.mind.repo_frontier_plan_decision_receipt.v2";
-pub const REPO_FRONTIER_PLAN_DECISION_CONTRACT: &str = "epiphany.repo_frontier_plan_decision.v0";
-pub const REPO_FRONTIER_PLANNING_CONTRACT: &str = "epiphany.repo_frontier_planning.v4";
-pub const REPO_FRONTIER_PLANNING_FAILURE_REVIEW_SCHEMA_VERSION: &str =
-    "epiphany.self.repo_frontier_planning_failure_review.v0";
-pub const REPO_FRONTIER_RESEARCH_REQUEST_SCHEMA_VERSION: &str =
-    "epiphany.self.repo_frontier_research_request.v3";
-pub const REPO_FRONTIER_RESEARCH_REQUEST_CONTRACT: &str =
-    "epiphany.repo_frontier_research_request.v3";
-pub const REPO_FRONTIER_WORK_PROPOSAL_CONTRACT: &str =
-    "epiphany.repo_frontier_work_proposal.inert.v3";
 pub const RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY: &str = "runtime-repository-domain-binding";
-pub const REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_SCHEMA_VERSION: &str =
-    "epiphany.coordinator.repo_frontier_proposal_modeling_request.v1";
-pub const REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_CONTRACT: &str =
-    "epiphany.repo_frontier_proposal_modeling_request.v1";
-pub const REPO_FRONTIER_PLAN_MIND_REQUEST_SCHEMA_VERSION: &str =
-    "epiphany.self.repo_frontier_plan_mind_request.v1";
-pub const REPO_FRONTIER_PLAN_MIND_REQUEST_CONTRACT: &str =
-    "epiphany.repo_frontier_plan_mind_request.v1";
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
@@ -77,8 +41,6 @@ pub const REPO_FRONTIER_PLAN_MIND_REQUEST_CONTRACT: &str =
     schema = "RepoFrontierWorkProposal"
 )]
 pub struct RepoFrontierWorkProposal {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
     #[cultcache(key = 1)]
     pub proposal_id: String,
     #[cultcache(key = 2)]
@@ -91,8 +53,6 @@ pub struct RepoFrontierWorkProposal {
     pub constraints: Vec<String>,
     #[cultcache(key = 6)]
     pub evidence_refs: Vec<String>,
-    #[cultcache(key = 7)]
-    pub contract: String,
 }
 
 pub fn repo_frontier_proposal_payload_sha256(
@@ -123,8 +83,6 @@ pub struct RuntimeRepositoryDomainBinding {
     schema = "RepoFrontierProposalModelingRequest"
 )]
 pub struct RepoFrontierProposalModelingRequest {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
     #[cultcache(key = 1)]
     pub request_id: String,
     #[cultcache(key = 2)]
@@ -141,8 +99,6 @@ pub struct RepoFrontierProposalModelingRequest {
     pub workspace: String,
     #[cultcache(key = 8)]
     pub selected_at: String,
-    #[cultcache(key = 9)]
-    pub contract: String,
     #[cultcache(key = 10)]
     pub direction_result_id: String,
     #[cultcache(key = 11)]
@@ -157,8 +113,6 @@ pub struct RepoFrontierProposalModelingRequest {
     schema = "RepoFrontierPlanningRequest"
 )]
 pub struct RepoFrontierPlanningRequest {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
     #[cultcache(key = 1)]
     pub request_id: String,
     #[cultcache(key = 2)]
@@ -175,8 +129,6 @@ pub struct RepoFrontierPlanningRequest {
     pub repository_scope: Vec<String>,
     #[cultcache(key = 8)]
     pub requested_at: String,
-    #[cultcache(key = 9)]
-    pub contract: String,
     #[cultcache(key = 10)]
     pub runtime_id: String,
     /// Exact current documents that own whether this planning work remains
@@ -195,8 +147,6 @@ pub struct RepoFrontierPlanningRequest {
     schema = "RepoFrontierResearchRequest"
 )]
 pub struct RepoFrontierResearchRequest {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
     #[cultcache(key = 1)]
     pub request_id: String,
     #[cultcache(key = 2)]
@@ -213,8 +163,6 @@ pub struct RepoFrontierResearchRequest {
     pub requested_at: String,
     #[cultcache(key = 8)]
     pub runtime_id: String,
-    #[cultcache(key = 10)]
-    pub contract: String,
     /// Immutable public source identities already owned by the admitted
     /// frontier. This is dedicated retrieval authority, not worker-authored
     /// evidence or a search hint.
@@ -233,8 +181,6 @@ pub struct RepoFrontierResearchRequest {
     schema = "RepoFrontierPlanCandidate"
 )]
 pub struct RepoFrontierPlanCandidate {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
     #[cultcache(key = 1)]
     pub candidate_id: String,
     #[cultcache(key = 2)]
@@ -263,8 +209,6 @@ pub struct RepoFrontierPlanCandidate {
     pub commit_message: String,
     #[cultcache(key = 14)]
     pub proposed_at: String,
-    #[cultcache(key = 15)]
-    pub contract: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -310,8 +254,6 @@ pub struct RepoFrontierPlanningLifecycle {
     schema = "RepoFrontierPlanMindRequest"
 )]
 pub struct RepoFrontierPlanMindRequest {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
     #[cultcache(key = 1)]
     pub request_id: String,
     #[cultcache(key = 2)]
@@ -328,8 +270,6 @@ pub struct RepoFrontierPlanMindRequest {
     pub runtime_id: String,
     #[cultcache(key = 9)]
     pub requested_at: String,
-    #[cultcache(key = 10)]
-    pub contract: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -350,8 +290,6 @@ pub struct RepoFrontierPlanMindDecision {
     schema = "RepoFrontierPlanDecisionReceipt"
 )]
 pub struct RepoFrontierPlanDecisionReceipt {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
     #[cultcache(key = 1)]
     pub decision_id: String,
     #[cultcache(key = 2)]
@@ -374,8 +312,6 @@ pub struct RepoFrontierPlanDecisionReceipt {
     pub rationale: String,
     #[cultcache(key = 11)]
     pub decided_at: String,
-    #[cultcache(key = 12)]
-    pub contract: String,
     #[cultcache(key = 13)]
     pub decision_source: RepoFrontierPlanDecisionSource,
 }
@@ -399,8 +335,6 @@ pub enum RepoFrontierVerdictDisposition {
     schema = "RepoFrontierModelingRequest"
 )]
 pub struct RepoFrontierModelingRequest {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
     #[cultcache(key = 1)]
     pub request_id: String,
     #[cultcache(key = 2)]
@@ -425,8 +359,6 @@ pub struct RepoFrontierModelingRequest {
     pub allowed_disposition: RepoFrontierVerdictDisposition,
     #[cultcache(key = 12)]
     pub requested_at: String,
-    #[cultcache(key = 13)]
-    pub contract: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
@@ -435,8 +367,6 @@ pub struct RepoFrontierModelingRequest {
     schema = "RepoFrontierPlanningFailureReview"
 )]
 pub struct RepoFrontierPlanningFailureReview {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
     #[cultcache(key = 1)]
     pub review_id: String,
     #[cultcache(key = 2)]
@@ -465,8 +395,6 @@ pub enum RepoFrontierNextOrgan {
     schema = "RepoFrontierRoute"
 )]
 pub struct RepoFrontierRoute {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
     #[cultcache(key = 1)]
     pub route_id: String,
     #[cultcache(key = 2)]
@@ -493,8 +421,6 @@ pub struct RepoFrontierRoute {
     pub adopted_plan: Option<epiphany_state_model::RepoFrontierAdoptedPlan>,
     #[cultcache(key = 13)]
     pub selected_at: String,
-    #[cultcache(key = 14)]
-    pub contract: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
@@ -503,8 +429,6 @@ pub struct RepoFrontierRoute {
     schema = "RepoFrontierHandsAuthority"
 )]
 pub struct RepoFrontierHandsAuthority {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
     #[cultcache(key = 1)]
     pub authority_id: String,
     #[cultcache(key = 2)]
@@ -527,6 +451,4 @@ pub struct RepoFrontierHandsAuthority {
     pub requested_paths: Vec<String>,
     #[cultcache(key = 11)]
     pub granted_at: String,
-    #[cultcache(key = 12)]
-    pub contract: String,
 }
