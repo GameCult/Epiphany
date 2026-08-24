@@ -34,7 +34,7 @@ use epiphany_model_adapter::EpiphanyModelReceipt;
 use epiphany_model_adapter::EpiphanyModelRequest;
 use epiphany_model_adapter::EpiphanyModelStreamEvent;
 use epiphany_model_adapter::EpiphanyModelStreamPayload;
-use epiphany_openai_adapter::EpiphanyProviderRequest;
+use epiphany_model_adapter::EpiphanyProviderRequest;
 use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
 use epiphany_tool_adapter::EpiphanyToolInvocationReceipt;
 use epiphany_tool_adapter::TOOL_ADAPTER_INVOCATION_INTENT_SCHEMA_ID;
@@ -1078,7 +1078,7 @@ pub fn open_runtime_model_execution(
     validate_non_empty(&job_options.job_id, "model execution job id")?;
     validate_non_empty(&model_request.request_id, "model execution request id")?;
     validate_non_empty(&model_request.provider, "model execution provider")?;
-    let provider_request = epiphany_openai_adapter::request_from_native(model_request)?;
+    let provider_request = epiphany_model_adapter::request_from_native(model_request)?;
 
     let store_path = store_path.as_ref();
     let mut cache = runtime_spine_cache(store_path)?;
@@ -1399,7 +1399,7 @@ pub(crate) fn validate_runtime_model_execution_binding(
         .get::<EpiphanyRuntimeJob>(&binding.job_id)?
         .ok_or_else(|| anyhow!("model execution binding {request_id:?} lost its job"))?;
     if binding.request_id != request_id
-        || provider != epiphany_openai_adapter::request_from_native(&native)?
+        || provider != epiphany_model_adapter::request_from_native(&native)?
     {
         return Err(anyhow!(
             "model execution binding {request_id:?} is not one exact request family"
@@ -1737,7 +1737,7 @@ fn archive_completed_model_session(
             .get::<EpiphanyProviderRequest>(request_id)?
             .ok_or_else(|| anyhow!("archived model execution lost provider request"))?;
         if provider_request.request_id() != request_id
-            || provider_request != epiphany_openai_adapter::request_from_native(native_request)?
+            || provider_request != epiphany_model_adapter::request_from_native(native_request)?
         {
             return Err(anyhow!(
                 "archived model execution request family is inconsistent"

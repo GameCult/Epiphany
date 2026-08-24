@@ -2,7 +2,6 @@
 members = [
     "epiphany-core",
     "epiphany-model-adapter",
-    "epiphany-openai-adapter",
     "epiphany-openai-runtime",
     "epiphany-release-construction",
     "epiphany-tool-adapter",
@@ -27,7 +26,6 @@ cultcache-rs = { path = "vendor/cultcache-rs" }
 cultnet-rs = { path = "vendor/cultnet-rs" }
 epiphany-core = { path = "epiphany-core" }
 epiphany-model-adapter = { path = "epiphany-model-adapter" }
-epiphany-openai-adapter = { path = "epiphany-openai-adapter" }
 epiphany-openai-runtime = { path = "epiphany-openai-runtime", optional = true }
 codex-connector = { git = "https://github.com/GameCult/CodexConnector", rev = "6dc80f6d266db4d82566d2434adcc55a48e8ecad", default-features = false, features = ["client"], optional = true }
 epiphany-tool-adapter = { path = "epiphany-tool-adapter" }

@@ -28,7 +28,7 @@ use epiphany_model_adapter::EpiphanyModelRequest;
 use epiphany_model_adapter::EpiphanyModelStreamEvent;
 use epiphany_model_adapter::EpiphanyModelStreamPayload;
 use epiphany_model_adapter::EpiphanyModelToolDefinition;
-use epiphany_openai_adapter::EpiphanyProviderRequest;
+use epiphany_model_adapter::EpiphanyProviderRequest;
 use epiphany_tool_adapter::EPIPHANY_TOOL_RUNTIME_ADAPTER_ID;
 use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
 use epiphany_tool_adapter::EpiphanyToolInvocationReceipt;
@@ -765,7 +765,7 @@ pub fn model_receipt_key(request_id: &str) -> String {
 pub fn provider_request_from_model_request(
     request: &EpiphanyModelRequest,
 ) -> Result<EpiphanyProviderRequest> {
-    epiphany_openai_adapter::request_from_native(request)
+    epiphany_model_adapter::request_from_native(request)
 }
 
 fn repository_source_tools() -> Vec<EpiphanyModelToolDefinition> {
@@ -2772,7 +2772,7 @@ mod tests {
             "gpt-5.4",
             "Answer plainly.",
         );
-        let request = epiphany_openai_adapter::request_from_native(&native_request)?;
+        let request = epiphany_model_adapter::request_from_native(&native_request)?;
         let options = default_options(store.clone(), &request);
         ensure_openai_runtime_ready(&options)?;
         open_runtime_model_execution(
@@ -3220,7 +3220,7 @@ mod tests {
             r#"{"type":"object","properties":{"researchDecision":{"type":"string"}},"required":["researchDecision"]}"#
                 .to_string(),
         );
-        let request = epiphany_openai_adapter::request_from_native(&native_request)?;
+        let request = epiphany_model_adapter::request_from_native(&native_request)?;
         let options = default_options(store.clone(), &request);
         ensure_openai_runtime_ready(&options)?;
         open_runtime_model_execution(

@@ -6,10 +6,9 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use cultcache_rs::{CacheBackingStore, CultCache, CultCacheEnvelope, DatabaseEntry};
-use epiphany_model_adapter::EpiphanyModelRequest;
-use epiphany_openai_adapter::EpiphanyProviderRequest;
 #[cfg(test)]
-use epiphany_openai_adapter::EpiphanyProviderRequestPayload;
+use epiphany_model_adapter::EpiphanyProviderRequestPayload;
+use epiphany_model_adapter::{EpiphanyModelRequest, EpiphanyProviderRequest};
 use epiphany_tool_adapter::{
     EpiphanyToolInvocationIntent, EpiphanyToolInvocationReceipt, receipt_output_for_model,
     tool_invocation_intent_key, tool_invocation_receipt_key,
@@ -371,7 +370,7 @@ impl EpiphanyDecisionContext {
         tool_observations: Vec<EpiphanyDecisionToolObservation>,
     ) -> Result<Self> {
         basis.validate()?;
-        let provider_request = epiphany_openai_adapter::request_from_native(&native_request)?;
+        let provider_request = epiphany_model_adapter::request_from_native(&native_request)?;
         validate_request_pair(basis, &native_request, &provider_request)?;
         validate_tool_observations(&native_request, &tool_observations)?;
         let mut context = Self {
@@ -1699,7 +1698,7 @@ fn validate_request_pair(
     if native.reasoning_basis_id.as_deref() != Some(basis.basis_id.as_str()) {
         return Err(anyhow!("model request does not bind its reasoning basis"));
     }
-    if provider != &epiphany_openai_adapter::request_from_native(native)? {
+    if provider != &epiphany_model_adapter::request_from_native(native)? {
         return Err(anyhow!("native and provider terminal requests diverge"));
     }
     Ok(())
@@ -1995,7 +1994,7 @@ mod tests {
         native.input.push(EpiphanyModelInputItem::UserText {
             text: "projection".into(),
         });
-        let provider = epiphany_openai_adapter::request_from_native(&native).unwrap();
+        let provider = epiphany_model_adapter::request_from_native(&native).unwrap();
         (native, provider)
     }
 
@@ -2072,7 +2071,7 @@ mod tests {
         )?;
         assert_eq!(
             tool_context.provider_request()?,
-            epiphany_openai_adapter::request_from_native(&native_with_substituted_tools)?,
+            epiphany_model_adapter::request_from_native(&native_with_substituted_tools)?,
             "provider request must be derived from the complete native request"
         );
 
@@ -2172,7 +2171,7 @@ mod tests {
         ));
         assert_eq!(
             provider,
-            epiphany_openai_adapter::request_from_native(&native)?
+            epiphany_model_adapter::request_from_native(&native)?
         );
         Ok(())
     }

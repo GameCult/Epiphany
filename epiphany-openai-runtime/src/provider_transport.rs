@@ -11,7 +11,7 @@ use epiphany_model_adapter::{
     EpiphanyModelReceipt, EpiphanyModelRequest, EpiphanyModelStreamEvent,
     EpiphanyModelStreamPayload, MODEL_ADAPTER_EVENT_SCHEMA_ID,
 };
-use epiphany_openai_adapter::{
+use epiphany_model_adapter::{
     EpiphanyOpenRouterRequest, EpiphanyProviderRequestPayload, openrouter_events_from_response,
     openrouter_request_body,
 };

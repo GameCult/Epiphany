@@ -543,7 +543,6 @@ dependencies = [
  "cultnet-rs",
  "ed25519-dalek",
  "epiphany-model-adapter",
- "epiphany-openai-adapter",
  "epiphany-release-construction",
  "epiphany-tool-adapter",
  "ghostlight-persona-projection",
@@ -563,18 +562,9 @@ dependencies = [
 name = "epiphany-model-adapter"
 version = "0.1.0"
 dependencies = [
- "cultcache-rs",
- "serde",
-]
-
-[[package]]
-name = "epiphany-openai-adapter"
-version = "0.1.0"
-dependencies = [
  "anyhow",
  "codex-connector",
  "cultcache-rs",
- "epiphany-model-adapter",
  "serde",
  "serde_json",
  "sha2",
@@ -589,7 +579,6 @@ dependencies = [
  "cultcache-rs",
  "epiphany-core",
  "epiphany-model-adapter",
- "epiphany-openai-adapter",
  "epiphany-tool-adapter",
  "rmp-serde",
  "serde",
@@ -612,7 +601,6 @@ dependencies = [
  "cultnet-rs",
  "epiphany-core",
  "epiphany-model-adapter",
- "epiphany-openai-adapter",
  "epiphany-openai-runtime",
  "epiphany-tool-adapter",
  "epiphany-tool-mcp-runtime",

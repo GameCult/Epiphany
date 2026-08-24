@@ -22,7 +22,7 @@ use epiphany_model_adapter::{
     MODEL_ADAPTER_EVENT_SCHEMA_ID,
 };
 #[cfg(test)]
-use epiphany_openai_adapter::{EpiphanyOpenRouterRequest, EpiphanyProviderRequestPayload};
+use epiphany_model_adapter::{EpiphanyOpenRouterRequest, EpiphanyProviderRequestPayload};
 use epiphany_openai_runtime::DEFAULT_CODEX_CONNECTOR_ENDPOINT;
 use epiphany_openai_runtime::DEFAULT_PROVIDER_REQUEST_TIMEOUT;
 use epiphany_openai_runtime::EpiphanyOpenAiRuntimeOptions;
@@ -934,7 +934,7 @@ mod tests {
                 output: r#"{"ok":true}"#.into(),
             });
 
-        let projected = epiphany_openai_adapter::request_from_native(&request)?;
+        let projected = epiphany_model_adapter::request_from_native(&request)?;
         let EpiphanyProviderRequestPayload::Codex(projected) = projected.payload else {
             panic!("Codex provider must lower to the connector contract")
         };
@@ -1048,7 +1048,7 @@ mod tests {
             );
             request.output_contract_id = Some(format!("worker-schema-{index}"));
             request.output_schema_json = Some(serde_json::to_string(&schema)?);
-            let projected = epiphany_openai_adapter::strict_provider_schema(
+            let projected = epiphany_model_adapter::strict_provider_schema(
                 request.output_schema_json.as_deref().unwrap(),
             )?;
             assert_eq!(projected["additionalProperties"], false);
@@ -1072,7 +1072,7 @@ mod tests {
             ),
         )?);
 
-        let projected = epiphany_openai_adapter::strict_provider_schema(
+        let projected = epiphany_model_adapter::strict_provider_schema(
             request.output_schema_json.as_deref().unwrap(),
         )?;
         let decision = &projected["properties"]["researchDecision"];

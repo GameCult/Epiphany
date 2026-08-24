@@ -10,5 +10,9 @@ name = "epiphany_model_adapter"
 path = "src/lib.rs"
 
 [dependencies]
+anyhow = "1"
+codex-connector = { git = "https://github.com/GameCult/CodexConnector", rev = "6dc80f6d266db4d82566d2434adcc55a48e8ecad", default-features = false }
 cultcache-rs = { path = "../vendor/cultcache-rs" }
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"

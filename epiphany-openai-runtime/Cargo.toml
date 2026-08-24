@@ -16,7 +16,6 @@ chrono = "0.4.44"
 cultcache-rs = { path = "../vendor/cultcache-rs" }
 epiphany-core = { path = "../epiphany-core" }
 epiphany-model-adapter = { path = "../epiphany-model-adapter" }
-epiphany-openai-adapter = { path = "../epiphany-openai-adapter" }
 epiphany-tool-adapter = { path = "../epiphany-tool-adapter" }
 rmp-serde = "1"
 serde = { version = "1", features = ["derive"] }

@@ -17,7 +17,6 @@ ctrlc = { version = "3.5.1", features = ["termination"] }
 cultcache-rs = { path = "../vendor/cultcache-rs" }
 cultmesh-rs = { path = "../vendor/cultmesh-rs" }
 cultnet-rs = { path = "../vendor/cultnet-rs" }
-epiphany-openai-adapter = { path = "../epiphany-openai-adapter" }
 epiphany-release-construction = { path = "../epiphany-release-construction" }
 epiphany-model-adapter = { path = "../epiphany-model-adapter" }
 epiphany-tool-adapter = { path = "../epiphany-tool-adapter" }
