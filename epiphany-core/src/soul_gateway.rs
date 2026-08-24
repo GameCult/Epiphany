@@ -1,8 +1,5 @@
 use cultcache_rs::DatabaseEntry;
 
-pub const SOUL_VERDICT_RECEIPT_TYPE: &str = "epiphany.soul.verdict_receipt";
-pub const REPO_FRONTIER_VERIFICATION_REQUEST_TYPE: &str =
-    "epiphany.soul.repo_frontier_verification_request";
 pub const REPO_FRONTIER_VERIFICATION_REQUEST_SCHEMA_VERSION: &str =
     "epiphany.soul.repo_frontier_verification_request.v2";
 pub const REPO_FRONTIER_VERIFICATION_REQUEST_CONTRACT: &str =

@@ -1,7 +1,5 @@
 use cultcache_rs::DatabaseEntry;
 
-pub const HANDS_ACTION_INTENT_TYPE: &str = "epiphany.hands.action_intent";
-pub const HANDS_ACTION_REVIEW_TYPE: &str = "epiphany.hands.action_review";
 pub const HANDS_COMMAND_RECEIPT_TYPE: &str = "epiphany.hands.command_receipt";
 pub const HANDS_PATCH_RECEIPT_TYPE: &str = "epiphany.hands.patch_receipt";
 pub const HANDS_COMMIT_RECEIPT_TYPE: &str = "epiphany.hands.commit_receipt";

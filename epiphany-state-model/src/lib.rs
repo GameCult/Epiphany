@@ -6,44 +6,6 @@ use serde::Serialize;
 use ts_rs::TS;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
-pub struct EpiphanyAcceptanceReceipt {
-    pub id: String,
-    pub result_id: String,
-    pub job_id: String,
-    pub binding_id: String,
-    pub surface: String,
-    pub role_id: String,
-    pub status: String,
-    pub accepted_at: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub accepted_observation_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub accepted_evidence_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub summary: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
-pub struct EpiphanyRuntimeLink {
-    pub id: String,
-    pub binding_id: String,
-    pub surface: String,
-    pub role_id: String,
-    pub authority_scope: String,
-    pub runtime_job_id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub runtime_result_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub linked_subgoal_ids: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub linked_graph_node_ids: Vec<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
 pub struct EpiphanySubgoal {
     pub id: String,
     pub title: String,
@@ -64,86 +26,6 @@ pub struct EpiphanyInvariant {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
-pub struct EpiphanyGraphs {
-    #[serde(default, skip_serializing_if = "EpiphanyGraph::is_empty")]
-    pub architecture: EpiphanyGraph,
-    #[serde(default, skip_serializing_if = "EpiphanyGraph::is_empty")]
-    pub dataflow: EpiphanyGraph,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub links: Vec<EpiphanyGraphLink>,
-}
-
-impl EpiphanyGraphs {
-    pub fn is_empty(&self) -> bool {
-        self.architecture.is_empty() && self.dataflow.is_empty() && self.links.is_empty()
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
-pub struct EpiphanyGraph {
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub nodes: Vec<EpiphanyGraphNode>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub edges: Vec<EpiphanyGraphEdge>,
-}
-
-impl EpiphanyGraph {
-    pub fn is_empty(&self) -> bool {
-        self.nodes.is_empty() && self.edges.is_empty()
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
-pub struct EpiphanyGraphNode {
-    pub id: String,
-    pub title: String,
-    pub purpose: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub mechanism: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub metaphor: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub status: Option<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<EpiphanyCodeRef>")]
-    pub code_refs: Vec<EpiphanyCodeRef>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
-pub struct EpiphanyGraphEdge {
-    pub source_id: String,
-    pub target_id: String,
-    pub kind: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub label: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub mechanism: Option<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<EpiphanyCodeRef>")]
-    pub code_refs: Vec<EpiphanyCodeRef>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
-pub struct EpiphanyGraphLink {
-    pub dataflow_node_id: String,
-    pub architecture_node_id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub relationship: Option<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<EpiphanyCodeRef>")]
-    pub code_refs: Vec<EpiphanyCodeRef>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
 pub struct EpiphanyCodeRef {
     pub path: PathBuf,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -158,112 +40,6 @@ pub struct EpiphanyCodeRef {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "string | null")]
     pub note: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
-pub struct EpiphanyGraphFrontier {
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub active_node_ids: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub active_edge_ids: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub open_question_ids: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub open_gap_ids: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub dirty_paths: Vec<PathBuf>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
-pub struct EpiphanyGraphCheckpoint {
-    pub checkpoint_id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub summary: Option<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub frontier_node_ids: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub open_question_ids: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub open_gap_ids: Vec<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
-pub struct EpiphanyRetrievalState {
-    pub workspace_root: PathBuf,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub index_revision: Option<String>,
-    #[serde(default)]
-    pub status: EpiphanyRetrievalStatus,
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    #[ts(type = "boolean")]
-    pub semantic_available: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "bigint | null")]
-    pub last_indexed_at_unix_seconds: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "number | null")]
-    pub indexed_file_count: Option<u32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "number | null")]
-    pub indexed_chunk_count: Option<u32>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<EpiphanyRetrievalShardSummary>")]
-    pub shards: Vec<EpiphanyRetrievalShardSummary>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub dirty_paths: Vec<PathBuf>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
-#[serde(rename_all = "snake_case")]
-#[ts(rename_all = "snake_case")]
-pub enum EpiphanyRetrievalStatus {
-    #[default]
-    Unavailable,
-    Ready,
-    Stale,
-    Indexing,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
-pub struct EpiphanyRetrievalShardSummary {
-    pub shard_id: String,
-    pub path_prefix: PathBuf,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "number | null")]
-    pub indexed_file_count: Option<u32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "number | null")]
-    pub indexed_chunk_count: Option<u32>,
-    #[serde(default)]
-    pub status: EpiphanyRetrievalStatus,
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    #[ts(type = "boolean")]
-    pub exact_available: bool,
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    #[ts(type = "boolean")]
-    pub semantic_available: bool,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
-pub struct EpiphanyScratchPad {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub summary: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub hypothesis: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub next_probe: Option<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub notes: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
@@ -301,36 +77,6 @@ pub struct EpiphanyInvestigationCheckpoint {
     pub evidence_ids: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, JsonSchema, TS)]
-#[serde(rename_all = "snake_case")]
-#[ts(rename_all = "snake_case")]
-pub enum EpiphanyJobKind {
-    Indexing,
-    Remap,
-    Verification,
-    Specialist,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS)]
-pub struct EpiphanyJobBinding {
-    pub id: String,
-    pub kind: EpiphanyJobKind,
-    pub scope: String,
-    pub owner_role: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub authority_scope: Option<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub linked_subgoal_ids: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub linked_graph_node_ids: Vec<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub blocking_reason: Option<String>,
-}
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
 pub struct EpiphanyObservation {
     pub id: String,
@@ -351,18 +97,6 @@ pub struct EpiphanyEvidenceRecord {
     pub summary: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub code_refs: Vec<EpiphanyCodeRef>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
-pub struct EpiphanyChurnState {
-    pub understanding_status: String,
-    pub diff_pressure: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub warning: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "number | null")]
-    pub unexplained_writes: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]

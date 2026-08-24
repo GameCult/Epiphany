@@ -254,12 +254,6 @@ pub async fn run_tool_followup_model_turn(
     run_model_turn(provider, options, request).await
 }
 
-pub async fn run_worker_launch(
-    options: EpiphanyWorkerRuntimeOptions,
-) -> Result<EpiphanyWorkerRuntimeRunSummary> {
-    run_worker_launch_observed(options, |_| {}).await
-}
-
 pub async fn run_worker_launch_observed<F>(
     options: EpiphanyWorkerRuntimeOptions,
     on_model_request: F,
@@ -855,16 +849,6 @@ pub fn ensure_openai_runtime_ready(options: &EpiphanyOpenAiRuntimeOptions) -> Re
             created_at: now(),
         },
     )?;
-    Ok(())
-}
-
-pub fn store_model_request(
-    store_path: impl AsRef<Path>,
-    request: &EpiphanyModelRequest,
-) -> Result<()> {
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    cache.put(model_request_key(&request.request_id), request)?;
     Ok(())
 }
 
