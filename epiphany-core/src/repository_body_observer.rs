@@ -367,12 +367,6 @@ pub fn admit_repository_body_observation(
     }
 }
 
-pub fn current_mind_repository_body_observation(
-    runtime_store: &Path,
-) -> Result<Option<RepositoryBodyObservationBasis>> {
-    Ok(crate::assemble_mind_view(runtime_store)?.repository_body_observation)
-}
-
 /// Loads the authenticated current Repository Body basis already persisted for
 /// a runtime without observing the worktree or advancing the Body generation.
 pub fn load_current_runtime_repository_body_basis(
@@ -1586,7 +1580,7 @@ mod tests {
         run(d.path(), &["add", "."])?;
         let observed = observe_runtime_repository_body_basis(&runtime)?;
         assert_eq!(
-            current_mind_repository_body_observation(&runtime)?,
+            crate::assemble_mind_view(&runtime)?.repository_body_observation,
             Some(observed.clone())
         );
         let mut mind = crate::runtime_spine_cache(&runtime)?;

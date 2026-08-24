@@ -350,7 +350,6 @@ pub use substrate_gate::SubstrateGateRepoAccessGrantReceipt;
 pub use substrate_gate::substrate_gate_coordinator_implementation_grant;
 pub use substrate_gate::substrate_gate_operation_for_governed_tool;
 pub use substrate_gate::substrate_gate_repo_access_grant_for_worker;
-pub use substrate_gate::substrate_gate_repo_work_planning_grant;
 pub use surfaces::AdmittedModelDirectionConsiderationContextProjection;
 pub use surfaces::EpiphanyCoordinatorAction;
 pub use surfaces::EpiphanyCoordinatorDecision;

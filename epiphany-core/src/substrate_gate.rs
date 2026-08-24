@@ -83,26 +83,6 @@ pub fn substrate_gate_operation_for_governed_tool(
     }
 }
 
-pub fn substrate_gate_repo_work_planning_grant(
-    receipt_id: String,
-    runtime_job_id: String,
-    granted_paths: Vec<String>,
-    granted_at: String,
-) -> SubstrateGateRepoAccessGrantReceipt {
-    SubstrateGateRepoAccessGrantReceipt {
-        schema_version: SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION.to_string(),
-        receipt_id,
-        runtime_job_id,
-        binding_id: "repo-work-runner".to_string(),
-        role: "epiphany-hands".to_string(),
-        authority_scope: "repo.branch_local_work".to_string(),
-        granted_operations: vec!["read".to_string(), "snapshot".to_string()],
-        granted_paths,
-        granted_at,
-        contract: "Substrate Gate grants read/snapshot access for repo-work planning only; mutation awaits an approved Hands review.".to_string(),
-    }
-}
-
 pub fn substrate_gate_coordinator_implementation_grant(
     receipt_id: String,
     runtime_job_id: String,

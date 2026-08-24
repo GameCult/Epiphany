@@ -742,19 +742,6 @@ pub fn persona_turn_request_source(
     crate::EpiphanyMindDocumentVersion::from_envelope("epiphany-persona-social", &envelope)
 }
 
-pub fn blocked_persona_pressures(
-    store_path: impl AsRef<Path>,
-) -> Result<Vec<PersonaBlockedConversationPressure>> {
-    let cache = persona_social_cache(store_path)?;
-    let mut pressures = cache
-        .get_all::<PersonaSocialQuarantineDocument>()?
-        .into_iter()
-        .map(|document| document.pressure)
-        .collect::<Vec<_>>();
-    pressures.sort_by(|left, right| left.quarantine_id.cmp(&right.quarantine_id));
-    Ok(pressures)
-}
-
 pub fn persona_retention_head(
     store_path: impl AsRef<Path>,
 ) -> Result<Option<PersonaConversationRetentionHead>> {
