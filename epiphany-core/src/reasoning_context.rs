@@ -7,7 +7,9 @@ use crate::{
 use anyhow::{Result, anyhow};
 use cultcache_rs::{CacheBackingStore, CultCache, CultCacheEnvelope, DatabaseEntry};
 use epiphany_model_adapter::EpiphanyModelRequest;
-use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
+use epiphany_openai_adapter::EpiphanyProviderRequest;
+#[cfg(test)]
+use epiphany_openai_adapter::EpiphanyProviderRequestPayload;
 use epiphany_tool_adapter::{
     EpiphanyToolInvocationIntent, EpiphanyToolInvocationReceipt, receipt_output_for_model,
     tool_invocation_intent_key, tool_invocation_receipt_key,
@@ -18,7 +20,7 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 pub const REASONING_BASIS_SCHEMA_VERSION: &str = "epiphany.reasoning_basis.v1";
-pub const DECISION_CONTEXT_SCHEMA_VERSION: &str = "epiphany.decision_context.v2";
+pub const DECISION_CONTEXT_SCHEMA_VERSION: &str = "epiphany.decision_context.v3";
 pub const MODEL_PASS_FAILURE_SCHEMA_VERSION: &str = "epiphany.model_pass_failure.v1";
 pub const MIND_COMMIT_RECEIPT_SCHEMA_VERSION: &str = "epiphany.mind_commit_receipt.v1";
 pub const DECISION_AUDIT_PROJECTION_SCHEMA_VERSION: &str = "epiphany.decision_audit_projection.v1";
@@ -342,7 +344,7 @@ pub struct EpiphanyDecisionToolObservation {
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(
-    type = "epiphany.decision_context.v2",
+    type = "epiphany.decision_context.v3",
     schema = "EpiphanyDecisionContext"
 )]
 pub struct EpiphanyDecisionContext {
@@ -369,7 +371,7 @@ impl EpiphanyDecisionContext {
         tool_observations: Vec<EpiphanyDecisionToolObservation>,
     ) -> Result<Self> {
         basis.validate()?;
-        let provider_request = epiphany_openai_adapter::request_from_native(&native_request);
+        let provider_request = epiphany_openai_adapter::request_from_native(&native_request)?;
         validate_request_pair(basis, &native_request, &provider_request)?;
         validate_tool_observations(&native_request, &tool_observations)?;
         let mut context = Self {
@@ -411,7 +413,7 @@ impl EpiphanyDecisionContext {
             .map_err(|error| anyhow!("decision native request is invalid: {error}"))
     }
 
-    pub fn provider_request(&self) -> Result<EpiphanyOpenAiModelRequest> {
+    pub fn provider_request(&self) -> Result<EpiphanyProviderRequest> {
         rmp_serde::from_slice(&self.provider_request_msgpack)
             .map_err(|error| anyhow!("decision provider request is invalid: {error}"))
     }
@@ -633,7 +635,7 @@ pub struct EpiphanyDecisionAuditProjection {
     pub decision_context: EpiphanyDecisionContext,
     pub reasoning_projection: EpiphanyReasoningProjection,
     pub terminal_native_request: EpiphanyModelRequest,
-    pub terminal_provider_request: EpiphanyOpenAiModelRequest,
+    pub terminal_provider_request: EpiphanyProviderRequest,
     pub tool_observations: Vec<EpiphanyDecisionToolObservation>,
     pub terminal_records: EpiphanyDecisionTerminalRecords,
     pub mind_commit_receipts: Vec<EpiphanyMindCommitReceipt>,
@@ -1340,7 +1342,7 @@ fn validate_context_store_ownership(
         .as_ref()
         != Some(&native)
         || cache
-            .get::<EpiphanyOpenAiModelRequest>(&provider.request_id)?
+            .get::<EpiphanyProviderRequest>(provider.request_id())?
             .as_ref()
             != Some(&provider)
     {
@@ -1692,12 +1694,12 @@ fn commit_authorized_mind_mutation(
 fn validate_request_pair(
     basis: &EpiphanyReasoningBasis,
     native: &EpiphanyModelRequest,
-    provider: &EpiphanyOpenAiModelRequest,
+    provider: &EpiphanyProviderRequest,
 ) -> Result<()> {
     if native.reasoning_basis_id.as_deref() != Some(basis.basis_id.as_str()) {
         return Err(anyhow!("model request does not bind its reasoning basis"));
     }
-    if provider != &epiphany_openai_adapter::request_from_native(native) {
+    if provider != &epiphany_openai_adapter::request_from_native(native)? {
         return Err(anyhow!("native and provider terminal requests diverge"));
     }
     Ok(())
@@ -1981,9 +1983,7 @@ mod tests {
         )
     }
 
-    fn requests(
-        basis: &EpiphanyReasoningBasis,
-    ) -> (EpiphanyModelRequest, EpiphanyOpenAiModelRequest) {
+    fn requests(basis: &EpiphanyReasoningBasis) -> (EpiphanyModelRequest, EpiphanyProviderRequest) {
         let mut native = EpiphanyModelRequest::new(
             "request-1",
             "conversation-1",
@@ -1995,25 +1995,7 @@ mod tests {
         native.input.push(EpiphanyModelInputItem::UserText {
             text: "projection".into(),
         });
-        let provider = EpiphanyOpenAiModelRequest {
-            schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_REQUEST_SCHEMA_ID.into(),
-            request_id: native.request_id.clone(),
-            conversation_id: native.conversation_id.clone(),
-            model: native.model.clone(),
-            instructions: native.instructions.clone(),
-            input: vec![epiphany_openai_adapter::EpiphanyOpenAiInputItem::UserText {
-                text: "projection".into(),
-            }],
-            reasoning_effort: None,
-            reasoning_summary: None,
-            service_tier: None,
-            output_contract_id: None,
-            previous_response_id: None,
-            tools: Vec::new(),
-            output_schema_json: None,
-            provider_id: native.provider.clone(),
-            wire_dialect: epiphany_openai_adapter::EpiphanyOpenAiWireDialect::Responses,
-        };
+        let provider = epiphany_openai_adapter::request_from_native(&native).unwrap();
         (native, provider)
     }
 
@@ -2060,7 +2042,12 @@ mod tests {
         let (native, _) = requests(&reasoning_basis);
         let context = EpiphanyDecisionContext::new(&reasoning_basis, native.clone(), Vec::new())?;
         let mut substituted_provider_input = context.provider_request()?;
-        substituted_provider_input.input.clear();
+        match &mut substituted_provider_input.payload {
+            EpiphanyProviderRequestPayload::Codex(request) => request.input.clear(),
+            EpiphanyProviderRequestPayload::OpenRouter(_) => {
+                panic!("test fixture must lower to the Codex provider contract")
+            }
+        }
         let mut substituted_provider_context = context;
         substituted_provider_context.provider_request_msgpack =
             rmp_serde::to_vec_named(&substituted_provider_input)?;
@@ -2085,7 +2072,7 @@ mod tests {
         )?;
         assert_eq!(
             tool_context.provider_request()?,
-            epiphany_openai_adapter::request_from_native(&native_with_substituted_tools),
+            epiphany_openai_adapter::request_from_native(&native_with_substituted_tools)?,
             "provider request must be derived from the complete native request"
         );
 
@@ -2179,14 +2166,13 @@ mod tests {
 
         let context = EpiphanyDecisionContext::new(&reasoning_basis, native.clone(), Vec::new())?;
         let provider = context.provider_request()?;
-        assert_eq!(provider.provider_id, "openrouter");
-        assert_eq!(
-            provider.wire_dialect,
-            epiphany_openai_adapter::EpiphanyOpenAiWireDialect::ChatCompletionsTerminalTool
-        );
+        assert!(matches!(
+            provider.payload,
+            EpiphanyProviderRequestPayload::OpenRouter(_)
+        ));
         assert_eq!(
             provider,
-            epiphany_openai_adapter::request_from_native(&native)
+            epiphany_openai_adapter::request_from_native(&native)?
         );
         Ok(())
     }
@@ -2608,7 +2594,7 @@ mod tests {
         assert_eq!(audit.context_id, context.context_id);
         assert_eq!(audit.reasoning_basis, basis);
         assert_eq!(audit.terminal_native_request.request_id, "request-1");
-        assert_eq!(audit.terminal_provider_request.request_id, "request-1");
+        assert_eq!(audit.terminal_provider_request.request_id(), "request-1");
         assert_eq!(
             audit.terminal_records.role_worker_results,
             vec![terminal_result.clone()]

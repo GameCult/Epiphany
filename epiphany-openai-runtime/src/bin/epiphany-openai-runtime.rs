@@ -19,7 +19,7 @@ use epiphany_model_adapter::EpiphanyModelRequest;
 #[cfg(test)]
 use epiphany_openai_adapter::{
     EpiphanyOpenAiModelReceipt, EpiphanyOpenAiModelRequest, EpiphanyOpenAiStreamEvent,
-    EpiphanyOpenAiStreamPayload,
+    EpiphanyOpenAiStreamPayload, EpiphanyProviderRequestPayload,
 };
 use epiphany_openai_runtime::DEFAULT_CODEX_CONNECTOR_ENDPOINT;
 use epiphany_openai_runtime::DEFAULT_PROVIDER_REQUEST_TIMEOUT;
@@ -897,9 +897,10 @@ mod tests {
 
     #[test]
     fn codex_connector_projection_is_one_strict_deterministic_request() -> Result<()> {
-        let mut request = EpiphanyOpenAiModelRequest::new(
+        let mut request = EpiphanyModelRequest::new(
             "connector-request",
             "connector-conversation",
+            "openai-codex",
             "gpt-test",
             "Decide.",
         );
@@ -910,7 +911,7 @@ mod tests {
         );
         request
             .tools
-            .push(epiphany_openai_adapter::EpiphanyOpenAiToolDefinition {
+            .push(epiphany_model_adapter::EpiphanyModelToolDefinition {
             name: "inspect_body".into(),
             description: "Inspect the typed Body.".into(),
             parameters_json:
@@ -919,19 +920,22 @@ mod tests {
         });
         request
             .input
-            .push(epiphany_openai_adapter::EpiphanyOpenAiInputItem::ToolCall {
+            .push(epiphany_model_adapter::EpiphanyModelInputItem::ToolCall {
                 call_id: "native/call".into(),
                 name: "inspect_body".into(),
                 arguments: r#"{"path":"src/lib.rs"}"#.into(),
             });
-        request.input.push(
-            epiphany_openai_adapter::EpiphanyOpenAiInputItem::ToolResult {
+        request
+            .input
+            .push(epiphany_model_adapter::EpiphanyModelInputItem::ToolResult {
                 call_id: "native/call".into(),
                 output: r#"{"ok":true}"#.into(),
-            },
-        );
+            });
 
-        let projected = provider_transport::codex_request_from_epiphany(request)?;
+        let projected = epiphany_openai_adapter::request_from_native(&request)?;
+        let EpiphanyProviderRequestPayload::Codex(projected) = projected.payload else {
+            panic!("Codex provider must lower to the connector contract")
+        };
         assert_eq!(
             projected.output_format_name.as_deref(),
             Some("role_result_v1")

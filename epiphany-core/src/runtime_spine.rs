@@ -34,7 +34,7 @@ use epiphany_model_adapter::EpiphanyModelReceipt;
 use epiphany_model_adapter::EpiphanyModelRequest;
 use epiphany_model_adapter::EpiphanyModelStreamEvent;
 use epiphany_model_adapter::EpiphanyModelStreamPayload;
-use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
+use epiphany_openai_adapter::EpiphanyProviderRequest;
 use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
 use epiphany_tool_adapter::EpiphanyToolInvocationReceipt;
 use epiphany_tool_adapter::TOOL_ADAPTER_INVOCATION_INTENT_SCHEMA_ID;
@@ -55,7 +55,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v46";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v47";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(type = "epiphany.runtime.identity", schema = "EpiphanyRuntimeIdentity")]
@@ -700,7 +700,7 @@ fn runtime_spine_schema_cache() -> Result<CultCache> {
     cache.register_entry_type::<HandsCommandReceipt>()?;
     cache.register_entry_type::<HandsCommitReceipt>()?;
     cache.register_entry_type::<SoulVerdictReceipt>()?;
-    cache.register_entry_type::<EpiphanyOpenAiModelRequest>()?;
+    cache.register_entry_type::<EpiphanyProviderRequest>()?;
     cache.register_entry_type::<EpiphanyModelRequest>()?;
     cache.register_entry_type::<EpiphanyModelStreamEvent>()?;
     cache.register_entry_type::<EpiphanyModelReceipt>()?;
@@ -1078,7 +1078,7 @@ pub fn open_runtime_model_execution(
     validate_non_empty(&job_options.job_id, "model execution job id")?;
     validate_non_empty(&model_request.request_id, "model execution request id")?;
     validate_non_empty(&model_request.provider, "model execution provider")?;
-    let provider_request = epiphany_openai_adapter::request_from_native(model_request);
+    let provider_request = epiphany_openai_adapter::request_from_native(model_request)?;
 
     let store_path = store_path.as_ref();
     let mut cache = runtime_spine_cache(store_path)?;
@@ -1173,7 +1173,7 @@ pub fn open_runtime_model_execution(
             .get::<EpiphanyModelRequest>(&model_request.request_id)?
             .is_some()
         || cache
-            .get::<EpiphanyOpenAiModelRequest>(&provider_request.request_id)?
+            .get::<EpiphanyProviderRequest>(provider_request.request_id())?
             .is_some()
     {
         return Err(anyhow!(
@@ -1210,7 +1210,7 @@ pub fn open_runtime_model_execution(
             .prepare_entry(&model_request.request_id, model_request)?
             .0,
         cache
-            .prepare_entry(&provider_request.request_id, &provider_request)?
+            .prepare_entry(provider_request.request_id(), &provider_request)?
             .0,
     ];
     replacements.extend(source_worker_envelopes);
@@ -1320,7 +1320,7 @@ pub fn put_runtime_tool_execution_intent(
         for envelope in [
             cache.get_envelope::<EpiphanyRuntimeModelExecutionBinding>(model_request_id)?,
             cache.get_envelope::<EpiphanyModelRequest>(model_request_id)?,
-            cache.get_envelope::<EpiphanyOpenAiModelRequest>(model_request_id)?,
+            cache.get_envelope::<EpiphanyProviderRequest>(model_request_id)?,
         ] {
             let envelope = envelope.ok_or_else(|| {
                 anyhow!(
@@ -1388,7 +1388,7 @@ pub(crate) fn validate_runtime_model_execution_binding(
         .get::<EpiphanyModelRequest>(request_id)?
         .ok_or_else(|| anyhow!("model execution binding {request_id:?} lost its native request"))?;
     let provider = cache
-        .get::<EpiphanyOpenAiModelRequest>(request_id)?
+        .get::<EpiphanyProviderRequest>(request_id)?
         .ok_or_else(|| {
             anyhow!("model execution binding {request_id:?} lost its provider request")
         })?;
@@ -1399,7 +1399,7 @@ pub(crate) fn validate_runtime_model_execution_binding(
         .get::<EpiphanyRuntimeJob>(&binding.job_id)?
         .ok_or_else(|| anyhow!("model execution binding {request_id:?} lost its job"))?;
     if binding.request_id != request_id
-        || provider != epiphany_openai_adapter::request_from_native(&native)
+        || provider != epiphany_openai_adapter::request_from_native(&native)?
     {
         return Err(anyhow!(
             "model execution binding {request_id:?} is not one exact request family"
@@ -1734,10 +1734,10 @@ fn archive_completed_model_session(
     for native_request in &native_requests {
         let request_id = &native_request.request_id;
         let provider_request = cache
-            .get::<EpiphanyOpenAiModelRequest>(request_id)?
+            .get::<EpiphanyProviderRequest>(request_id)?
             .ok_or_else(|| anyhow!("archived model execution lost provider request"))?;
-        if provider_request.request_id != *request_id
-            || provider_request != epiphany_openai_adapter::request_from_native(native_request)
+        if provider_request.request_id() != request_id
+            || provider_request != epiphany_openai_adapter::request_from_native(native_request)?
         {
             return Err(anyhow!(
                 "archived model execution request family is inconsistent"
@@ -1865,7 +1865,7 @@ fn archive_completed_model_session(
             binding.request_id.clone(),
         ));
         retired_identities.insert((
-            EpiphanyOpenAiModelRequest::TYPE.to_string(),
+            EpiphanyProviderRequest::TYPE.to_string(),
             binding.request_id.clone(),
         ));
         for event in cache

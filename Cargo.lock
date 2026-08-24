@@ -242,7 +242,7 @@ dependencies = [
 [[package]]
 name = "codex-connector"
 version = "0.1.0"
-source = "git+https://github.com/GameCult/CodexConnector?rev=54d8bc2525b7e7fa1b9dd26b95871247ff4c7566#54d8bc2525b7e7fa1b9dd26b95871247ff4c7566"
+source = "git+https://github.com/GameCult/CodexConnector?rev=89d965b0495ba817a1e48adda0a28509d6637d31#89d965b0495ba817a1e48adda0a28509d6637d31"
 dependencies = [
  "aes-gcm",
  "base64 0.23.1",
@@ -572,6 +572,7 @@ name = "epiphany-openai-adapter"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "codex-connector",
  "cultcache-rs",
  "epiphany-model-adapter",
  "serde",

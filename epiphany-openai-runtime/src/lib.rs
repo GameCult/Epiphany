@@ -29,9 +29,9 @@ use epiphany_model_adapter::EpiphanyModelRequest;
 use epiphany_model_adapter::EpiphanyModelStreamEvent;
 use epiphany_model_adapter::EpiphanyModelStreamPayload;
 use epiphany_model_adapter::EpiphanyModelToolDefinition;
-use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
+use epiphany_openai_adapter::EpiphanyProviderRequest;
 use epiphany_tool_adapter::EPIPHANY_TOOL_RUNTIME_ADAPTER_ID;
 use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
 use epiphany_tool_adapter::EpiphanyToolInvocationReceipt;
@@ -95,7 +95,7 @@ pub fn open_model_turn(
     provider: &str,
     options: &EpiphanyOpenAiRuntimeOptions,
     model_request: &EpiphanyModelRequest,
-) -> Result<EpiphanyOpenAiModelRequest> {
+) -> Result<EpiphanyProviderRequest> {
     validate_model_provider(provider)?;
     if !provider_matches_request(provider, &model_request.provider) {
         return Err(anyhow!(
@@ -113,7 +113,7 @@ pub fn open_model_turn(
         },
         model_request,
     )?;
-    Ok(openai_request_from_model_request(model_request))
+    provider_request_from_model_request(model_request)
 }
 
 pub fn record_model_turn_events(
@@ -123,7 +123,7 @@ pub fn record_model_turn_events(
     events: &[EpiphanyOpenAiStreamEvent],
 ) -> Result<EpiphanyOpenAiRuntimeRunSummary> {
     let store_path = store_path.as_ref();
-    let provider_request = openai_request_from_model_request(request);
+    let provider_request = provider_request_from_model_request(request)?;
     let events = compact_openai_events_for_storage(events);
     let tool_intents = tool_invocation_intents_from_openai_events(&request.provider, &events);
     for intent in &tool_intents {
@@ -168,12 +168,12 @@ pub fn record_model_turn_events(
     let summary = if let Some(message) = failure {
         format!(
             "OpenAI model request {} failed: {message}",
-            provider_request.request_id
+            provider_request.request_id()
         )
     } else if let Some(receipt) = &receipt {
         format!(
             "OpenAI model request {} completed through {}.",
-            provider_request.request_id,
+            provider_request.request_id(),
             receipt
                 .transport
                 .clone()
@@ -182,7 +182,7 @@ pub fn record_model_turn_events(
     } else {
         format!(
             "OpenAI model request {} ended without a terminal receipt.",
-            provider_request.request_id
+            provider_request.request_id()
         )
     };
     terminalize_runtime_job(
@@ -194,7 +194,7 @@ pub fn record_model_turn_events(
             EpiphanyRuntimeJobStatus::Failed
         },
         &now(),
-        &provider_request.request_id,
+        provider_request.request_id(),
     )?;
 
     Ok(EpiphanyOpenAiRuntimeRunSummary {
@@ -738,19 +738,19 @@ pub fn append_requested_public_source_receipts(
 
 pub fn default_options(
     store_path: PathBuf,
-    request: &EpiphanyOpenAiModelRequest,
+    request: &EpiphanyProviderRequest,
 ) -> EpiphanyOpenAiRuntimeOptions {
     EpiphanyOpenAiRuntimeOptions {
         store_path,
         provider_credential_path: None,
         connector_endpoint: Some(DEFAULT_CODEX_CONNECTOR_ENDPOINT),
         caller_runtime_id: "epiphany-model-runtime".to_string(),
-        session_id: format!("openai-session-{}", request.conversation_id),
-        job_id: format!("openai-job-{}", request.request_id),
-        objective: format!("Run typed OpenAI model request {}", request.request_id),
+        session_id: format!("openai-session-{}", request.conversation_id()),
+        job_id: format!("openai-job-{}", request.request_id()),
+        objective: format!("Run typed provider request {}", request.request_id()),
         coordinator_note: "Native OpenAI runtime route; Codex is auth/model transport only."
             .to_string(),
-        default_model: Some(request.model.clone()),
+        default_model: Some(request.model().to_string()),
         request_timeout: Some(DEFAULT_PROVIDER_REQUEST_TIMEOUT),
     }
 }
@@ -767,9 +767,9 @@ pub fn model_receipt_key(request_id: &str) -> String {
     request_id.to_string()
 }
 
-pub fn openai_request_from_model_request(
+pub fn provider_request_from_model_request(
     request: &EpiphanyModelRequest,
-) -> EpiphanyOpenAiModelRequest {
+) -> Result<EpiphanyProviderRequest> {
     epiphany_openai_adapter::request_from_native(request)
 }
 
@@ -2833,7 +2833,7 @@ mod tests {
             "gpt-5.4",
             "Answer plainly.",
         );
-        let request = epiphany_openai_adapter::request_from_native(&native_request);
+        let request = epiphany_openai_adapter::request_from_native(&native_request)?;
         let options = default_options(store.clone(), &request);
         ensure_openai_runtime_ready(&options)?;
         open_runtime_model_execution(
@@ -2868,7 +2868,7 @@ mod tests {
                 .is_some()
         );
         assert!(cache.get::<EpiphanyModelReceipt>("req-1")?.is_some());
-        assert!(cache.get::<EpiphanyOpenAiModelRequest>("req-1")?.is_some());
+        assert!(cache.get::<EpiphanyProviderRequest>("req-1")?.is_some());
         assert_eq!(
             runtime_job(&store, &options.job_id)?
                 .expect("snapshot")
@@ -3275,9 +3275,11 @@ mod tests {
             "gpt-5.4",
             "Answer after tool output.",
         );
-        native_request.output_schema_json =
-            Some(r#"{"type":"object","required":["researchDecision"]}"#.to_string());
-        let request = epiphany_openai_adapter::request_from_native(&native_request);
+        native_request.output_schema_json = Some(
+            r#"{"type":"object","properties":{"researchDecision":{"type":"string"}},"required":["researchDecision"]}"#
+                .to_string(),
+        );
+        let request = epiphany_openai_adapter::request_from_native(&native_request)?;
         let options = default_options(store.clone(), &request);
         ensure_openai_runtime_ready(&options)?;
         open_runtime_model_execution(
@@ -3346,7 +3348,9 @@ mod tests {
         assert_eq!(followup.previous_response_id, None);
         assert_eq!(
             followup.output_schema_json.as_deref(),
-            Some(r#"{"type":"object","required":["researchDecision"]}"#)
+            Some(
+                r#"{"type":"object","properties":{"researchDecision":{"type":"string"}},"required":["researchDecision"]}"#
+            )
         );
         assert_eq!(followup.input.len(), 2);
         assert_eq!(

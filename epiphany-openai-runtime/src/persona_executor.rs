@@ -687,7 +687,7 @@ mod tests {
         PersonaModelExecutionPlan::from_admitted_input(
             store,
             "turn-1",
-            "test",
+            crate::DEFAULT_MODEL_PROVIDER,
             "test-model",
             cultmesh_store,
             "epiphany-test",

@@ -29,7 +29,7 @@ epiphany-core = { path = "epiphany-core" }
 epiphany-model-adapter = { path = "epiphany-model-adapter" }
 epiphany-openai-adapter = { path = "epiphany-openai-adapter" }
 epiphany-openai-runtime = { path = "epiphany-openai-runtime", optional = true }
-codex-connector = { git = "https://github.com/GameCult/CodexConnector", rev = "54d8bc2525b7e7fa1b9dd26b95871247ff4c7566", default-features = false, optional = true }
+codex-connector = { git = "https://github.com/GameCult/CodexConnector", rev = "89d965b0495ba817a1e48adda0a28509d6637d31", default-features = false, features = ["client"], optional = true }
 epiphany-tool-adapter = { path = "epiphany-tool-adapter" }
 epiphany-tool-mcp-runtime = { path = "epiphany-tool-mcp-runtime", optional = true }
 rmp-serde = "1"

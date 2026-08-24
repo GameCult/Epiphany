@@ -4,16 +4,14 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, anyhow};
 use codex_connector::{
-    CodexConnectorClient, CodexInputItem, CodexProviderRequest, CodexToolChoice,
-    CodexToolDefinition, CodexTransportDisposition, CodexTransportEventPayload,
-    CodexTransportInvocation, CodexTransportOutcome,
+    CodexConnectorClient, CodexProviderRequest, CodexTransportDisposition,
+    CodexTransportEventPayload, CodexTransportInvocation, CodexTransportOutcome,
 };
 use epiphany_model_adapter::EpiphanyModelRequest;
 use epiphany_openai_adapter::{
-    EpiphanyOpenAiInputItem, EpiphanyOpenAiModelReceipt, EpiphanyOpenAiModelRequest,
-    EpiphanyOpenAiStreamEvent, EpiphanyOpenAiStreamPayload, EpiphanyOpenAiWireDialect,
-    openrouter_events_from_response, openrouter_request_body, provider_call_id,
-    provider_format_name, strict_provider_schema,
+    EpiphanyOpenAiModelReceipt, EpiphanyOpenAiModelRequest, EpiphanyOpenAiStreamEvent,
+    EpiphanyOpenAiStreamPayload, EpiphanyProviderRequestPayload, openrouter_events_from_response,
+    openrouter_request_body,
 };
 use epiphany_openai_runtime::{
     EpiphanyOpenAiRuntimeOptions, EpiphanyOpenAiRuntimeRunSummary, OPENROUTER_MODEL_PROVIDER,
@@ -34,19 +32,22 @@ pub async fn run_model_turn(
 ) -> Result<EpiphanyOpenAiRuntimeRunSummary> {
     let provider_request = open_model_turn(provider, &options, &request)?;
     let request_id = request.request_id.clone();
-    let events = match provider {
-        "openai-codex" | "openai" => {
+    let events = match (provider, provider_request.payload) {
+        ("openai-codex" | "openai", EpiphanyProviderRequestPayload::Codex(codex_request)) => {
             collect_transport_events(
-                execute_codex_connector(&options, &request, provider_request),
+                execute_codex_connector(&options, &request, codex_request),
                 &request_id,
             )
             .await
         }
-        OPENROUTER_MODEL_PROVIDER => {
-            collect_transport_events(execute_openrouter(&options, provider_request), &request_id)
-                .await
+        (OPENROUTER_MODEL_PROVIDER, EpiphanyProviderRequestPayload::OpenRouter(request)) => {
+            collect_transport_events(execute_openrouter(&options, request), &request_id).await
         }
-        _ => unreachable!("open_model_turn validates provider identity"),
+        _ => {
+            return Err(anyhow!(
+                "provider request contract disagrees with selected provider"
+            ));
+        }
     };
     record_model_turn_events(&options.store_path, &options, &request, &events)
 }
@@ -54,7 +55,7 @@ pub async fn run_model_turn(
 async fn execute_codex_connector(
     options: &EpiphanyOpenAiRuntimeOptions,
     native_request: &EpiphanyModelRequest,
-    request: EpiphanyOpenAiModelRequest,
+    provider_request: CodexProviderRequest,
 ) -> Result<Vec<EpiphanyOpenAiStreamEvent>> {
     let endpoint = options
         .connector_endpoint
@@ -70,7 +71,6 @@ async fn execute_codex_connector(
         "codex-connector",
     )?);
     let native_request_sha256: [u8; 32] = Sha256::digest(rmp_serde::to_vec(native_request)?).into();
-    let provider_request = codex_request_from_epiphany(request)?;
     let expires_at_unix_ms = unix_time_ms()?
         .checked_add(INVOCATION_ADMISSION_WINDOW.as_millis() as u64)
         .ok_or_else(|| anyhow!("Codex connector invocation expiry overflowed"))?;
@@ -92,96 +92,6 @@ async fn execute_codex_connector(
     })
     .await
     .context("Codex connector client task failed")?
-}
-
-pub(super) fn codex_request_from_epiphany(
-    request: EpiphanyOpenAiModelRequest,
-) -> Result<CodexProviderRequest> {
-    if !matches!(request.provider_id.as_str(), "openai-codex" | "openai")
-        || request.wire_dialect != EpiphanyOpenAiWireDialect::Responses
-    {
-        return Err(anyhow!(
-            "Codex connector requires an OpenAI provider identity and Responses dialect"
-        ));
-    }
-    let has_tool_result = request
-        .input
-        .iter()
-        .any(|item| matches!(item, EpiphanyOpenAiInputItem::ToolResult { .. }));
-    let output_format_name = request.output_schema_json.as_ref().map(|_| {
-        provider_format_name(
-            request
-                .output_contract_id
-                .as_deref()
-                .unwrap_or(&request.request_id),
-        )
-    });
-    let output_schema_json = request
-        .output_schema_json
-        .as_deref()
-        .map(strict_provider_schema)
-        .transpose()?
-        .map(|schema| serde_json::to_string(&schema))
-        .transpose()?;
-    let tools = request
-        .tools
-        .into_iter()
-        .map(|tool| {
-            Ok(CodexToolDefinition {
-                name: tool.name,
-                description: tool.description,
-                parameters_json: serde_json::to_string(&strict_provider_schema(
-                    &tool.parameters_json,
-                )?)?,
-            })
-        })
-        .collect::<Result<Vec<_>>>()?;
-    let tool_choice = if !tools.is_empty() && !has_tool_result {
-        CodexToolChoice::Required
-    } else {
-        CodexToolChoice::Auto
-    };
-    let input = request
-        .input
-        .into_iter()
-        .map(|item| match item {
-            EpiphanyOpenAiInputItem::UserText { text } => CodexInputItem::UserText { text },
-            EpiphanyOpenAiInputItem::AssistantText { text } => {
-                CodexInputItem::AssistantText { text }
-            }
-            EpiphanyOpenAiInputItem::ToolCall {
-                call_id,
-                name,
-                arguments,
-            } => CodexInputItem::ToolCall {
-                call_id: provider_call_id(&call_id),
-                name,
-                arguments,
-            },
-            EpiphanyOpenAiInputItem::ToolResult { call_id, output } => CodexInputItem::ToolResult {
-                call_id: provider_call_id(&call_id),
-                output,
-            },
-        })
-        .collect();
-    let mut provider_request = CodexProviderRequest::new(
-        request.request_id,
-        request.conversation_id,
-        request.model,
-        request.instructions,
-    );
-    provider_request.input = input;
-    provider_request.reasoning_effort = request.reasoning_effort;
-    provider_request.reasoning_summary = request.reasoning_summary;
-    provider_request.service_tier = request.service_tier;
-    provider_request.output_format_name = output_format_name;
-    provider_request.previous_response_id = request.previous_response_id;
-    provider_request.tools = tools;
-    provider_request.tool_choice = tool_choice;
-    provider_request.parallel_tool_calls = false;
-    provider_request.output_schema_json = output_schema_json;
-    provider_request.validate()?;
-    Ok(provider_request)
 }
 
 pub(super) fn events_from_connector_result(
