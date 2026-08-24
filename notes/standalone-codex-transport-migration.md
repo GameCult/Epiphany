@@ -34,11 +34,17 @@ is useful; the ownership is not.
 
 ## Authority map
 
-### Standalone Codex transport daemon
+### Standalone Codex transport service
 
 Owner:
 
-- Codex-compatible credential loading and persistent refresh rotation;
+- one public daemon and one private, pinned official `codex app-server` child;
+- the private app-server is the sole writer of the Codex credential store and
+  owns persistent refresh rotation;
+- the public daemon may read the credential only after an exact `account/read`
+  response on their private JSONL RPC channel; ordinary requests use
+  `refreshToken: false`, while one ChatGPT 401 may request
+  `refreshToken: true` and retry only if the credential store advanced;
 - required client identity and authorization/account headers;
 - exact upstream request transmission and provider response decoding;
 - per-caller authentication, admission, payload/concurrency limits, and
@@ -75,8 +81,19 @@ Forbidden writers:
   mutations, Ghostlight world mutations, or caller scheduling;
 - the daemon cannot execute a returned model tool call;
 - no caller may read or write the daemon's Codex credential store;
+- the public daemon cannot write, repair, or migrate `auth.json`;
+- the private app-server never receives a prompt, provider request, tool
+  definition, tool result, model output, or consumer identity. Its only live
+  RPC responsibility is authentication state;
 - no consumer deployment brake may gate daemon startup or same-release
   continuity.
+
+The service is one public failure and deployment boundary, not necessarily one
+OS process. Idunn freezes both the connector binary and the official Codex
+binary by exact digest. The child communicates only over inherited stdio and a
+private `CODEX_HOME`; it has no listening socket. The connector verifies the
+child binary digest before spawn, verifies the initialized child's reported
+Codex home, and refuses readiness when either identity drifts.
 
 ### Epiphany
 
@@ -113,7 +130,8 @@ caller-owned projected state
   -> pure deterministic provider lowering
   -> authenticated connector invocation carrying those exact provider bytes
   -> daemon validates caller + provider request identity/digest/policy
-  -> vendored Codex auth/client transport
+  -> pinned official app-server refreshes the private credential store
+  -> daemon reads that exact refreshed credential and performs raw Responses transport
   -> typed provider events + transport receipt
   -> caller validates receipt/digests
   -> caller-owned interpretation and admission
@@ -190,12 +208,21 @@ After both consumers pass v2 acceptance:
 No compatibility reader, dual daemon, dual refresh writer, provider-request
 fallback, or prompt-shaped HTTP shim survives cutover.
 
+No upstream Codex crate is linked into CodexConnector. A trial optional link to
+`codex-login`, `codex-api`, and their protocol graph resolved roughly 700 Cargo
+packages before useful compilation and was deleted. The official binary is a
+frozen package input instead. JSON is quarantined to the private official
+app-server RPC and upstream HTTP/SSE boundaries; the public GameCult protocol
+remains typed MessagePack.
+
 ## Subtraction budget
 
-The migration may add one repository, one Cargo package, one daemon binary,
-one typed protocol module, and one independent Idunn target. Those surfaces are
-earned by credential privilege, refresh serialization, independent lifecycle,
-and reuse by two live consumers.
+The migration may add one repository, one Cargo package, one public daemon
+binary, one typed protocol module, one pinned official Codex package input, and
+one independent Idunn target. The private app-server child is part of that one
+service boundary and owns only credential refresh. Those surfaces are earned
+by credential privilege, refresh serialization, independent lifecycle, and
+reuse by two live consumers.
 
 They must replace:
 
@@ -231,25 +258,31 @@ GiB/16,483-file footprint is the pre-cut comparison.
    by merging the stale branch into Epiphany.
 2. Define and test the v2 typed contract, multi-caller isolation, exact request
    binding, tool-call pass-through, refusal, replay, and redacted status.
-3. Package the daemon as an independent Idunn target without changing the live
-   refresh writer.
-4. Add Epiphany's v2 client and prove transcript-free decision audit plus tool
+3. Prove the pinned app-server handshake, single-writer credential refresh,
+   exact binary/home identity, and raw provider transport without linking any
+   Codex crate.
+4. Package the service process tree as an independent Idunn target without
+   changing the live refresh writer.
+5. Add Epiphany's v2 client and prove transcript-free decision audit plus tool
    continuation through a fake connector.
-5. Add Ghostlight's v2 client and remove its copied wire law.
-6. Stop the old connector, transfer its auth store once under root custody,
+6. Add Ghostlight's v2 client and remove its copied wire law.
+7. Stop the old connector, transfer its auth store once under root custody,
    start the standalone release, and prove one refresh writer.
-7. Cut consumers over independently and verify exact signed health/transport
+8. Cut consumers over independently and verify exact signed health/transport
    receipts.
-8. Delete embedded Epiphany Codex transport and Ghostlight-owned connector
+9. Delete embedded Epiphany Codex transport and Ghostlight-owned connector
    deployment in the same accepted release sequence.
-9. Delete the stale connector branch only after its useful Git history is
+10. Delete the stale connector branch only after its useful Git history is
    referenced from the new repository.
 
 ## Acceptance
 
 - Epiphany and Ghostlight issue concurrent requests under distinct caller keys;
   neither can replay, decrypt, exhaust, or impersonate the other.
-- One process and one writable Codex auth store own refresh rotation.
+- One public service and one private official app-server writer own exactly one
+  writable Codex auth store; the connector cannot mutate it.
+- The exact pinned Codex binary and reported Codex home are part of signed
+  service readiness.
 - Provider-request identity/digest substitution refuses before network access;
   Epiphany independently refuses native-to-provider substitution before it
   opens the connector invocation.
@@ -263,6 +296,8 @@ GiB/16,483-file footprint is the pre-cut comparison.
 - Either consumer may be absent or braked while the daemon and the other
   consumer remain healthy.
 - No Epiphany production target contains a Codex crate in its normal dependency
+  graph.
+- No CodexConnector production target contains a Codex crate in its dependency
   graph.
 - Ghostlight no longer defines the connector protocol or deploys the daemon.
 - Idunn independently proves daemon source, package, runtime, and signed health.
