@@ -1,9 +1,9 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-25
-Latest committed implementation cut: `2bcbf268` on `codex/epiphany-shakedown-live`
-Current pass: current work solely owns coordinator scheduling;
-reorientation-result/runtime-reader audit is next; Ox17 remains paused
+Latest committed implementation cut: `125d77a2` on `codex/epiphany-shakedown-live`
+Current pass: reorientation result review consumes one runtime snapshot;
+terminal-admission reader audit is next; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke
@@ -685,6 +685,12 @@ second Mind assembly, Resident Self has no hard-coded Continue override, and
 the deleted `EpiphanyCrrcAction` enum cannot impersonate a parallel state
 machine. Reorientation decisions remain durable Mind documents; the boolean is
 only their deterministic scheduling projection.
+
+Exact `125d77a2` removes the residual CRRC module. Operator review opens one
+runtime cache and reads both the job latch and exact typed Reorientation result
+from it. Pending, Completed, and Failed are the complete live vocabulary.
+Storage failure is an error, and completed-without-result is a broken invariant;
+neither is laundered into a synthetic lifecycle state.
 
 The target boundary is independent `GameCult/CodexConnector`; exact
 `6dc80f6d266db4d82566d2434adcc55a48e8ecad` owns one typed multi-caller

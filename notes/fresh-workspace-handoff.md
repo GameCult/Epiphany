@@ -2,10 +2,10 @@
 
 Updated: 2026-08-25
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany source cut: `2bcbf268`
+Latest committed Epiphany source cut: `125d77a2`
 Current connector source: `6dc80f6d266db4d82566d2434adcc55a48e8ecad`
-Current pass: current work solely owns coordinator scheduling; continue the
-reorientation-result/runtime-reader audit; Ox17 and Atlas Gate 1 remain paused
+Current pass: reorientation result review uses one typed runtime snapshot;
+continue the terminal-admission reader audit; Ox17 and Atlas Gate 1 remain paused
 
 ## Orientation
 
@@ -114,6 +114,18 @@ target, or process. Core check, current-work 3/3, Reorientation 1/1,
 operator-sanitization 1/1, and the release-owned coordinator compile pass. The
 focused build produced 1.6 GiB across 2,924 files; cleanup restored only the
 exact authenticated state inspector.
+
+Exact `125d77a2` removes the last CRRC surface. Reorientation result review now
+pulls runtime state once and reads the job plus typed result from that cache.
+Its live status vocabulary is only Pending, Completed, or Failed. The
+never-used missing-store branch, six impossible status variants, synthetic
+backend-state translation, and `surfaces/crrc.rs` are gone. Store failures are
+errors; a completed job without its typed result is corruption. The existing
+Reorientation lifecycle exercises this public projection before Mind admission.
+The cut removes 64 maintained lines net and adds no schema, dependency, target,
+or process. Core check, Reorientation 1/1, and the release-owned coordinator
+compile pass. The focused build produced 1.6 GiB across 2,924 files; cleanup
+restored only the exact authenticated state inspector.
 
 Exact `edb5c3a3` deletes the duplicate pass-family authority from runtime
 physiology. Eight optional request-ID fields are gone from
