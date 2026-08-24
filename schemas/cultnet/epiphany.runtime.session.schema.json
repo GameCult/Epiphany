@@ -4,7 +4,7 @@
   "title": "Epiphany Runtime Session",
   "description": "Native runtime-spine session state.",
   "type": "object",
-  "additionalProperties": true,
+  "additionalProperties": false,
   "properties": {
     "schemaVersion": {
       "type": "string"
@@ -26,10 +26,6 @@
     },
     "coordinatorNote": {
       "type": "string"
-    },
-    "metadata": {
-      "type": "object",
-      "additionalProperties": true
     }
   },
   "required": [
@@ -38,6 +34,7 @@
     "objective",
     "status",
     "createdAt",
-    "updatedAt"
+    "updatedAt",
+    "coordinatorNote"
   ]
 }

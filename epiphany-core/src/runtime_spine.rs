@@ -88,7 +88,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v20";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v21";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
@@ -160,8 +160,6 @@ pub struct EpiphanyRuntimeSession {
     pub updated_at: String,
     #[cultcache(key = 6, default)]
     pub coordinator_note: String,
-    #[cultcache(key = 7, default)]
-    pub metadata: BTreeMap<String, String>,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
@@ -181,12 +179,6 @@ pub struct EpiphanyRuntimeJob {
     pub created_at: String,
     #[cultcache(key = 6)]
     pub updated_at: String,
-    #[cultcache(key = 7, default)]
-    pub summary: String,
-    #[cultcache(key = 8, default)]
-    pub artifact_refs: Vec<String>,
-    #[cultcache(key = 9, default)]
-    pub metadata: BTreeMap<String, String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -761,8 +753,6 @@ pub struct RuntimeSpineJobOptions {
     pub session_id: String,
     pub role: String,
     pub created_at: String,
-    pub summary: String,
-    pub artifact_refs: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1082,7 +1072,6 @@ pub fn create_runtime_session(
         created_at: options.created_at.clone(),
         updated_at: options.created_at,
         coordinator_note: options.coordinator_note,
-        metadata: BTreeMap::new(),
     };
     cache.put(&options.session_id, &session)?;
     Ok(session)
@@ -1119,7 +1108,6 @@ pub fn ensure_runtime_session(
         created_at: options.created_at.clone(),
         updated_at: options.created_at,
         coordinator_note: options.coordinator_note,
-        metadata: BTreeMap::new(),
     };
     cache.put(&options.session_id, &session)?;
     Ok(session)
@@ -1309,7 +1297,6 @@ pub fn terminalize_model_pass_failure_session(
     if model_job_is_live {
         model_job.status = EpiphanyRuntimeJobStatus::Failed;
         model_job.updated_at = options.failed_at.clone();
-        model_job.summary = options.summary.clone();
         let model_result = EpiphanyRuntimeJobResult {
             schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
             result_id: format!("result-model-pass-failure-{}", failure.failure_id),
@@ -1413,9 +1400,6 @@ pub fn create_runtime_job(
         status: EpiphanyRuntimeJobStatus::Queued,
         created_at: options.created_at.clone(),
         updated_at: options.created_at.clone(),
-        summary: options.summary,
-        artifact_refs: options.artifact_refs,
-        metadata: BTreeMap::new(),
     };
     cache.put(&options.job_id, &job)?;
     Ok(job)
@@ -1523,7 +1507,6 @@ pub fn open_runtime_model_execution(
             created_at: session_options.created_at.clone(),
             updated_at: session_options.created_at.clone(),
             coordinator_note: session_options.coordinator_note.clone(),
-            metadata: BTreeMap::new(),
         });
     if matches!(
         session.status,
@@ -1551,9 +1534,6 @@ pub fn open_runtime_model_execution(
         status: EpiphanyRuntimeJobStatus::Queued,
         created_at: job_options.created_at.clone(),
         updated_at: job_options.created_at.clone(),
-        summary: job_options.summary,
-        artifact_refs: job_options.artifact_refs,
-        metadata: BTreeMap::new(),
     };
     let binding_id = model_request.request_id.clone();
     if cache
@@ -2549,7 +2529,6 @@ pub fn prepare_runtime_spine_heartbeat_job(
             created_at: options.created_at.clone(),
             updated_at: options.created_at.clone(),
             coordinator_note: options.coordinator_note,
-            metadata: BTreeMap::new(),
         },
     };
     if cache.get::<EpiphanyRuntimeJob>(&options.job_id)?.is_some() {
@@ -2572,12 +2551,6 @@ pub fn prepare_runtime_spine_heartbeat_job(
         status: EpiphanyRuntimeJobStatus::Queued,
         created_at: options.created_at.clone(),
         updated_at: options.created_at.clone(),
-        summary: format!(
-            "Heartbeat activation queued for binding {} with authority {}.",
-            options.binding_id, options.authority_scope
-        ),
-        artifact_refs: Vec::new(),
-        metadata: BTreeMap::new(),
     };
     let request = EpiphanyRuntimeWorkerLaunchRequest {
         schema_version: RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.to_string(),
@@ -3934,7 +3907,6 @@ fn commit_runtime_worker_process_death(
     let summary = "Runtime Continuity proved the exact worker process terminal before a structured outcome was admitted.".to_string();
     job.status = EpiphanyRuntimeJobStatus::Failed;
     job.updated_at = terminal_at.to_string();
-    job.summary = summary.clone();
     let result = EpiphanyRuntimeJobResult {
         schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
         result_id: format!("result-worker-death-{job_id}"),
@@ -9212,7 +9184,6 @@ pub fn open_coordinator_run(
         updated_at: started_at.to_string(),
         coordinator_note: "Coordinator owns native runtime receipts before process exit."
             .to_string(),
-        metadata: BTreeMap::new(),
     };
     let snapshot = cache.snapshot_envelopes();
     let replacements = vec![cache.prepare_entry(session_id, &session)?.0];
@@ -9497,8 +9468,6 @@ pub fn complete_runtime_job(
     let terminal_status = terminal_status_for_verdict(&options.verdict);
     job.status = terminal_status;
     job.updated_at = options.completed_at.clone();
-    job.summary = options.summary.clone();
-    job.artifact_refs = merge_refs(&job.artifact_refs, &options.artifact_refs);
     let result = EpiphanyRuntimeJobResult {
         schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
         result_id: options.result_id.clone(),
@@ -9659,16 +9628,6 @@ fn terminal_status_for_verdict(verdict: &str) -> EpiphanyRuntimeJobStatus {
     } else {
         EpiphanyRuntimeJobStatus::Completed
     }
-}
-
-fn merge_refs(existing: &[String], incoming: &[String]) -> Vec<String> {
-    let mut merged = existing.to_vec();
-    for item in incoming {
-        if !merged.contains(item) {
-            merged.push(item.clone());
-        }
-    }
-    merged
 }
 
 #[cfg(test)]

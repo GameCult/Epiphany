@@ -18,7 +18,7 @@
       "wireContracts": [
         "cultnet.schema.v0"
       ],
-      "schemaVersion": "epiphany.runtime_spine.v0",
+      "schemaVersion": "epiphany.runtime_spine.v1",
       "documentType": "epiphany.runtime.session",
       "title": "Epiphany Runtime Session",
       "path": "epiphany.runtime.session.schema.json"
@@ -62,7 +62,7 @@
       "wireContracts": [
         "cultnet.schema.v0"
       ],
-      "schemaVersion": "epiphany.runtime_spine.v0",
+      "schemaVersion": "epiphany.runtime_spine.v1",
       "documentType": "epiphany.runtime.job",
       "title": "Epiphany Runtime Job",
       "path": "epiphany.runtime.job.schema.json"

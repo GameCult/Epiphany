@@ -703,8 +703,6 @@ mod tests {
                         session_id: format!("persona-turn-{turn_id}"),
                         role: "openai-model-adapter".into(),
                         created_at: "2026-08-14T00:00:00Z".into(),
-                        summary: format!("Run Persona {stage} test stage"),
-                        artifact_refs: Vec::new(),
                     },
                     &request,
                     "2026-08-14T00:00:00Z",

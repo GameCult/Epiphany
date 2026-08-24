@@ -4,7 +4,7 @@
   "title": "Epiphany Runtime Job",
   "description": "Native runtime-spine job state.",
   "type": "object",
-  "additionalProperties": true,
+  "additionalProperties": false,
   "properties": {
     "schemaVersion": {
       "type": "string"
@@ -26,19 +26,6 @@
     },
     "updatedAt": {
       "type": "string"
-    },
-    "summary": {
-      "type": "string"
-    },
-    "artifactRefs": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
-    "metadata": {
-      "type": "object",
-      "additionalProperties": true
     }
   },
   "required": [

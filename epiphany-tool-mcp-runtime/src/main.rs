@@ -285,8 +285,6 @@ mod tests {
                 session_id: "native-tool-session".into(),
                 role: "tool-runtime".into(),
                 created_at: "2026-08-10T01:00:02Z".into(),
-                summary: "Owned native tool execution.".into(),
-                artifact_refs: Vec::new(),
             },
         )?;
         epiphany_core::put_runtime_tool_execution_intent(
@@ -372,8 +370,6 @@ mod tests {
                 session_id: "state-tool-session".into(),
                 role: "tool-runtime".into(),
                 created_at: "2026-08-11T00:00:01Z".into(),
-                summary: "Observe resident state.".into(),
-                artifact_refs: vec![],
             },
         )?;
         epiphany_core::put_runtime_tool_execution_intent(
