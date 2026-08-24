@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `fe118e13` on `codex/epiphany-shakedown-live`
-Current worktree cut: documentation/evidence for singular native model-stream ownership;
+Latest committed implementation cut: `8bb0719b` on `codex/epiphany-shakedown-live`
+Current worktree cut: documentation/evidence for earned CultNet publication boundaries;
 Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -75,6 +75,19 @@ event/receipt CultCache registrations, archive requirements, schema IDs, and
 public CultNet schemas are deleted. Runtime advances to v28; the public catalog
 has 18 schemas. `epiphany-model-runtime` now points directly at its executable
 body instead of compiling through an include-only shell. Atlas is untouched.
+
+Schema publication is not a shadow registry. Exact `dbed11b3` deletes the
+nonexistent runtime-event contract and the obsolete public schema for the
+private archived-session tombstone. Exact `8bb0719b` then removes every
+runtime-local identity, session, job, binding, coordinator, native model/tool,
+and state-ledger JSON mirror. Those documents remain typed CultCache state and
+are discovered from the native registration or projected by their owning
+CultMesh provider; no live CultNet crossing consumed the hand-maintained JSON,
+and several schemas contradicted their Rust owners. The catalog now contains
+only three earned portable boundaries: the exact OpenAI-compatible provider
+request, `gamecult.persona_state.v0`, and `epiphany.work_organ_state.v0`. The
+two cuts remove 850 net maintained lines. Atlas remains untouched and untested
+end to end.
 
 CultMesh contains no JSON-derived operator snapshot, coordinator receipt,
 Hands gate, role-review event, unauthenticated Odin/Eve provider row, or daemon

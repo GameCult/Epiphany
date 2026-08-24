@@ -363,6 +363,12 @@ Cut in this order:
    validation, and retention; the exact provider request remains durable audit
    input. Runtime advances to v28, the catalog drops to 18 schemas, and the
    model-runtime include shell is gone. Atlas remains unchanged and unaccepted.
+   Exact `dbed11b3` and `8bb0719b` delete the remaining hand-maintained schema
+   shadow registry. Runtime-local CultCache documents are discovered from the
+   native registration or projected by their owning provider; they are not
+   republished as stale JSON. The catalog now contains only the exact provider
+   request plus the portable Persona and work-organ contracts. The cut removes
+   850 net maintained lines. Atlas remains unchanged and unaccepted.
 3. **Baseline transaction landed at `9f7b164f`; operator routing at `587c56d2`; Resident continuation and keyed acceptance at `478fb923`:** baseline Body Modeling is now thread-free from unresolved Body obligation through Launch/Wait/Review and exact Mind admission. Resident and operator callers consume the same family projection and acceptance owner. Thread ID remains immutable pass provenance only.
 4. **Proposal Modeling landed at `d1b031cb`:** its immutable request, worker launch, runtime attempt/result, and `Modeling.proposal_frontier` commit now own Launch/Wait/Review and admission. The aggregate launcher refuses proposal cargo; the old selector, validator, context builder, and generic-launch hint are deleted. Body and Proposal share only the exact-envelope launch CAS invariant, not a mutable family registry. Exact `b0a4978d` deletes the later duplicate launch-binding document entirely; the worker launch is the sole launch owner.
 5. **Continuation vocabulary landed at `e404c105` and was named truthfully at `fc5d1a4a`:** concrete pass families share one pure `EpiphanyAgentPassContinuationAction`; their semantic requests, projections, validators, and admission owners remain separate.
