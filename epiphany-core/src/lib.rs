@@ -74,8 +74,6 @@ pub use agent_launch::epiphany_role_label;
 pub use agent_launch::epiphany_role_launch_output_schema;
 pub use atlas::*;
 pub use causal_work_identity::*;
-pub use coordinator_objective_intake::USER_OBJECTIVE_INTAKE_CONTRACT;
-pub use coordinator_objective_intake::USER_OBJECTIVE_INTAKE_SCHEMA_VERSION;
 pub use coordinator_objective_intake::UserObjectiveIntake;
 pub use coordinator_objective_intake::UserObjectiveIntakeApplied;
 pub use coordinator_objective_intake::UserObjectiveIntakeInput;

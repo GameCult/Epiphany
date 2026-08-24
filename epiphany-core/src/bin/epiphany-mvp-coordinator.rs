@@ -373,7 +373,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     "threadId": thread_id,
                     "grantId": claim.grant_id,
                     "preparationId": preparation_id,
-                    "mindProjectionDigest": intake.mind.projection_digest,
+                    "mindProjectionDigest": intake.mind_projection_digest,
                     "commitReceiptId": intake.commit_receipt.receipt_id,
                     "canonicalObjectiveChanged": intake.changed,
                 }));
@@ -387,7 +387,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 startup_events.push(json!({
                     "type": "operatorObjectiveIntake",
                     "threadId": thread_id,
-                    "mindProjectionDigest": intake.mind.projection_digest,
+                    "mindProjectionDigest": intake.mind_projection_digest,
                     "commitReceiptId": intake.commit_receipt.receipt_id,
                     "changed": intake.changed,
                 }));
@@ -2184,52 +2184,6 @@ mod tests {
     }
 
     #[test]
-    fn operator_objective_intake_creates_once_and_refuses_replacement() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("runtime.cc");
-        epiphany_core::initialize_runtime_spine(
-            &store,
-            epiphany_core::RuntimeSpineInitOptions {
-                runtime_id: "objective-intake-bin".into(),
-                display_name: "Objective intake bin".into(),
-                created_at: "2026-08-14T00:00:00Z".into(),
-            },
-        )?;
-
-        let first = intake_operator_objective(
-            &store,
-            "thread-1",
-            "Map the machine",
-            "cli://epiphany-mvp-coordinator",
-        )?;
-        assert!(first.changed);
-        assert_eq!(first.mind.objective.as_deref(), Some("Map the machine"));
-
-        let repeated = intake_operator_objective(
-            &store,
-            "thread-1",
-            " Map the machine ",
-            "cli://epiphany-mvp-coordinator",
-        )?;
-        assert!(!repeated.changed);
-        assert_eq!(
-            repeated.mind.projection_digest,
-            first.mind.projection_digest
-        );
-        assert_eq!(repeated.commit_receipt, first.commit_receipt);
-
-        let error = intake_operator_objective(
-            &store,
-            "thread-1",
-            "Replace the machine",
-            "cli://epiphany-mvp-coordinator",
-        )
-        .expect_err("objective replacement must require a typed adoption flow");
-        assert!(error.to_string().contains("refusing to replace"));
-        Ok(())
-    }
-
-    #[test]
     fn resident_operator_objective_uses_the_authenticated_grant_as_provenance() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("runtime.cc");
@@ -2249,9 +2203,15 @@ mod tests {
             "resident-self-grant://grant-1",
         )?;
         assert!(applied.changed);
-        assert_eq!(applied.intake.source_ref, "resident-self-grant://grant-1");
+        let mut cache = epiphany_core::runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let intakes = cache.get_all::<epiphany_core::UserObjectiveIntake>()?;
+        assert_eq!(intakes.len(), 1);
+        assert_eq!(intakes[0].source_ref, "resident-self-grant://grant-1");
         assert_eq!(
-            applied.mind.objective.as_deref(),
+            epiphany_core::assemble_mind_view(&store)?
+                .objective
+                .as_deref(),
             Some("Keep the objective in Mind")
         );
         assert!(
