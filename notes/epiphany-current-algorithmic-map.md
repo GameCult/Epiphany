@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `8bb0719b` on `codex/epiphany-shakedown-live`
-Current worktree cut: documentation/evidence for earned CultNet publication boundaries;
+Latest committed implementation cut: `695af6c6` on `codex/epiphany-shakedown-live`
+Current worktree cut: documentation/evidence for release dependency ownership;
 Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -88,6 +88,18 @@ only three earned portable boundaries: the exact OpenAI-compatible provider
 request, `gamecult.persona_state.v0`, and `epiphany.work_organ_state.v0`. The
 two cuts remove 850 net maintained lines. Atlas remains untouched and untested
 end to end.
+
+Dependency ownership follows source ownership. Exact `695af6c6` deletes
+thirteen manifest edges with no consumer in their owning package, plus the
+tracked marker that kept the extinct `epiphany-openai-auth-spine` directory
+alive. The release bundle no longer directly owns nine libraries used only by
+leaf crates or not used at all; four leaf/dev manifests drop their own dead
+edges. The lock graph contracts from 757 to 732 packages, including removal of
+the orphan PostgreSQL and duplicate newer crypto chains. All nine production
+entrypoints and the affected library/test targets compile individually. The
+cut removes 284 net manifest, lock, and source lines. Package-scoped cleanup of
+the five compiled packages removed 124.2 GiB of disposable historical build
+artifacts without removing the prebuilt state tool. Atlas is untouched.
 
 CultMesh contains no JSON-derived operator snapshot, coordinator receipt,
 Hands gate, role-review event, unauthenticated Odin/Eve provider row, or daemon

@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `8bb0719b`
-Current worktree: documentation/evidence for earned CultNet publication boundaries;
+Latest committed implementation cut: `695af6c6`
+Current worktree: documentation/evidence for release dependency ownership;
 Ox17 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `8bb0719b` is the current
+production symlink body and is inactive. Exact `695af6c6` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,22 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `695af6c6` removes thirteen Cargo dependency declarations with no
+consumer in their owning package, the tracked `.gitignore` that kept the
+extinct `epiphany-openai-auth-spine` directory alive, and a production-only
+unused import. The release bundle no longer directly owns nine libraries used
+only by leaf crates or not used anywhere in its executable sources; affected
+leaf/dev manifests drop unused `serde_json`, `futures`, `pretty_assertions`,
+and a dev-only state-model edge. The lock graph contracts from 757 to 732
+packages and the cut removes 284 net manifest, lock, and source lines. All nine
+production binaries compile individually; release construction and the OpenAI
+Codex spine compile; core and OpenAI-runtime library test targets compile.
+Package-scoped cleanup removes 56,581 disposable files and 124.2 GiB from the
+five packages compiled during verification. The shared target is 108.42 GiB,
+the prebuilt state tool remains healthy, and no alternate target root was
+created. Model Atlas is untouched; live inter-swarm collaboration remains
+unproven.
 
 Exact `dbed11b3` and `8bb0719b` delete the false hand-maintained CultNet schema
 registry. The first cut removes the nonexistent runtime-event contract and the
@@ -940,7 +956,7 @@ coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 ## Immediate next action
 
 The Ox17 deployment lane is paused. Continue the registered-document and test-
-liability audit from exact `8bb0719b`; do not compile or deploy through Idunn
+liability audit from exact `695af6c6`; do not compile or deploy through Idunn
 yet. Delete an abstraction with tests that merely animate it when it has no
 decision-bearing consumer. Preserve keyed Mind, sealed reasoning, direct Body-
 to-Modeling flow, family admission owners, Persona social state, provider
