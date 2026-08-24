@@ -150,8 +150,8 @@
       "wireContracts": [
         "cultnet.schema.v0"
       ],
-      "schemaVersion": "epiphany.tool_invocation_receipt.v0",
-      "documentType": "epiphany.tool_invocation_receipt.v0",
+      "schemaVersion": "epiphany.tool_invocation_receipt.v1",
+      "documentType": "epiphany.tool_invocation_receipt.v1",
       "title": "Epiphany Tool Invocation Receipt",
       "path": "epiphany.tool-invocation-receipt.schema.json"
     },

@@ -15,7 +15,7 @@
     "completed_at"
   ],
   "properties": {
-    "schema_id": { "const": "epiphany.tool_invocation_receipt.v0" },
+    "schema_id": { "const": "epiphany.tool_invocation_receipt.v1" },
     "receipt_id": { "type": "string" },
     "intent_id": { "type": "string" },
     "adapter": { "type": "string" },
@@ -24,8 +24,7 @@
     "status": { "type": "string" },
     "completed_at": { "type": "string", "format": "date-time" },
     "result_json": { "type": ["string", "null"] },
-    "error": { "type": ["string", "null"] },
-    "sealed_raw_result_ref": { "type": ["string", "null"] }
+    "error": { "type": ["string", "null"] }
   },
   "additionalProperties": false
 }

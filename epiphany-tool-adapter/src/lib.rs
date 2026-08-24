@@ -1,7 +1,7 @@
 use cultcache_rs::DatabaseEntry;
 
 pub const TOOL_ADAPTER_INVOCATION_INTENT_SCHEMA_ID: &str = "epiphany.tool_invocation_intent.v0";
-pub const TOOL_ADAPTER_INVOCATION_RECEIPT_SCHEMA_ID: &str = "epiphany.tool_invocation_receipt.v0";
+pub const TOOL_ADAPTER_INVOCATION_RECEIPT_SCHEMA_ID: &str = "epiphany.tool_invocation_receipt.v1";
 pub const EPIPHANY_TOOL_RUNTIME_ADAPTER_ID: &str = "epiphany-tools";
 
 pub fn tool_invocation_intent_key(intent_id: &str) -> String {
@@ -102,7 +102,7 @@ impl EpiphanyToolInvocationIntent {
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
-    type = "epiphany.tool_invocation_receipt.v0",
+    type = "epiphany.tool_invocation_receipt.v1",
     schema = "EpiphanyToolInvocationReceipt"
 )]
 pub struct EpiphanyToolInvocationReceipt {
@@ -126,8 +126,6 @@ pub struct EpiphanyToolInvocationReceipt {
     pub result_json: Option<String>,
     #[cultcache(key = 9, default)]
     pub error: Option<String>,
-    #[cultcache(key = 10, default)]
-    pub sealed_raw_result_ref: Option<String>,
 }
 
 impl EpiphanyToolInvocationReceipt {
@@ -151,7 +149,6 @@ impl EpiphanyToolInvocationReceipt {
             completed_at: completed_at.into(),
             result_json: None,
             error: None,
-            sealed_raw_result_ref: None,
         }
     }
 }

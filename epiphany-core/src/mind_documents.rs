@@ -11,7 +11,7 @@ use sha2::{Digest, Sha256};
 
 use crate::{EpiphanyMindDocumentVersion, runtime_spine_cache};
 
-pub const MIND_SCHEMA_EPOCH: &str = "epiphany.mind.epoch.v9";
+pub const MIND_SCHEMA_EPOCH: &str = "epiphany.mind.epoch.v10";
 pub const MIND_OBJECTIVE_KEY: &str = "objective";
 pub const MIND_FOCUS_KEY: &str = "focus";
 pub const MIND_MODE_KEY: &str = "mode";
@@ -138,7 +138,7 @@ pub struct EpiphanyMindEvidenceDocument {
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(
-    type = "epiphany.mind.persona_memory.v1",
+    type = "epiphany.mind.persona_memory.v2",
     schema = "EpiphanyMindPersonaMemoryDocument"
 )]
 pub struct EpiphanyMindPersonaMemoryDocument {
@@ -155,12 +155,8 @@ pub struct EpiphanyMindPersonaMemoryDocument {
     #[cultcache(key = 5)]
     pub confidence: f64,
     #[cultcache(key = 6)]
-    pub linked_event_ids: Vec<String>,
-    #[cultcache(key = 7)]
-    pub linked_relationship_id: Option<String>,
-    #[cultcache(key = 8)]
     pub effect_document_id: String,
-    #[cultcache(key = 9)]
+    #[cultcache(key = 7)]
     pub decision_context_id: String,
 }
 

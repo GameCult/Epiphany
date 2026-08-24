@@ -1110,8 +1110,6 @@ pub(crate) fn admit_persona_state_notes(
             summary: summary.clone(),
             salience: 0.7,
             confidence: confidence.unwrap_or(0.7),
-            linked_event_ids: vec![document.document_id.clone()],
-            linked_relationship_id: None,
             effect_document_id: document.document_id.clone(),
             decision_context_id: document.decision_context_id.clone(),
         };
