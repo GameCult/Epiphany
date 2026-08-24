@@ -224,7 +224,7 @@ Delete or demote:
 
 Keep the five-day shakedown, Ox17 deployment, and Model Atlas operational Gate
 1 paused. Continue the source-subtraction and test-authority audit from exact
-`718ce9c1`. The current sequence has deleted the semantic-memory/workspace-coverage
+`a4356d1f`. The current sequence has deleted the semantic-memory/workspace-coverage
 projection system, its local daemon supervisor, and the surviving generic
 RepoModel profile, impossible lifecycle, producerless receipt/summary, and
 decorative scoring axes. Modeling consumes typed Body and keyed RepoModel state
@@ -264,6 +264,14 @@ Sealed worker contexts retain explicit schema and contract fields because they
 are exact model input. Runtime advances to v33. Atlas is untouched and remains
 protected until a real inter-swarm collaboration run exercises the complete
 crossing.
+
+Exact `a4356d1f` roots runtime schema authority in runtime identity plus swarm
+binding and removes fixed schema-version echoes from thirteen child physiology
+documents. Sessions, jobs, execution bindings, launches, process claims,
+results, coordinator receipts, death recovery, and archives retain their exact
+causal and lifecycle payloads. Runtime advances to v34; old-store refusal and
+all affected consequence paths remain proven. No compatibility layer replaces
+the deleted fields. Atlas and external crossing contracts are unchanged.
 
 Resident Self now solely imports authenticated Bifrost deliveries; exact
 `3dda58a5` deletes the standalone Persona feedback ingress and its old Starfire

@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `718ce9c1`
-Current pass: repository-frontier envelope duplication collapsed; Ox17
+Latest committed implementation cut: `a4356d1f`
+Current pass: runtime child epoch echoes collapsed; Ox17
 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `718ce9c1` is the current
+production symlink body and is inactive. Exact `a4356d1f` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,20 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `a4356d1f` keeps runtime identity and swarm binding as the explicit
+writable-root epoch owners, then removes fixed schema-version echoes from
+thirteen child physiology documents: sessions, jobs, model/tool bindings,
+archived sessions, launches, process claims, worker archives, role/reorientation
+and generic job results, coordinator receipts, and coordinator death recovery.
+Exact lifecycle identity, causal bindings, terminal outcomes, decision contexts,
+and retention chains remain. Runtime advances to v34; old writable stores still
+refuse byte-identically. Core, keyed lifecycle, reorientation audit,
+model-failure audit, transcript-free binding audit, provider mapping,
+coordinator, swarm, and model-runtime checks pass. The cut removes 122 net
+maintained lines and leaves `runtime_spine.rs` at 9,440 lines. Verification
+generated 10.92 GB across 16,251 files; cleanup restored the shared target to
+the single 1.78 MB state inspector. Atlas and external crossings are untouched.
 
 Exact `718ce9c1` removes fixed schema-version fields and fixed contract prose
 from thirteen durable repository-frontier documents spanning Proposal through
@@ -1022,7 +1036,7 @@ coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 ## Immediate next action
 
 The Ox17 deployment lane is paused. Continue the registered-document and test-
-liability audit from exact `718ce9c1`; do not compile or deploy through Idunn
+liability audit from exact `a4356d1f`; do not compile or deploy through Idunn
 yet. Delete an abstraction with tests that merely animate it when it has no
 decision-bearing consumer. Preserve keyed Mind, sealed reasoning, direct Body-
 to-Modeling flow, family admission owners, Persona social state, provider

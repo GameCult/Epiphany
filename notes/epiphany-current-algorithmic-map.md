@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `718ce9c1` on `codex/epiphany-shakedown-live`
-Current pass: repository-frontier envelope duplication collapsed;
+Latest committed implementation cut: `a4356d1f` on `codex/epiphany-shakedown-live`
+Current pass: runtime child epoch echoes collapsed;
 Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -163,6 +163,17 @@ and contract because they are part of the exact request the model saw. The
 full keyed lifecycle, epoch refusal, provider candidate mapping, core library,
 and release-owned coordinator target pass. The cut removes 177 net maintained
 lines and leaves the unrun Atlas crossing untouched.
+
+Runtime epoch identity is rooted, not repeated. Exact `a4356d1f` retains the
+runtime identity and swarm binding epoch fields, then removes fixed
+schema-version echoes from thirteen child documents covering sessions, jobs,
+execution bindings, launches, process claims, results, coordinator receipts,
+death recovery, and retained archives. Their semantic and causal payloads are
+unchanged. Runtime v34 remains the hard old-store refusal boundary. The core
+library, full keyed lifecycle, reorientation, failure audit, transcript-free
+binding audit, provider mapping, coordinator, swarm, and model-runtime targets
+pass. The cut removes 122 net maintained lines and leaves Atlas plus external
+crossings untouched.
 
 CultMesh contains no JSON-derived operator snapshot, coordinator receipt,
 Hands gate, role-review event, unauthenticated Odin/Eve provider row, or daemon
@@ -1106,7 +1117,7 @@ Accepted through the local `5b799b12` source boundary:
 
 Open before Model Atlas Gate 1 resumes:
 
-1. let Idunn compile, test, and seal exact build-affecting source `718ce9c1`;
+1. let Idunn compile, test, and seal exact build-affecting source `a4356d1f`;
 2. use that exact package in private fresh-store Ox17; stop after three
    provider failures total, and prove direct Body Modeling, typed
    refusal-to-retry if exercised, Hands through Verification, exact context
