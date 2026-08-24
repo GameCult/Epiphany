@@ -284,7 +284,6 @@ pub use runtime_spine::bind_runtime_to_swarm;
 pub use runtime_spine::canonical_repo_frontier_plan_candidate_id;
 pub use runtime_spine::claim_runtime_worker_process;
 pub use runtime_spine::close_runtime_session;
-pub use runtime_spine::commit_repo_frontier_modeling_request;
 pub use runtime_spine::commit_repo_frontier_plan_decision;
 pub use runtime_spine::commit_repo_frontier_plan_mind_request;
 pub use runtime_spine::complete_runtime_job;

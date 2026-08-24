@@ -8131,46 +8131,6 @@ pub(crate) fn validate_repo_frontier_modeling_request(
     Ok(())
 }
 
-pub fn commit_repo_frontier_modeling_request(
-    store_path: impl AsRef<Path>,
-    verdict: &SoulVerdictReceipt,
-) -> Result<RepoFrontierModelingRequest> {
-    let store_path = store_path.as_ref();
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    let persisted = cache
-        .get::<SoulVerdictReceipt>(&verdict.receipt_id)?
-        .ok_or_else(|| anyhow!("frontier Modeling request requires its persisted Soul verdict"))?;
-    if persisted != *verdict {
-        return Err(anyhow!("frontier Modeling request Soul verdict changed"));
-    }
-    let request = derive_repo_frontier_modeling_request(&cache, verdict)?;
-    let request_id = request.request_id.clone();
-    let (envelope, _) = cache.prepare_entry(&request_id, &request)?;
-    let verdict_envelope = cache
-        .get_envelope::<SoulVerdictReceipt>(&verdict.receipt_id)?
-        .ok_or_else(|| anyhow!("frontier Modeling request lost its Soul verdict envelope"))?;
-    let frontier_envelope = cache
-        .get_envelope::<crate::EpiphanyRepoModelFrontierDocument>(&request.frontier_item_id)?
-        .ok_or_else(|| anyhow!("frontier Modeling request lost its frontier envelope"))?;
-    let expected = vec![verdict_envelope, frontier_envelope];
-    let mut writes = expected.clone();
-    writes.push(envelope);
-    if SingleFileMessagePackBackingStore::new(store_path)
-        .compare_and_swap_batch(&expected, writes)?
-    {
-        return Ok(request);
-    }
-    let mut reloaded = runtime_spine_cache(store_path)?;
-    reloaded.pull_all_backing_stores()?;
-    match reloaded.get::<RepoFrontierModelingRequest>(&request_id)? {
-        Some(existing) if existing == request => Ok(existing),
-        _ => Err(anyhow!(
-            "frontier Modeling request deterministic identity collision"
-        )),
-    }
-}
-
 fn derive_repo_frontier_verification_request_for_chain(
     cache: &CultCache,
     patch: &HandsPatchReceipt,

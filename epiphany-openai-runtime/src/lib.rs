@@ -3600,180 +3600,26 @@ mod tests {
         epiphany_core::bind_runtime_to_swarm(&store, "swarm-test", "2026-08-08T00:00:00Z")?;
         epiphany_core::bind_repository_body(&repo, &body_store, &store, "workspace-test")?;
         let body_basis = epiphany_core::observe_runtime_repository_body_basis(&store)?;
-        let frontier_item = epiphany_core::RepoFrontierItem {
-            id: "frontier-1".to_string(),
-            migration_body: "runtime".to_string(),
-            question: "Did the verified consequence hold?".to_string(),
-            gap: "Awaiting verdict incorporation.".to_string(),
-            target_claim_ids: vec!["claim-1".to_string()],
-            repository_scope: vec!["epiphany-core".to_string()],
-            recommended_next_organ: "Hands".to_string(),
-            adopted_plan: None,
-            dependency_item_ids: Vec::new(),
-            status: epiphany_core::RepoFrontierStatus::Active,
-            evidence_refs: vec!["prior-evidence".to_string()],
-            public_source_refs: Vec::new(),
-            created_at: Some("2026-08-07T00:00:00Z".to_string()),
-            updated_at: Some("2026-08-07T00:00:00Z".to_string()),
-            retired_at: None,
-            superseded_by: None,
-        };
-        let frontier_item_hash = format!(
-            "{:x}",
-            sha2::Sha256::digest(rmp_serde::to_vec_named(&frontier_item)?)
-        );
-        let mut authority_cache = runtime_spine_cache(&store)?;
-        authority_cache.put(
-            &frontier_item.id,
-            &epiphany_core::EpiphanyRepoModelFrontierDocument::new(&frontier_item)?,
-        )?;
-        let frontier_version = epiphany_core::EpiphanyMindDocumentVersion::from_envelope(
-            "epiphany-mind",
-            &authority_cache
-                .get_envelope::<epiphany_core::EpiphanyRepoModelFrontierDocument>(
-                    &frontier_item.id,
-                )?
-                .expect("persisted frontier envelope"),
-        )?;
-        let route = epiphany_core::RepoFrontierRoute {
-            schema_version: epiphany_core::REPO_FRONTIER_ROUTE_SCHEMA_VERSION.into(),
-            route_id: "route-1".into(),
-            next_organ: epiphany_core::RepoFrontierNextOrgan::Hands,
-            model_projection_digest: "model-projection".into(),
-            model_source_documents: vec![frontier_version],
-            frontier_item_id: frontier_item.id.clone(),
-            frontier_item_hash,
-            migration_body: frontier_item.migration_body.clone(),
-            question: frontier_item.question.clone(),
-            gap: frontier_item.gap.clone(),
-            target_claim_ids: frontier_item.target_claim_ids.clone(),
-            authorized_paths: frontier_item.repository_scope.clone(),
-            adopted_plan: frontier_item.adopted_plan.clone(),
-            selected_at: "2026-08-08T00:00:00Z".into(),
-            contract: epiphany_core::REPO_FRONTIER_ROUTE_CONTRACT.into(),
-        };
-        let verification_request = epiphany_core::RepoFrontierVerificationRequest {
-            schema_version: epiphany_core::REPO_FRONTIER_VERIFICATION_REQUEST_SCHEMA_VERSION.into(),
-            request_id: "verification-request-1".into(),
-            route_id: route.route_id.clone(),
-            model_projection_digest: route.model_projection_digest.clone(),
-            model_source_documents: route.model_source_documents.clone(),
-            frontier_item_id: route.frontier_item_id.clone(),
-            frontier_item_hash: route.frontier_item_hash.clone(),
-            hands_intent_id: "hands-intent-1".into(),
-            hands_review_id: "hands-review-1".into(),
-            hands_patch_receipt_id: "hands-patch-1".into(),
-            hands_command_receipt_id: "hands-command-1".into(),
-            hands_commit_receipt_id: "hands-commit-1".into(),
-            requested_at: "2026-08-08T00:00:00Z".into(),
-            contract: epiphany_core::REPO_FRONTIER_VERIFICATION_REQUEST_CONTRACT.into(),
-            frontier_authority_documents: route.model_source_documents.clone(),
-        };
-        let verification_result = EpiphanyRuntimeRoleWorkerResult {
-            schema_version: epiphany_core::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
-            result_id: "verification-result-1".into(),
-            job_id: "verification-job-1".into(),
-            role_id: "verification".into(),
-            verdict: "pass".into(),
-            summary: "verified".into(),
-            next_safe_move: "incorporate".into(),
-            checkpoint_summary: None,
-            scratch_summary: None,
-            files_inspected: Vec::new(),
-            frontier_node_ids: vec![frontier_item.id.clone()],
-            evidence_ids: Vec::new(),
-            artifact_refs: Vec::new(),
-            open_questions: Vec::new(),
-            evidence_gaps: Vec::new(),
-            risks: Vec::new(),
-            research_decision_msgpack: None,
-            item_error: None,
-            metadata: Default::default(),
-            repo_model_mutation_proposal_msgpack: None,
-            verification_request_id: Some(verification_request.request_id.clone()),
-            frontier_route_id: Some(route.route_id.clone()),
-            repo_frontier_modeling_request_id: None,
-            proposal_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            frontier_planning_request_id: None,
-            frontier_plan_candidate_msgpack: None,
-            frontier_plan_mind_request_id: None,
-            frontier_plan_mind_decision_msgpack: None,
-            repository_body_observation_basis: None,
-            imagination_consideration_request_id: None,
-            imagination_consideration_candidate_msgpack: None,
-            admitted_model_direction_consideration_request_id: None,
-            admitted_model_direction_consideration_result_msgpack: None,
-            decision_context_id: "verification-context-1".into(),
-        };
-        let soul_verdict = epiphany_core::SoulVerdictReceipt {
-            schema_version: epiphany_core::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION.into(),
-            receipt_id: "soul-verdict-1".into(),
-            source_result_id: verification_result.result_id.clone(),
-            source_job_id: verification_result.job_id.clone(),
-            verdict: verification_result.verdict.clone(),
-            summary: verification_result.summary.clone(),
-            evidence_ids: verification_result.evidence_ids.clone(),
-            risks: verification_result.risks.clone(),
-            emitted_at: "2026-08-08T00:00:00Z".into(),
-            contract: "test Soul verdict".into(),
-            verification_request_id: verification_request.request_id.clone(),
-            frontier_route_id: route.route_id.clone(),
-        };
-        authority_cache.put(&route.route_id, &route)?;
-        authority_cache.put(&verification_request.request_id, &verification_request)?;
-        authority_cache.put(&verification_result.job_id, &verification_result)?;
-        authority_cache.put(&soul_verdict.receipt_id, &soul_verdict)?;
-        let frontier_request =
-            epiphany_core::commit_repo_frontier_modeling_request(&store, &soul_verdict)?;
-        seed_test_runtime_job(
+        epiphany_core::initialize_keyed_repo_model(
             &store,
-            RuntimeSpineHeartbeatJobOptions {
-                runtime_id: "epiphany-test".to_string(),
-                session_id: "epiphany-main".to_string(),
-                objective: "Run typed worker.".to_string(),
-                coordinator_note: "test".to_string(),
-                job_id: "worker-job-1".to_string(),
-                role: epiphany_core::EPIPHANY_MODELING_OWNER_ROLE.to_string(),
-                binding_id: "modeling-checkpoint-worker".to_string(),
-                authority_scope: "epiphany.role.modeling".to_string(),
-                instruction: "Return the required role-result JSON.".to_string(),
-                launch_document: EpiphanyWorkerLaunchDocument::Role(
-                    epiphany_core::EpiphanyRoleWorkerLaunchDocument {
-                        thread_id: "thread-1".to_string(),
-                        role_id: "modeling".to_string(),
-                        objective: Some("Map the machine.".to_string()),
-                        dynamic_prompt_context: None,
-                        repository_body_observation_basis: Some(body_basis.clone()),
-                        proposal_modeling_context: None,
-                        frontier_verdict_modeling_context: Some(
-                            epiphany_core::RepoFrontierVerdictModelingLaunchAuthority {
-                                request: frontier_request.clone(),
-                                frontier_item: frontier_item.clone(),
-                                soul_verdict: soul_verdict.clone(),
-                            },
-                        ),
-                        frontier_planning_context: None,
-                        frontier_research_context: None,
-                        frontier_verification_context: None,
-                        frontier_plan_mind_context: None,
-                        imagination_consideration_context: None,
-                        admitted_model_direction_consideration_context: None,
-                    },
-                ),
-                output_contract_id: epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
-                proposal_modeling_request_id: None,
-                frontier_planning_request_id: None,
-                frontier_plan_mind_request_id: None,
-                imagination_consideration_request_id: None,
-                admitted_model_direction_consideration_request_id: None,
-                repo_frontier_modeling_request_id: Some(frontier_request.request_id.clone()),
-                repo_frontier_research_request_id: None,
-                repo_frontier_verification_request_id: None,
-                created_at: now(),
-            },
+            &epiphany_core::EpiphanyRepoModelSeed::new(
+                "body-seed",
+                "body-graph",
+                "swarm-test",
+                "workspace-test",
+                body_basis.body_binding_sha256.clone(),
+                epiphany_core::EpiphanyRepoModelSeedDocuments {
+                    domains: Vec::new(),
+                    nodes: Vec::new(),
+                    edges: Vec::new(),
+                    frontier: Vec::new(),
+                },
+            )?,
+            "2026-08-08T00:00:01Z",
         )?;
-        let launch_request = load_worker_launch_request(&store, "worker-job-1")?;
+        let worker_job_id =
+            epiphany_core::launch_current_body_modeling_work(&store, "2026-08-08T00:00:02Z")?;
+        let launch_request = load_worker_launch_request(&store, &worker_job_id)?;
         let reasoning_basis = epiphany_core::worker_reasoning_basis(&store, &launch_request)?;
         epiphany_core::put_reasoning_basis(&store, &reasoning_basis)?;
         let model_request = build_worker_model_request(
@@ -3813,7 +3659,7 @@ mod tests {
         assert!(
             output_schema_value["properties"]
                 .get("frontierVerdictGap")
-                .is_some()
+                .is_none()
         );
         assert!(
             output_schema_value["properties"]
@@ -3823,12 +3669,11 @@ mod tests {
         assert!(
             output_schema_value["properties"]
                 .get("repoModelOperations")
-                .is_none()
+                .is_some()
         );
-        assert!(!output_schema.contains(&frontier_request.request_id));
         assert!(!output_schema.contains("incorporate_frontier_verdict"));
         assert!(!model_request.instructions.contains("Output schema JSON"));
-        assert!(model_request.instructions.contains("frontierVerdictGap"));
+        assert!(model_request.instructions.contains("repoModelOperations"));
         assert!(
             model_request
                 .instructions
@@ -3844,16 +3689,13 @@ mod tests {
         let epiphany_core::EpiphanyReasoningProjection::RolePass(sealed_projection) =
             reasoning_basis.projection()?
         else {
-            panic!("frontier verdict Modeling must seal a role projection")
+            panic!("Body Modeling must seal a role projection")
         };
-        assert_eq!(
+        assert!(
             sealed_projection
                 .authority
                 .frontier_verdict_modeling_context
-                .as_ref()
-                .expect("sealed frontier verdict authority")
-                .frontier_item,
-            frontier_item
+                .is_none()
         );
         let sealed_body = sealed_projection
             .modeling_body
@@ -3923,7 +3765,7 @@ mod tests {
             "provider_or_transport_failure"
         );
         assert!(
-            epiphany_core::runtime_role_worker_result(&provider_failure_store, "worker-job-1")?
+            epiphany_core::runtime_role_worker_result(&provider_failure_store, &worker_job_id)?
                 .is_none()
         );
 
@@ -3953,7 +3795,7 @@ mod tests {
             "output_contract_failure"
         );
         assert!(
-            epiphany_core::runtime_role_worker_result(&contract_failure_store, "worker-job-1")?
+            epiphany_core::runtime_role_worker_result(&contract_failure_store, &worker_job_id)?
                 .is_none()
         );
 
@@ -3971,14 +3813,14 @@ mod tests {
         };
         let assistant_text = serde_json::json!({
             "roleId": "modeling",
-            "verdict": "checkpoint-update-needed",
+            "verdict": "checkpoint-ready",
             "summary": "Mapped.",
-            "nextSafeMove": "Review the runtime-owned verdict mutation.",
+            "nextSafeMove": "Review the runtime-owned Body model.",
             "filesInspected": ["src/lib.rs"],
-            "frontierNodeIds": ["frontier-1"],
-            "evidenceIds": ["soul-verdict-1"],
+            "frontierNodeIds": [],
+            "evidenceIds": ["body-evidence"],
             "artifactRefs": ["artifact:model"],
-            "frontierVerdictGap": "Soul verified the consequence; close the exact frontier."
+            "repoModelOperations": []
         })
         .to_string();
         let result = complete_worker_job_from_assistant_text(
@@ -3989,33 +3831,27 @@ mod tests {
             &assistant_text,
         )?;
 
-        assert_eq!(result.job_id, "worker-job-1");
-        assert_eq!(result.verdict, "checkpoint-update-needed");
+        assert_eq!(result.job_id, worker_job_id);
+        assert_eq!(result.verdict, "checkpoint-ready");
         assert_eq!(result.summary, "Mapped.");
         assert_eq!(
             result.next_safe_move,
-            "Review the runtime-owned verdict mutation."
+            "Review the runtime-owned Body model."
         );
         let runtime_evidence_id = format!("openai-request:{}", model_request.request_id);
         assert!(result.evidence_refs.contains(&runtime_evidence_id));
-        let typed_result = epiphany_core::runtime_role_worker_result(&store, "worker-job-1")?
+        let typed_result = epiphany_core::runtime_role_worker_result(&store, &worker_job_id)?
             .expect("typed role worker result");
-        assert_eq!(typed_result.verdict, "checkpoint-update-needed");
+        assert_eq!(typed_result.verdict, "checkpoint-ready");
         assert_eq!(typed_result.files_inspected, vec!["src/lib.rs".to_string()]);
         assert_eq!(
             typed_result.evidence_ids,
-            vec![runtime_evidence_id, "soul-verdict-1".to_string()]
+            vec!["body-evidence".to_string(), runtime_evidence_id]
         );
         assert_eq!(typed_result.artifact_refs, result.artifact_refs);
-        assert_eq!(
-            typed_result
-                .repo_model_mutation_proposal()?
-                .expect("repo model mutation proposal")
-                .proposal_id,
-            "repo-model-mutation-proposal-worker-job-1"
-        );
+        assert!(typed_result.repo_model_mutation_proposal()?.is_none());
         assert!(
-            runtime_job_snapshot(&store, "worker-job-1")?
+            runtime_job_snapshot(&store, &worker_job_id)?
                 .expect("snapshot")
                 .result
                 .is_some()
