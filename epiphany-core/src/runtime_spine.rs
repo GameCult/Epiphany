@@ -9230,10 +9230,6 @@ pub fn runtime_identity(store_path: impl AsRef<Path>) -> Result<Option<EpiphanyR
     cache.get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)
 }
 
-pub fn runtime_registered_document_types() -> Result<Vec<String>> {
-    Ok(runtime_spine_schema_cache()?.registered_entry_types())
-}
-
 fn require_identity(cache: &CultCache) -> Result<EpiphanyRuntimeIdentity> {
     cache
         .get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?

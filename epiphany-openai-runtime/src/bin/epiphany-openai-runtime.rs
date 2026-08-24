@@ -47,8 +47,6 @@ use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
 use epiphany_tool_adapter::tool_invocation_intent_key;
 use serde::Deserialize;
 use serde_json::json;
-use sha2::Digest;
-use sha2::Sha256;
 use uuid::Uuid;
 
 const DEFAULT_STORE: &str = "state/runtime-spine.msgpack";
@@ -59,63 +57,6 @@ async fn main() -> Result<()> {
     let mut args = env::args().skip(1);
     let command = args.next().unwrap_or_else(|| "usage".to_string());
     match command.as_str() {
-        "preflight" => {
-            let mut store = PathBuf::from(DEFAULT_STORE);
-            let mut required_document_types = Vec::new();
-            let mut args = args.peekable();
-            while let Some(arg) = args.next() {
-                match arg.as_str() {
-                    "--store" => {
-                        store =
-                            PathBuf::from(args.next().context("preflight missing --store value")?)
-                    }
-                    "--require-document-type" => required_document_types.push(
-                        args.next()
-                            .context("preflight missing --require-document-type value")?,
-                    ),
-                    other => return Err(anyhow!("unknown preflight argument: {other}")),
-                }
-            }
-            let identity = epiphany_core::runtime_identity(&store)?
-                .ok_or_else(|| anyhow!("runtime spine is absent at {}", store.display()))?;
-            let registered_document_types = epiphany_core::runtime_registered_document_types()?;
-            let missing: Vec<String> = required_document_types
-                .iter()
-                .filter(|required| !registered_document_types.contains(required))
-                .cloned()
-                .collect();
-            if !missing.is_empty() {
-                return Err(anyhow!(
-                    "runtime does not register required document types: {}",
-                    missing.join(", ")
-                ));
-            }
-            let executable = env::current_exe()?.canonicalize()?;
-            let executable_sha256 = format!("{:x}", Sha256::digest(fs::read(&executable)?));
-            let schema_catalog_sha256 = format!(
-                "{:x}",
-                Sha256::digest(registered_document_types.join("\n").as_bytes())
-            );
-            let preflight_witness_id = format!(
-                "openai-runtime-preflight-{}",
-                executable_sha256.chars().take(16).collect::<String>()
-            );
-            print_json(&json!({
-                "schemaVersion": "epiphany.openai_runtime.preflight.v0",
-                "status": "passed",
-                "runtimeVersion": env!("CARGO_PKG_VERSION"),
-                "executable": executable,
-                "executableSha256": executable_sha256,
-                "schemaCatalogSha256": schema_catalog_sha256,
-                "preflightWitnessId": preflight_witness_id,
-                "runtimeStore": store,
-                "runtimeId": identity.runtime_id,
-                "requiredDocumentTypes": required_document_types,
-                "registeredDocumentTypes": registered_document_types,
-                "schemaPreflightPassed": true,
-                "privateStateExposed": false
-            }))?;
-        }
         "audit-decision" => {
             let mut store = PathBuf::from(DEFAULT_STORE);
             let mut context_id = None;

@@ -292,7 +292,6 @@ pub use runtime_spine::runtime_hands_patch_receipt;
 pub(crate) use runtime_spine::runtime_has_actionable_hands_frontier;
 pub use runtime_spine::runtime_identity;
 pub use runtime_spine::runtime_job_snapshot;
-pub use runtime_spine::runtime_registered_document_types;
 pub(crate) use runtime_spine::runtime_reorient_worker_result;
 pub use runtime_spine::runtime_repo_frontier_planning_lifecycle;
 pub(crate) use runtime_spine::runtime_repo_frontier_research_lifecycle;
