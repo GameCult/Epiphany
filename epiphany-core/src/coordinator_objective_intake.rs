@@ -9,7 +9,6 @@ use sha2::{Digest, Sha256};
 use std::path::Path;
 
 pub const USER_OBJECTIVE_INTAKE_SCHEMA_VERSION: &str = "gamecult.epiphany.user_objective_intake.v0";
-pub const USER_OBJECTIVE_INTAKE_TYPE: &str = "epiphany.coordinator.user_objective_intake";
 pub const USER_OBJECTIVE_INTAKE_CONTRACT: &str = "The human supplies the initial objective. Self records that assertion and the canonical keyed Mind objective in one CAS. Thread identity is provenance only. Repeated identical intake is read-idempotent; replacement requires a separate reviewed adoption flow.";
 
 #[derive(Debug, Clone)]

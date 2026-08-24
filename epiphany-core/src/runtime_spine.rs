@@ -67,22 +67,11 @@ use std::path::Path;
 use std::path::PathBuf;
 
 pub const RUNTIME_IDENTITY_TYPE: &str = "epiphany.runtime.identity";
-pub const RUNTIME_SESSION_TYPE: &str = "epiphany.runtime.session";
-pub const RUNTIME_JOB_TYPE: &str = "epiphany.runtime.job";
-pub const RUNTIME_MODEL_EXECUTION_BINDING_TYPE: &str = "epiphany.runtime.model_execution_binding";
-pub const RUNTIME_TOOL_EXECUTION_BINDING_TYPE: &str = "epiphany.runtime.tool_execution_binding";
-pub const RUNTIME_WORKER_LAUNCH_REQUEST_TYPE: &str = "epiphany.runtime.worker_launch_request";
-pub const RUNTIME_WORKER_PROCESS_CLAIM_TYPE: &str = "epiphany.runtime.worker_process_claim.v0";
-pub const ARCHIVED_RUNTIME_WORKER_ATTEMPT_TYPE: &str =
-    "epiphany.runtime.archived_worker_attempt.v2";
-pub const RUNTIME_ROLE_WORKER_RESULT_TYPE: &str = "epiphany.runtime.role_worker_result";
-pub const RUNTIME_REORIENT_WORKER_RESULT_TYPE: &str = "epiphany.runtime.reorient_worker_result";
-pub const RUNTIME_JOB_RESULT_TYPE: &str = "epiphany.runtime.job_result";
 pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt.v1";
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v28";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v29";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";

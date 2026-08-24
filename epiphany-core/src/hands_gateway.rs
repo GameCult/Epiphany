@@ -5,9 +5,6 @@ pub const HANDS_PATCH_RECEIPT_TYPE: &str = "epiphany.hands.patch_receipt";
 pub const HANDS_COMMIT_RECEIPT_TYPE: &str = "epiphany.hands.commit_receipt";
 pub const HANDS_ACTION_INTENT_SCHEMA_VERSION: &str = "epiphany.hands.action_intent.v1";
 pub const HANDS_ACTION_REVIEW_SCHEMA_VERSION: &str = "epiphany.hands.action_review.v0";
-pub const HANDS_COMMAND_RECEIPT_SCHEMA_VERSION: &str = "epiphany.hands.command_receipt.v0";
-pub const HANDS_PATCH_RECEIPT_SCHEMA_VERSION: &str = "epiphany.hands.patch_receipt.v0";
-pub const HANDS_COMMIT_RECEIPT_SCHEMA_VERSION: &str = "epiphany.hands.commit_receipt.v0";
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(type = "epiphany.hands.action_intent", schema = "HandsActionIntent")]
@@ -69,25 +66,21 @@ pub struct HandsActionReview {
 #[cultcache(type = "epiphany.hands.patch_receipt", schema = "HandsPatchReceipt")]
 pub struct HandsPatchReceipt {
     #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
     pub receipt_id: String,
-    #[cultcache(key = 2)]
+    #[cultcache(key = 1)]
     pub intent_id: String,
-    #[cultcache(key = 3)]
+    #[cultcache(key = 2)]
     pub review_id: String,
-    #[cultcache(key = 4)]
+    #[cultcache(key = 3)]
     pub substrate_gate_grant_receipt_id: String,
-    #[cultcache(key = 5)]
+    #[cultcache(key = 4)]
     pub runtime_job_id: String,
-    #[cultcache(key = 6)]
+    #[cultcache(key = 5)]
     pub changed_paths: Vec<String>,
-    #[cultcache(key = 7)]
+    #[cultcache(key = 6)]
     pub summary: String,
-    #[cultcache(key = 8)]
+    #[cultcache(key = 7)]
     pub emitted_at: String,
-    #[cultcache(key = 9)]
-    pub contract: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
@@ -97,58 +90,50 @@ pub struct HandsPatchReceipt {
 )]
 pub struct HandsCommandReceipt {
     #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
     pub receipt_id: String,
-    #[cultcache(key = 2)]
+    #[cultcache(key = 1)]
     pub intent_id: String,
-    #[cultcache(key = 3)]
+    #[cultcache(key = 2)]
     pub review_id: String,
-    #[cultcache(key = 4)]
+    #[cultcache(key = 3)]
     pub substrate_gate_grant_receipt_id: String,
-    #[cultcache(key = 5)]
+    #[cultcache(key = 4)]
     pub runtime_job_id: String,
-    #[cultcache(key = 6)]
+    #[cultcache(key = 5)]
     pub command: String,
-    #[cultcache(key = 7)]
+    #[cultcache(key = 6)]
     pub exit_code: String,
-    #[cultcache(key = 8)]
+    #[cultcache(key = 7)]
     pub stdout_artifact: String,
-    #[cultcache(key = 9)]
+    #[cultcache(key = 8)]
     pub stderr_artifact: String,
-    #[cultcache(key = 10)]
+    #[cultcache(key = 9)]
     pub summary: String,
-    #[cultcache(key = 11)]
+    #[cultcache(key = 10)]
     pub emitted_at: String,
-    #[cultcache(key = 12)]
-    pub contract: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(type = "epiphany.hands.commit_receipt", schema = "HandsCommitReceipt")]
 pub struct HandsCommitReceipt {
     #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
     pub receipt_id: String,
-    #[cultcache(key = 2)]
+    #[cultcache(key = 1)]
     pub intent_id: String,
-    #[cultcache(key = 3)]
+    #[cultcache(key = 2)]
     pub review_id: String,
-    #[cultcache(key = 4)]
+    #[cultcache(key = 3)]
     pub runtime_job_id: String,
-    #[cultcache(key = 5)]
+    #[cultcache(key = 4)]
     pub commit_sha: String,
-    #[cultcache(key = 6)]
+    #[cultcache(key = 5)]
     pub branch: String,
-    #[cultcache(key = 7)]
+    #[cultcache(key = 6)]
     pub changed_paths: Vec<String>,
-    #[cultcache(key = 8)]
+    #[cultcache(key = 7)]
     pub summary: String,
-    #[cultcache(key = 9)]
+    #[cultcache(key = 8)]
     pub emitted_at: String,
-    #[cultcache(key = 10)]
-    pub contract: String,
 }
 
 pub fn hands_action_review_for_intent(
@@ -181,7 +166,6 @@ pub fn hands_patch_receipt_for_review(
     emitted_at: String,
 ) -> HandsPatchReceipt {
     HandsPatchReceipt {
-        schema_version: HANDS_PATCH_RECEIPT_SCHEMA_VERSION.to_string(),
         receipt_id,
         intent_id: intent.intent_id.clone(),
         review_id: review.review_id.clone(),
@@ -190,7 +174,6 @@ pub fn hands_patch_receipt_for_review(
         changed_paths,
         summary,
         emitted_at,
-        contract: "Hands patch receipt proves which files changed under the reviewed action and named Substrate Gate grant; Soul and Mind still decide verification and durable admission.".to_string(),
     }
 }
 
@@ -207,7 +190,6 @@ pub fn hands_command_receipt_for_review(
     emitted_at: String,
 ) -> HandsCommandReceipt {
     HandsCommandReceipt {
-        schema_version: HANDS_COMMAND_RECEIPT_SCHEMA_VERSION.to_string(),
         receipt_id,
         intent_id: intent.intent_id.clone(),
         review_id: review.review_id.clone(),
@@ -219,7 +201,6 @@ pub fn hands_command_receipt_for_review(
         stderr_artifact,
         summary,
         emitted_at,
-        contract: "Hands command receipt proves which command ran, where output evidence lives, and which reviewed action plus Substrate Gate grant authorized it.".to_string(),
     }
 }
 
@@ -234,7 +215,6 @@ pub fn hands_commit_receipt_for_review(
     emitted_at: String,
 ) -> HandsCommitReceipt {
     HandsCommitReceipt {
-        schema_version: HANDS_COMMIT_RECEIPT_SCHEMA_VERSION.to_string(),
         receipt_id,
         intent_id: intent.intent_id.clone(),
         review_id: review.review_id.clone(),
@@ -244,6 +224,5 @@ pub fn hands_commit_receipt_for_review(
         changed_paths,
         summary,
         emitted_at,
-        contract: "Hands commit receipt proves a repository commit consequence after a reviewed action; it is still subject to Soul verification and Mind admission.".to_string(),
     }
 }

@@ -2,8 +2,6 @@ use crate::EpiphanyResearchDecision;
 use crate::EpiphanyRoleFindingInterpretation;
 use cultcache_rs::DatabaseEntry;
 
-pub const EYES_SOURCE_LOOKUP_RECEIPT_TYPE: &str = "epiphany.eyes.source_lookup_receipt";
-pub const EYES_EVIDENCE_PACKET_TYPE: &str = "epiphany.eyes.evidence_packet";
 pub const EYES_SOURCE_LOOKUP_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.eyes.source_lookup_receipt.v0";
 pub const EYES_EVIDENCE_PACKET_SCHEMA_VERSION: &str = "epiphany.eyes.evidence_packet.v2";

@@ -1,7 +1,5 @@
 use cultcache_rs::DatabaseEntry;
 
-pub const SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE: &str =
-    "epiphany.substrate_gate.repo_access_grant_receipt";
 pub const SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.substrate_gate.repo_access_grant_receipt.v0";
 pub const SUBSTRATE_GATE_SOURCE_READ_OPERATION: &str = "read";
