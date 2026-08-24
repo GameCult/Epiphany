@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `8dbfcf63` on `codex/epiphany-shakedown-live`
-Current worktree cut: documentation/evidence for the final duplicate launch-binding deletion;
+Latest committed implementation cut: `3ed1d564` on `codex/epiphany-shakedown-live`
+Current worktree cut: documentation/evidence for duplicate frontier-Modeling writer deletion;
 Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -240,6 +240,16 @@ requests, sealed reasoning projections, result validation, substrate grants,
 typed failures, and Mind admission remain with their existing owners. Runtime
 writable state is v19. This cut does not touch Model Atlas or narrow the still-
 unrun inter-swarm path.
+
+Verdict-driven Modeling has one writer. Exact `3ed1d564` deletes the public
+`commit_repo_frontier_modeling_request` API that production never called.
+Accepted Verification already commits its audit, Soul verdict, and canonical
+frontier-Modeling request atomically through the Mind owner; the deleted API
+reopened the store and offered a second mutation path solely for one OpenAI
+test fixture. That test now launches ordinary Body Modeling through current
+work and still proves exact sealed input, structured completion, typed result
+and job terminality, provider failure, and output-contract failure. Its
+fabricated frontier, route, Verification, and Soul tableau is gone.
 
 Bifrost owns its private feedback-signing identity. Exact `94098223` deletes
 Epiphany's host-identity executable and the private signer, persisted identity,

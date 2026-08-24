@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `8dbfcf63`
-Current worktree: documentation/evidence for the final duplicate launch-binding deletion;
+Latest committed implementation cut: `3ed1d564`
+Current worktree: documentation/evidence for duplicate frontier-Modeling writer deletion;
 Ox17 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `8dbfcf63` is the current
+production symlink body and is inactive. Exact `3ed1d564` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,22 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `3ed1d564` deletes the public
+`commit_repo_frontier_modeling_request` mutation path. Production had no
+caller: accepted Verification already atomically commits its audit, Soul
+verdict, and derived frontier-Modeling request through one Mind transaction.
+The deleted writer reopened the store and existed only to feed an OpenAI test.
+That test now uses the real Body Modeling launcher and retains its consequential
+proofs for sealed input, structured completion, typed result/job persistence,
+provider failure, and output-contract failure. Its fabricated frontier, route,
+Verification result, and Soul verdict are gone. The cut removes 205 net source
+lines; `runtime_spine.rs` is 9,819 lines with 54 public functions. The atomic
+Verification-to-Modeling lifecycle and release-owned model runtime pass.
+
+Continue auditing public runtime-spine mutation/read wrappers and tests against
+real consumers and consequences. Preserve the unrun Atlas inter-swarm vertical
+slice until Gate 1.
 
 Exact `8dbfcf63` deletes the persisted Body Modeling, Imagination consideration,
 and Reorientation launch-binding families. Their attempt, request, role,

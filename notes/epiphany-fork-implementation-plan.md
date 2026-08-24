@@ -362,6 +362,13 @@ Cut in this order:
    grants, typed failures, and refusal/retry invariants remain family-owned.
    Runtime writable state advances to v19. Model Atlas and the unrun
    inter-swarm collaboration path are unchanged.
+   Exact `3ed1d564` then deletes the standalone public writer for the derived
+   frontier-Modeling request. Accepted Verification is the sole writer and
+   atomically commits its audit, Soul verdict, and request. The deleted path had
+   no production caller and survived only because an OpenAI test fabricated a
+   parallel Verification/Soul tableau; that test now uses ordinary Body
+   Modeling while preserving provider, contract, structured-result, and job-
+   terminality proofs.
 12. **Landed at `1662a012`, `07d891ba`, and `ec1431ff`:** coordinator policy now
    projects keyed current work; persisted `EpiphanyThreadStateEntry`,
    `coordinator_state_transaction`, generic coordinator services, the
