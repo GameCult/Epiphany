@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `f6a2ad7f`
-Current worktree: documentation/evidence for unconsumed read-helper deletion;
+Latest committed implementation cut: `be611f24`
+Current worktree: documentation/evidence for dead Imagination contract deletion;
 Ox17 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `f6a2ad7f` is the current
+production symlink body and is inactive. Exact `be611f24` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,17 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `be611f24` deletes the producerless Imagination consideration-review
+request as one authority cut: writer, durable document, schema constant,
+public export, and runtime registration are all gone. It had no caller, reader,
+test, or Modeling admission path. Imagination requests and candidates retain
+their quoted-evidence, substitution, chronology, disposition, and route
+validation; adopted proposal Modeling remains owned by its actual lifecycle.
+Runtime writable epoch advances to v22 so a v21 store cannot carry the retired
+contract into current authority. Core checks, Imagination 8/8, old-epoch
+refusal, and coordinator 5/5 pass. The cut removes 71 net maintained lines and
+does not touch Atlas.
 
 Exact `f6a2ad7f` deletes two exported read helpers with no workspace consumer.
 Packaged-release publication still writes its current-head document atomically,
@@ -119,7 +130,7 @@ the live resident fields. Runtime writable state advances to v20. JSON schemas
 parse; core check, old-epoch refusal, coordinator 5/5, and swarm 4/4 pass. The
 cut removes 59 maintained lines and leaves `runtime_spine.rs` at 9,807 lines.
 
-Continue the public-API/test-liability audit after exact `f6a2ad7f`. Model Atlas remains protected
+Continue the public-API/test-liability audit after exact `be611f24`. Model Atlas remains protected
 for its first live inter-swarm collaboration trial.
 
 Exact `3ed1d564` deletes the public

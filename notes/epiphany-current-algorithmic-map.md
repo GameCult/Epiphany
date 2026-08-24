@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `f6a2ad7f` on `codex/epiphany-shakedown-live`
-Current worktree cut: documentation/evidence for unconsumed read-helper deletion;
+Latest committed implementation cut: `be611f24` on `codex/epiphany-shakedown-live`
+Current worktree cut: documentation/evidence for dead Imagination contract deletion;
 Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -309,6 +309,13 @@ provider-health admission continues to consume and validate typed trust
 anchors supplied at its boundary; it no longer owns an unused file-loading
 convenience path. The signed admission, continuity, and substitution laws are
 unchanged.
+
+Imagination consideration no longer writes a review-shaped cul-de-sac. Exact
+`be611f24` deletes the producerless review request, its durable type, schema
+constant, export, and runtime registry entry. The retained candidate remains a
+typed proposal-only outcome; a real adopted Modeling proposal follows the
+separate proposal lifecycle rather than this unread document. Runtime epoch
+v22 refuses v21 stores instead of silently carrying the retired type forward.
 
 Bifrost owns its private feedback-signing identity. Exact `94098223` deletes
 Epiphany's host-identity executable and the private signer, persisted identity,
