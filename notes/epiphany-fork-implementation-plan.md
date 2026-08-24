@@ -352,7 +352,16 @@ Cut in this order:
    coordinator routing use the same current-work projection. Aggregate
    launch/acceptance, checkpoint/freshness recommendation, latest binding,
    global revision acceptance, and accepted-at comparison no longer own this
-   family.
+   family. Exact `8dbfcf63` deletes its later duplicate launch-binding document;
+   the immutable worker launch owns request/job/attempt identity, while retry
+   CAS strongly reads the typed failure and exact terminal runtime result.
+   The same cut deletes the duplicate Body Modeling and Imagination
+   consideration binding families. Canonical job identities and immutable
+   family-referenced worker launches now own all three attempt sequences.
+   Their semantic requests, sealed projections, result admission, substrate
+   grants, typed failures, and refusal/retry invariants remain family-owned.
+   Runtime writable state advances to v19. Model Atlas and the unrun
+   inter-swarm collaboration path are unchanged.
 12. **Landed at `1662a012`, `07d891ba`, and `ec1431ff`:** coordinator policy now
    projects keyed current work; persisted `EpiphanyThreadStateEntry`,
    `coordinator_state_transaction`, generic coordinator services, the

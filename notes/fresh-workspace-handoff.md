@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `b55e96ea`
-Current worktree: documentation/evidence for Planning/PlanMind launch-authority deletion;
+Latest committed implementation cut: `8dbfcf63`
+Current worktree: documentation/evidence for the final duplicate launch-binding deletion;
 Ox17 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `b55e96ea` is the current
+production symlink body and is inactive. Exact `8dbfcf63` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -45,24 +45,29 @@ authorize the next capstone or Gate 1.
 
 ## What just landed
 
+Exact `8dbfcf63` deletes the persisted Body Modeling, Imagination consideration,
+and Reorientation launch-binding families. Their attempt, request, role,
+binding, timestamp, Body/projection, and launch-digest fields duplicated the
+immutable worker launch, typed family request/projection, runtime job/result,
+admission refusal, or typed pass failure. Canonical worker job identities now
+own contiguous attempt order. Retry CAS strong-reads prior launches and each
+family's exact terminal ancestry; stale model output is not rebased. The broad
+keyed Body/Imagination lifecycle, Reorientation success/failure/retry proof,
+old-epoch refusal, release-owned coordinator, and OpenAI runtime checks pass.
+The cut removes 24 net source lines and advances runtime writable state to v19.
+
+No live inter-swarm collaboration has yet run. Model Atlas remains protected
+for the first real Gate 1 trial; its isolated component proofs are not
+acceptance. Continue the public runtime-spine and test-liability audit without
+narrowing Atlas publication, trust, transport, verification, admission, wake,
+brake, or Eve behavior.
+
 Exact `b55e96ea` deletes the persisted Planning and PlanMind launch-binding
 families. Their twenty-four fields duplicated the immutable worker launch,
 typed requests, runtime job, canonical attempt identity, and typed failure
-review. Self now derives contiguous attempts and current jobs from the family
-references on worker launches. Retry launch CAS strongly reads every prior
-launch plus the exact failed result and review, so stale retry authority cannot
-be summarized and silently reused. The complete keyed Planning-to-PlanMind
-lifecycle, v17 refusal, release-owned coordinator, and model-runtime checks
-pass. The cut removes 44 net source lines and advances runtime writable state
-to v18.
-
-Continue with the three remaining persisted launch-binding families: Body
-Modeling, Imagination consideration, and Reorientation. Preserve their typed
-semantic requests, projections, result validation, and refusal/retry
-invariants; delete any sibling launch record whose state is derivable from the
-immutable worker launch and owning receipts. Model Atlas remains protected for
-the first real inter-swarm collaboration trial; component tests are not that
-trial.
+review. Self derives contiguous attempts and current jobs from immutable worker
+launches, and retry CAS strongly reads each failed result and review. Runtime
+writable state advanced to v18.
 
 Exact `b0a4978d` deletes the Proposal-Modeling launch-binding document family.
 The immutable worker launch already owns the exact typed request reference, job,

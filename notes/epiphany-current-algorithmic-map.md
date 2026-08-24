@@ -1,8 +1,9 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `b55e96ea` on `codex/epiphany-shakedown-live`
-Current worktree cut: Planning/PlanMind launch-authority deletion; Ox17 remains paused
+Latest committed implementation cut: `8dbfcf63` on `codex/epiphany-shakedown-live`
+Current worktree cut: documentation/evidence for the final duplicate launch-binding deletion;
+Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke
@@ -225,8 +226,20 @@ current job from the family references on immutable worker launches. A retry is
 authorized only by the exact typed failed result and its failure review; the
 launch transaction now strongly reads those documents and every prior launch.
 The semantic Planning and PlanMind requests, sealed projections, result
-validation, and two-stage adoption boundary remain family-owned. Body Modeling,
-Imagination consideration, and Reorientation bindings remain under audit.
+validation, and two-stage adoption boundary remain family-owned.
+
+Body Modeling, Imagination consideration, and Reorientation also have no
+second launch record. Exact `8dbfcf63` deletes all three persisted binding
+families. Canonical worker job identities now encode contiguous attempt order;
+the immutable worker launch carries the exact family reference, role, binding,
+and typed launch projection. Body retry CAS reads the prior launches, latest
+job, exact structured result, and matching admission refusal. Reorientation
+retry CAS reads the prior launches, latest job, typed pass failure, and exact
+terminal runtime result. Imagination retry CAS reads every prior launch. Family
+requests, sealed reasoning projections, result validation, substrate grants,
+typed failures, and Mind admission remain with their existing owners. Runtime
+writable state is v19. This cut does not touch Model Atlas or narrow the still-
+unrun inter-swarm path.
 
 Bifrost owns its private feedback-signing identity. Exact `94098223` deletes
 Epiphany's host-identity executable and the private signer, persisted identity,
