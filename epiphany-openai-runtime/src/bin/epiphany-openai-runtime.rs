@@ -463,16 +463,20 @@ async fn run_worker_launch(
     epiphany_core::put_reasoning_basis(&options.store_path, &basis)?;
     let mut initial_request =
         build_worker_model_request(&launch_request, &options.provider, &options.model, &basis)?;
-    let requested_public_source_intents =
-        if launch_request.repo_frontier_research_request_id.is_some() {
-            epiphany_core::put_runtime_requested_public_source_intents(
-                &options.store_path,
-                &options.job_id,
-                &now(),
-            )?
-        } else {
-            Vec::new()
-        };
+    let is_frontier_research = matches!(
+        launch_request.launch_document()?,
+        epiphany_core::EpiphanyWorkerLaunchDocument::Role(document)
+            if document.frontier_research_context.is_some()
+    );
+    let requested_public_source_intents = if is_frontier_research {
+        epiphany_core::put_runtime_requested_public_source_intents(
+            &options.store_path,
+            &options.job_id,
+            &now(),
+        )?
+    } else {
+        Vec::new()
+    };
     let mut requested_public_source_runs = Vec::new();
     for intent in &requested_public_source_intents {
         requested_public_source_runs.push(run_tool_adapter(
@@ -1276,14 +1280,6 @@ mod tests {
                     },
                 ),
                 output_contract_id: epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
-                proposal_modeling_request_id: None,
-                frontier_planning_request_id: None,
-                frontier_plan_mind_request_id: None,
-                imagination_consideration_request_id: None,
-                admitted_model_direction_consideration_request_id: None,
-                repo_frontier_modeling_request_id: None,
-                repo_frontier_research_request_id: None,
-                repo_frontier_verification_request_id: None,
                 created_at: now(),
             },
         )?;
@@ -1375,14 +1371,6 @@ mod tests {
                     },
                 ),
                 output_contract_id: epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
-                proposal_modeling_request_id: None,
-                frontier_planning_request_id: None,
-                frontier_plan_mind_request_id: None,
-                imagination_consideration_request_id: None,
-                admitted_model_direction_consideration_request_id: None,
-                repo_frontier_modeling_request_id: None,
-                repo_frontier_research_request_id: None,
-                repo_frontier_verification_request_id: None,
                 created_at: now(),
             },
         )?;
@@ -1493,14 +1481,6 @@ mod tests {
                     },
                 ),
                 output_contract_id: epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
-                proposal_modeling_request_id: None,
-                frontier_planning_request_id: None,
-                frontier_plan_mind_request_id: None,
-                imagination_consideration_request_id: None,
-                admitted_model_direction_consideration_request_id: None,
-                repo_frontier_modeling_request_id: None,
-                repo_frontier_research_request_id: None,
-                repo_frontier_verification_request_id: None,
                 created_at: now(),
             },
         )?;

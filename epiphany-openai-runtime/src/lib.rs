@@ -348,7 +348,7 @@ pub fn build_worker_model_request(
             ));
         }
     }
-    let output_schema_json = worker_output_schema_json(launch_request, &launch_document)?;
+    let output_schema_json = worker_output_schema_json(&launch_document)?;
     let request_id = format!(
         "worker-{}-{}",
         sanitize_request_id(&launch_request.job_id),
@@ -1079,7 +1079,7 @@ fn worker_instructions(
     launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
     launch_document: &EpiphanyWorkerLaunchDocument,
 ) -> String {
-    let output_contract = worker_output_contract_text(launch_request, launch_document);
+    let output_contract = worker_output_contract_text(launch_document);
     let dynamic_context = launch_document
         .dynamic_prompt_context()
         .map(|context| format!("\n\n{context}"))
@@ -1090,10 +1090,7 @@ fn worker_instructions(
     )
 }
 
-fn worker_output_schema_json(
-    launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
-    document: &EpiphanyWorkerLaunchDocument,
-) -> Result<String> {
+fn worker_output_schema_json(document: &EpiphanyWorkerLaunchDocument) -> Result<String> {
     let schema = match document {
         EpiphanyWorkerLaunchDocument::Role(document) => {
             if document.frontier_plan_mind_context.is_some() {
@@ -1116,27 +1113,12 @@ fn worker_output_schema_json(
             } else if document.proposal_modeling_context.is_some() {
                 epiphany_core::epiphany_proposal_modeling_output_schema()
             } else if role_id == epiphany_core::EpiphanyRoleResultRoleId::Modeling
-                && launch_request.repo_frontier_modeling_request_id.is_some()
+                && document.frontier_verdict_modeling_context.is_some()
             {
-                let request_id = launch_request
-                    .repo_frontier_modeling_request_id
-                    .as_deref()
-                    .expect("checked verdict-bound Modeling request identity");
                 let authority = document
                     .frontier_verdict_modeling_context
                     .as_ref()
-                    .ok_or_else(|| {
-                        anyhow!(
-                            "verdict-bound Modeling launch {request_id:?} omitted its typed authority body"
-                        )
-                    })?;
-                if authority.request.request_id != request_id {
-                    return Err(anyhow!(
-                        "verdict-bound Modeling launch identity mismatch: indexed {:?}, authority {:?}",
-                        request_id,
-                        authority.request.request_id
-                    ));
-                }
+                    .expect("checked verdict-bound Modeling authority");
                 epiphany_core::epiphany_frontier_verdict_modeling_output_schema(authority)
             } else {
                 epiphany_core::epiphany_role_launch_output_schema(role_id)
@@ -1163,13 +1145,10 @@ fn role_result_id_for_launch_role(
     }
 }
 
-fn worker_output_contract_text(
-    launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
-    document: &EpiphanyWorkerLaunchDocument,
-) -> &'static str {
+fn worker_output_contract_text(document: &EpiphanyWorkerLaunchDocument) -> &'static str {
     match document {
-        EpiphanyWorkerLaunchDocument::Role(_)
-            if launch_request.repo_frontier_modeling_request_id.is_some() =>
+        EpiphanyWorkerLaunchDocument::Role(document)
+            if document.frontier_verdict_modeling_context.is_some() =>
         {
             "Required verdict-bound Modeling fields: roleId=modeling, verdict, summary, nextSafeMove, filesInspected, frontierNodeIds, evidenceIds, frontierVerdictGap. Emit only the semantic gap explaining the allowed resolved or blocked transition. Runtime binds the exact request, keyed RepoModel basis, frontier item and disposition, evidence identities, timestamps, proposal, strong reads, writes, and receipts. Do not emit repoModelOperations, repositoryBodyObservationBasis, request ids, generic Mind patches, selfPatch, commands, release, or deployment cargo."
         }
@@ -1414,14 +1393,6 @@ fn role_worker_result_from_ingress(
     runtime_evidence_ids: Vec<String>,
     artifact_refs: Vec<String>,
 ) -> EpiphanyRuntimeRoleWorkerResult {
-    let verification_authority = rmp_serde::from_slice::<EpiphanyWorkerLaunchDocument>(
-        &launch_request.launch_document_msgpack,
-    )
-    .ok()
-    .and_then(|document| match document {
-        EpiphanyWorkerLaunchDocument::Role(role) => role.frontier_verification_context,
-        EpiphanyWorkerLaunchDocument::Reorient(_) => None,
-    });
     let accepted_evidence_ids = {
         let mut evidence_ids = clean_string_vec(&result.evidence_ids);
         evidence_ids.extend(clean_string_vec(&runtime_evidence_ids));
@@ -1782,10 +1753,6 @@ fn role_worker_result_from_ingress(
         (None, None)
     };
     EpiphanyRuntimeRoleWorkerResult {
-        repository_body_observation_basis: role_id
-            .eq_ignore_ascii_case("modeling")
-            .then(|| repository_body_observation_basis.cloned())
-            .flatten(),
         result_id: result_id.to_string(),
         job_id: launch_request.job_id.clone(),
         role_id: clean_optional_string(result.role_id.as_deref())
@@ -1822,26 +1789,9 @@ fn role_worker_result_from_ingress(
         ),
         metadata: std::collections::BTreeMap::new(),
         repo_model_mutation_proposal_msgpack,
-        verification_request_id: verification_authority
-            .as_ref()
-            .map(|authority| authority.request.request_id.clone()),
-        frontier_route_id: verification_authority
-            .as_ref()
-            .map(|authority| authority.route.route_id.clone()),
-        repo_frontier_modeling_request_id: launch_request.repo_frontier_modeling_request_id.clone(),
-        proposal_modeling_request_id: launch_request.proposal_modeling_request_id.clone(),
-        repo_frontier_research_request_id: launch_request.repo_frontier_research_request_id.clone(),
-        frontier_planning_request_id: launch_request.frontier_planning_request_id.clone(),
         frontier_plan_candidate_msgpack,
-        frontier_plan_mind_request_id: frontier_plan_mind_context
-            .map(|context| context.request.request_id.clone()),
         frontier_plan_mind_decision_msgpack,
-        imagination_consideration_request_id: imagination_consideration_context
-            .map(|context| context.request.request_id.clone()),
         imagination_consideration_candidate_msgpack,
-        admitted_model_direction_consideration_request_id:
-            admitted_model_direction_consideration_context
-                .map(|context| context.request.request_id.clone()),
         admitted_model_direction_consideration_result_msgpack,
         decision_context_id: decision_context_id.to_string(),
     }
@@ -1856,8 +1806,13 @@ pub fn failed_frontier_planning_role_result(
     failure_summary: &str,
     decision_context_id: &str,
 ) -> Result<Option<EpiphanyRuntimeRoleWorkerResult>> {
-    if launch_request.frontier_planning_request_id.is_none()
-        && launch_request.frontier_plan_mind_request_id.is_none()
+    let document = launch_request.launch_document()?;
+    let EpiphanyWorkerLaunchDocument::Role(document) = document else {
+        return Err(anyhow!(
+            "frontier planning failure projection requires a role launch"
+        ));
+    };
+    if document.frontier_planning_context.is_none() && document.frontier_plan_mind_context.is_none()
     {
         return Ok(None);
     }
@@ -1866,12 +1821,6 @@ pub fn failed_frontier_planning_role_result(
             "model-backed planning failure requires its sealed decision context"
         ));
     }
-    let document = launch_request.launch_document()?;
-    let EpiphanyWorkerLaunchDocument::Role(document) = document else {
-        return Err(anyhow!(
-            "frontier planning failure projection requires a role launch"
-        ));
-    };
     let summary = failure_summary.trim().to_string();
     Ok(Some(EpiphanyRuntimeRoleWorkerResult {
         result_id: format!("result-worker-{}", launch_request.job_id),
@@ -1894,19 +1843,9 @@ pub fn failed_frontier_planning_role_result(
         item_error: Some(summary.clone()),
         metadata: std::collections::BTreeMap::new(),
         repo_model_mutation_proposal_msgpack: None,
-        verification_request_id: None,
-        frontier_route_id: None,
-        repo_frontier_modeling_request_id: None,
-        proposal_modeling_request_id: None,
-        repo_frontier_research_request_id: None,
-        frontier_planning_request_id: None,
         frontier_plan_candidate_msgpack: None,
-        frontier_plan_mind_request_id: None,
         frontier_plan_mind_decision_msgpack: None,
-        repository_body_observation_basis: document.repository_body_observation_basis,
-        imagination_consideration_request_id: None,
         imagination_consideration_candidate_msgpack: None,
-        admitted_model_direction_consideration_request_id: None,
         admitted_model_direction_consideration_result_msgpack: None,
         decision_context_id: decision_context_id.to_string(),
     }))
@@ -2266,14 +2205,6 @@ mod tests {
             document_kind: "role".into(),
             launch_document_msgpack: Vec::new(),
             metadata: std::collections::BTreeMap::new(),
-            proposal_modeling_request_id: Some("proposal-request-1".into()),
-            frontier_planning_request_id: None,
-            frontier_plan_mind_request_id: None,
-            imagination_consideration_request_id: None,
-            admitted_model_direction_consideration_request_id: None,
-            repo_frontier_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            repo_frontier_verification_request_id: None,
         };
         let basis = epiphany_core::RepositoryBodyObservationBasis {
             schema_version: "epiphany.repository_body.v2".into(),
@@ -2345,11 +2276,6 @@ mod tests {
             vec!["openai-request:proposal".into()],
             Vec::new(),
         );
-        assert_eq!(result.repository_body_observation_basis, Some(basis));
-        assert_eq!(
-            result.proposal_modeling_request_id.as_deref(),
-            Some("proposal-request-1")
-        );
         assert!(result.evidence_ids.contains(&"proposal-1".to_string()));
         let proposal: epiphany_core::EpiphanyRepoModelMutationProposal = rmp_serde::from_slice(
             result
@@ -2399,14 +2325,6 @@ mod tests {
             document_kind: "role".into(),
             launch_document_msgpack: Vec::new(),
             metadata: std::collections::BTreeMap::new(),
-            proposal_modeling_request_id: None,
-            frontier_planning_request_id: None,
-            frontier_plan_mind_request_id: None,
-            imagination_consideration_request_id: None,
-            admitted_model_direction_consideration_request_id: None,
-            repo_frontier_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            repo_frontier_verification_request_id: None,
         };
         let atlas = RoleWorkerResultIngress {
             role_id: Some("modeling".into()),
@@ -2537,14 +2455,6 @@ mod tests {
             document_kind: "role".into(),
             launch_document_msgpack: rmp_serde::to_vec_named(&document)?,
             metadata: std::collections::BTreeMap::new(),
-            proposal_modeling_request_id: Some("proposal-request-1".into()),
-            frontier_planning_request_id: None,
-            frontier_plan_mind_request_id: None,
-            imagination_consideration_request_id: None,
-            admitted_model_direction_consideration_request_id: None,
-            repo_frontier_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            repo_frontier_verification_request_id: None,
         };
 
         let request = build_worker_model_request(
@@ -2614,14 +2524,6 @@ mod tests {
             document_kind: "role".into(),
             launch_document_msgpack: Vec::new(),
             metadata: std::collections::BTreeMap::new(),
-            proposal_modeling_request_id: None,
-            frontier_planning_request_id: Some("planning-request-1".into()),
-            frontier_plan_mind_request_id: None,
-            imagination_consideration_request_id: None,
-            admitted_model_direction_consideration_request_id: None,
-            repo_frontier_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            repo_frontier_verification_request_id: None,
         };
         let planning_context = epiphany_core::RepoFrontierPlanningContextProjection {
             schema_version: epiphany_core::REPO_FRONTIER_PLANNING_CONTEXT_SCHEMA_VERSION.into(),
@@ -2654,10 +2556,6 @@ mod tests {
             &parsed,
             Vec::new(),
             Vec::new(),
-        );
-        assert_eq!(
-            result.frontier_planning_request_id.as_deref(),
-            Some("planning-request-1")
         );
         assert!(result.research_decision_msgpack.is_none());
         let candidate = result
@@ -2772,14 +2670,6 @@ mod tests {
             document_kind: "role".into(),
             launch_document_msgpack: Vec::new(),
             metadata: std::collections::BTreeMap::new(),
-            proposal_modeling_request_id: None,
-            frontier_planning_request_id: None,
-            frontier_plan_mind_request_id: None,
-            imagination_consideration_request_id: Some(request.request_id.clone()),
-            admitted_model_direction_consideration_request_id: None,
-            repo_frontier_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            repo_frontier_verification_request_id: None,
         };
         let result = role_worker_result_from_ingress(
             &launch,
@@ -2797,10 +2687,6 @@ mod tests {
             &parsed,
             Vec::new(),
             Vec::new(),
-        );
-        assert_eq!(
-            result.imagination_consideration_request_id.as_deref(),
-            Some("request-1")
         );
         let candidate = result
             .imagination_consideration_candidate()?
@@ -2845,7 +2731,24 @@ mod tests {
                 repository_body_observation_basis: None,
                 proposal_modeling_context: None,
                 frontier_verdict_modeling_context: None,
-                frontier_planning_context: None,
+                frontier_planning_context: Some(
+                    epiphany_core::RepoFrontierPlanningContextProjection {
+                        schema_version:
+                            epiphany_core::REPO_FRONTIER_PLANNING_CONTEXT_SCHEMA_VERSION.into(),
+                        contract: epiphany_core::REPO_FRONTIER_PLANNING_CONTEXT_CONTRACT.into(),
+                        request_id: "planning-request-failed".into(),
+                        model_projection_digest: "model-digest".into(),
+                        model_source_documents: Vec::new(),
+                        frontier_item_id: "frontier-failed".into(),
+                        frontier_item_hash: "frontier-hash".into(),
+                        selected_organ: "Imagination".into(),
+                        repository_scope: vec!["src".into()],
+                        requested_at: "2026-07-15T09:59:00Z".into(),
+                        runtime_id: "runtime-1".into(),
+                        frontier_authority_documents: Vec::new(),
+                        claim_obligation_documents: Vec::new(),
+                    },
+                ),
                 frontier_research_context: None,
                 frontier_verification_context: None,
                 frontier_plan_mind_context: None,
@@ -2862,14 +2765,6 @@ mod tests {
             document_kind: "role".into(),
             launch_document_msgpack: rmp_serde::to_vec_named(&document)?,
             metadata: std::collections::BTreeMap::new(),
-            proposal_modeling_request_id: None,
-            frontier_planning_request_id: Some("planning-request-1".into()),
-            frontier_plan_mind_request_id: None,
-            imagination_consideration_request_id: None,
-            admitted_model_direction_consideration_request_id: None,
-            repo_frontier_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            repo_frontier_verification_request_id: None,
         };
         let failed = failed_frontier_planning_role_result(
             &launch,
@@ -2880,7 +2775,6 @@ mod tests {
         assert_eq!(failed.job_id, launch.job_id);
         assert_eq!(failed.role_id, "imagination");
         assert_eq!(failed.item_error.as_deref(), Some("candidate mismatch"));
-        assert!(failed.frontier_planning_request_id.is_none());
         assert!(failed.frontier_plan_candidate_msgpack.is_none());
         assert!(failed.research_decision_msgpack.is_none());
         assert!(failed.repo_model_mutation_proposal_msgpack.is_none());
@@ -2907,14 +2801,6 @@ mod tests {
             document_kind: "role".into(),
             launch_document_msgpack: Vec::new(),
             metadata: std::collections::BTreeMap::new(),
-            proposal_modeling_request_id: None,
-            frontier_planning_request_id: None,
-            frontier_plan_mind_request_id: Some("mind-request-1".into()),
-            imagination_consideration_request_id: None,
-            admitted_model_direction_consideration_request_id: None,
-            repo_frontier_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            repo_frontier_verification_request_id: None,
         };
         let context = epiphany_core::RepoFrontierPlanMindContextProjection {
             schema_version: epiphany_core::REPO_FRONTIER_PLAN_MIND_CONTEXT_SCHEMA_VERSION.into(),
@@ -2975,10 +2861,6 @@ mod tests {
             &parsed,
             Vec::new(),
             Vec::new(),
-        );
-        assert_eq!(
-            result.frontier_plan_mind_request_id.as_deref(),
-            Some("mind-request-1")
         );
         let decision = result
             .frontier_plan_mind_decision()?
@@ -3450,14 +3332,6 @@ mod tests {
                     },
                 ),
                 output_contract_id: epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
-                proposal_modeling_request_id: None,
-                frontier_planning_request_id: None,
-                frontier_plan_mind_request_id: None,
-                imagination_consideration_request_id: None,
-                admitted_model_direction_consideration_request_id: None,
-                repo_frontier_modeling_request_id: None,
-                repo_frontier_research_request_id: None,
-                repo_frontier_verification_request_id: None,
                 created_at: now(),
             },
         )?;

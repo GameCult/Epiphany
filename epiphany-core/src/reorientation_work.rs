@@ -211,16 +211,6 @@ fn reorientation_launch_document(
         || document.schema_version != "epiphany.reorientation_launch_projection.v1"
         || document.request_id.trim().is_empty()
         || document.creation_thread_id != launch.job_id
-        || launch.proposal_modeling_request_id.is_some()
-        || launch.frontier_planning_request_id.is_some()
-        || launch.frontier_plan_mind_request_id.is_some()
-        || launch.imagination_consideration_request_id.is_some()
-        || launch
-            .admitted_model_direction_consideration_request_id
-            .is_some()
-        || launch.repo_frontier_modeling_request_id.is_some()
-        || launch.repo_frontier_research_request_id.is_some()
-        || launch.repo_frontier_verification_request_id.is_some()
     {
         return Err(anyhow!(
             "reorientation immutable launch crossed family authority"
@@ -477,14 +467,6 @@ pub fn launch_current_reorientation_work(
             instruction: "Decide resume or regather from only the sealed typed continuity projection. Return the reorientation result contract; do not invent live state.".into(),
             launch_document,
             output_contract_id: output_contract_id.clone(),
-            proposal_modeling_request_id: None,
-            frontier_planning_request_id: None,
-            frontier_plan_mind_request_id: None,
-            imagination_consideration_request_id: None,
-            admitted_model_direction_consideration_request_id: None,
-            repo_frontier_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            repo_frontier_verification_request_id: None,
             created_at: created_at.into(),
         },
     )?;

@@ -19,6 +19,8 @@ pub use role_result::EpiphanyRoleFindingInterpretation;
 pub use role_result::EpiphanyRoleResultRoleId;
 pub use role_result::interpret_runtime_reorient_worker_result;
 pub use role_result::interpret_runtime_role_worker_result;
+pub use worker_launch::ADMITTED_MODEL_DIRECTION_CONSIDERATION_CONTEXT_CONTRACT;
+pub use worker_launch::ADMITTED_MODEL_DIRECTION_CONSIDERATION_CONTEXT_SCHEMA_VERSION;
 pub use worker_launch::AdmittedModelDirectionConsiderationContextProjection;
 pub use worker_launch::EpiphanyReorientWorkerLaunchDocument;
 pub use worker_launch::EpiphanyRoleWorkerLaunchDocument;

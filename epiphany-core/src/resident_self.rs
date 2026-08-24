@@ -1323,11 +1323,12 @@ pub fn recover_dead_resident_typed_worker(
     };
     let mut cache = crate::runtime_spine_cache(runtime_store)?;
     cache.pull_all_backing_stores()?;
-    let mut launches = cache
-        .get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?
-        .into_iter()
-        .filter(|launch| request.matches_launch(launch))
-        .collect::<Vec<_>>();
+    let mut launches = Vec::new();
+    for launch in cache.get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()? {
+        if request.matches_launch(&launch)? {
+            launches.push(launch);
+        }
+    }
     launches.sort_by(|a, b| a.job_id.cmp(&b.job_id));
     let mut retryable = Vec::new();
     for launch in &launches {

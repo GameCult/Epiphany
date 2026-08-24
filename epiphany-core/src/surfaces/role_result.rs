@@ -32,9 +32,6 @@ pub struct EpiphanyRoleFindingInterpretation {
     pub repo_model_mutation_proposal: Option<crate::EpiphanyRepoModelMutationProposal>,
     pub job_error: Option<String>,
     pub item_error: Option<String>,
-    pub verification_request_id: Option<String>,
-    pub frontier_route_id: Option<String>,
-    pub proposal_modeling_request_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -122,9 +119,6 @@ pub fn interpret_runtime_role_worker_result(
             | EpiphanyRoleResultRoleId::Verification
             | EpiphanyRoleResultRoleId::Reorientation => item_error,
         },
-        verification_request_id: result.verification_request_id.clone(),
-        frontier_route_id: result.frontier_route_id.clone(),
-        proposal_modeling_request_id: result.proposal_modeling_request_id.clone(),
     }
 }
 

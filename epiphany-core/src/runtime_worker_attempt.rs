@@ -84,77 +84,50 @@ impl<'a> RuntimeTypedRequestRef<'a> {
         }
     }
 
-    pub(crate) fn matches_launch(self, launch: &crate::EpiphanyRuntimeWorkerLaunchRequest) -> bool {
-        match self {
-            Self::ProposalModeling(id) => {
-                launch.proposal_modeling_request_id.as_deref() == Some(id)
-            }
-            Self::FrontierVerdictModeling(id) => {
-                launch.repo_frontier_modeling_request_id.as_deref() == Some(id)
-            }
-            Self::FrontierResearch(id) => {
-                launch.repo_frontier_research_request_id.as_deref() == Some(id)
-            }
-            Self::FrontierVerification(id) => {
-                launch.repo_frontier_verification_request_id.as_deref() == Some(id)
-            }
-            Self::ImaginationConsideration(id) => {
-                launch.imagination_consideration_request_id.as_deref() == Some(id)
-            }
-            Self::AdmittedModelDirection(id) => {
-                launch
-                    .admitted_model_direction_consideration_request_id
-                    .as_deref()
-                    == Some(id)
-            }
-        }
-    }
-
-    pub(crate) fn matches_result(self, result: &crate::EpiphanyRuntimeRoleWorkerResult) -> bool {
-        match self {
-            Self::ProposalModeling(id) => {
-                result.proposal_modeling_request_id.as_deref() == Some(id)
-            }
-            Self::FrontierVerdictModeling(id) => {
-                result.repo_frontier_modeling_request_id.as_deref() == Some(id)
-            }
-            Self::FrontierResearch(id) => {
-                result.repo_frontier_research_request_id.as_deref() == Some(id)
-            }
-            Self::FrontierVerification(id) => result.verification_request_id.as_deref() == Some(id),
-            Self::ImaginationConsideration(id) => {
-                result.imagination_consideration_request_id.as_deref() == Some(id)
-            }
-            Self::AdmittedModelDirection(id) => {
-                result
-                    .admitted_model_direction_consideration_request_id
-                    .as_deref()
-                    == Some(id)
-            }
-        }
+    pub(crate) fn matches_launch(
+        self,
+        launch: &crate::EpiphanyRuntimeWorkerLaunchRequest,
+    ) -> Result<bool> {
+        let document = launch.launch_document()?;
+        Ok(document.typed_request_ref()? == Some(self))
     }
 }
 
-impl crate::EpiphanyRuntimeWorkerLaunchRequest {
+impl crate::EpiphanyWorkerLaunchDocument {
     pub(crate) fn typed_request_ref(&self) -> Result<Option<RuntimeTypedRequestRef<'_>>> {
+        let crate::EpiphanyWorkerLaunchDocument::Role(document) = self else {
+            return Ok(None);
+        };
         let requests = [
-            self.proposal_modeling_request_id
-                .as_deref()
+            document
+                .proposal_modeling_context
+                .as_ref()
+                .map(|context| context.request_id.as_str())
                 .map(RuntimeTypedRequestRef::ProposalModeling),
-            self.repo_frontier_modeling_request_id
-                .as_deref()
+            document
+                .frontier_verdict_modeling_context
+                .as_ref()
+                .map(|context| context.request.request_id.as_str())
                 .map(RuntimeTypedRequestRef::FrontierVerdictModeling),
-            self.repo_frontier_research_request_id
-                .as_deref()
+            document
+                .frontier_research_context
+                .as_ref()
+                .map(|context| context.request_id.as_str())
                 .map(RuntimeTypedRequestRef::FrontierResearch),
-            self.repo_frontier_verification_request_id
-                .as_deref()
+            document
+                .frontier_verification_context
+                .as_ref()
+                .map(|context| context.request.request_id.as_str())
                 .map(RuntimeTypedRequestRef::FrontierVerification),
-            self.imagination_consideration_request_id
-                .as_deref()
+            document
+                .imagination_consideration_context
+                .as_ref()
+                .map(|context| context.request.request_id.as_str())
                 .map(RuntimeTypedRequestRef::ImaginationConsideration),
-            self.admitted_model_direction_consideration_request_id
-                .as_deref()
+            document
+                .admitted_model_direction_consideration_context
+                .as_ref()
+                .map(|context| context.request.request_id.as_str())
                 .map(RuntimeTypedRequestRef::AdmittedModelDirection),
         ]
         .into_iter()

@@ -345,18 +345,93 @@ pub(crate) fn register_current_work_types(cache: &mut CultCache) -> Result<()> {
     Ok(())
 }
 
+fn role_launch_document(
+    launch: &crate::EpiphanyRuntimeWorkerLaunchRequest,
+) -> Result<crate::EpiphanyRoleWorkerLaunchDocument> {
+    match launch.launch_document()? {
+        crate::EpiphanyWorkerLaunchDocument::Role(document) => Ok(document),
+        crate::EpiphanyWorkerLaunchDocument::Reorient(_) => {
+            Err(anyhow!("typed role work carried reorientation authority"))
+        }
+    }
+}
+
+fn launch_matches_typed_request(
+    launch: &crate::EpiphanyRuntimeWorkerLaunchRequest,
+    request: crate::RuntimeTypedRequestRef<'_>,
+) -> Result<bool> {
+    request.matches_launch(launch)
+}
+
+fn typed_request_launches<'a>(
+    launches: &'a [crate::EpiphanyRuntimeWorkerLaunchRequest],
+    request: crate::RuntimeTypedRequestRef<'_>,
+) -> Result<Vec<&'a crate::EpiphanyRuntimeWorkerLaunchRequest>> {
+    launches
+        .iter()
+        .map(|launch| Ok(launch_matches_typed_request(launch, request)?.then_some(launch)))
+        .filter_map(Result::transpose)
+        .collect()
+}
+
+fn launch_matches_frontier_planning_request(
+    launch: &crate::EpiphanyRuntimeWorkerLaunchRequest,
+    request_id: &str,
+) -> Result<bool> {
+    Ok(role_launch_document(launch)?
+        .frontier_planning_context
+        .is_some_and(|context| context.request_id == request_id))
+}
+
+fn launch_matches_frontier_plan_mind_request(
+    launch: &crate::EpiphanyRuntimeWorkerLaunchRequest,
+    request_id: &str,
+) -> Result<bool> {
+    Ok(role_launch_document(launch)?
+        .frontier_plan_mind_context
+        .is_some_and(|context| context.request.request_id == request_id))
+}
+
+fn frontier_planning_launches<'a>(
+    launches: &'a [crate::EpiphanyRuntimeWorkerLaunchRequest],
+    request_id: &str,
+) -> Result<Vec<&'a crate::EpiphanyRuntimeWorkerLaunchRequest>> {
+    launches
+        .iter()
+        .map(|launch| {
+            Ok(launch_matches_frontier_planning_request(launch, request_id)?.then_some(launch))
+        })
+        .filter_map(Result::transpose)
+        .collect()
+}
+
+fn frontier_plan_mind_launches<'a>(
+    launches: &'a [crate::EpiphanyRuntimeWorkerLaunchRequest],
+    request_id: &str,
+) -> Result<Vec<&'a crate::EpiphanyRuntimeWorkerLaunchRequest>> {
+    launches
+        .iter()
+        .map(|launch| {
+            Ok(launch_matches_frontier_plan_mind_request(launch, request_id)?.then_some(launch))
+        })
+        .filter_map(Result::transpose)
+        .collect()
+}
+
 pub(crate) fn body_modeling_decision_envelope(
     store_path: &Path,
     result: &crate::EpiphanyRuntimeRoleWorkerResult,
     disposition: &str,
     decided_at: &str,
 ) -> Result<CultCacheEnvelope> {
-    let body_basis = result
-        .repository_body_observation_basis
-        .clone()
-        .ok_or_else(|| anyhow!("Body Modeling result has no Body observation basis"))?;
     let mut cache = crate::runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
+    let launch = cache
+        .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(&result.job_id)?
+        .ok_or_else(|| anyhow!("Body Modeling result lost its immutable launch"))?;
+    let body_basis = launch
+        .repository_body_observation_basis()?
+        .ok_or_else(|| anyhow!("Body Modeling result has no Body observation basis"))?;
     let context = cache
         .get::<crate::EpiphanyDecisionContext>(&result.decision_context_id)?
         .ok_or_else(|| anyhow!("Body Modeling result has no decision context"))?;
@@ -504,19 +579,18 @@ fn current_imagination_consideration_work(
             continue;
         }
         crate::validate_current_imagination_consideration_request(cache, &request)?;
-        let mut job_ids = launches
-            .iter()
-            .filter(|launch| {
-                launch.imagination_consideration_request_id.as_deref()
-                    == Some(request.request_id.as_str())
-            })
-            .map(|launch| {
-                Ok((
-                    consideration_attempt_ordinal(&request.request_id, &launch.job_id)?,
-                    launch.job_id.clone(),
-                ))
-            })
-            .collect::<Result<Vec<_>>>()?;
+        let mut job_ids = typed_request_launches(
+            &launches,
+            crate::RuntimeTypedRequestRef::ImaginationConsideration(&request.request_id),
+        )?
+        .into_iter()
+        .map(|launch| {
+            Ok((
+                consideration_attempt_ordinal(&request.request_id, &launch.job_id)?,
+                launch.job_id.clone(),
+            ))
+        })
+        .collect::<Result<Vec<_>>>()?;
         job_ids.sort_by_key(|(ordinal, _)| *ordinal);
         for (expected, (ordinal, _)) in job_ids.iter().enumerate() {
             if *ordinal != expected {
@@ -554,21 +628,18 @@ fn current_admitted_model_direction_consideration_work(
             continue;
         }
         crate::validate_current_admitted_model_direction_consideration_request(cache, &request)?;
-        let mut job_ids = launches
-            .iter()
-            .filter(|launch| {
-                launch
-                    .admitted_model_direction_consideration_request_id
-                    .as_deref()
-                    == Some(request.request_id.as_str())
-            })
-            .map(|launch| {
-                Ok((
-                    consideration_attempt_ordinal(&request.request_id, &launch.job_id)?,
-                    launch.job_id.clone(),
-                ))
-            })
-            .collect::<Result<Vec<_>>>()?;
+        let mut job_ids = typed_request_launches(
+            &launches,
+            crate::RuntimeTypedRequestRef::AdmittedModelDirection(&request.request_id),
+        )?
+        .into_iter()
+        .map(|launch| {
+            Ok((
+                consideration_attempt_ordinal(&request.request_id, &launch.job_id)?,
+                launch.job_id.clone(),
+            ))
+        })
+        .collect::<Result<Vec<_>>>()?;
         job_ids.sort_by_key(|(ordinal, _)| *ordinal);
         let job_ids = job_ids
             .into_iter()
@@ -601,19 +672,18 @@ fn current_verification_work(
     let admission_refusals = cache.get_all::<EpiphanyAgentPassAdmissionRefusal>()?;
     for request in requests {
         crate::runtime_spine::validate_repo_frontier_verification_request_intrinsic(&request)?;
-        let mut request_launches = launches
-            .iter()
-            .filter(|launch| {
-                launch.repo_frontier_verification_request_id.as_deref()
-                    == Some(request.request_id.as_str())
-            })
-            .map(|launch| {
-                Ok((
-                    verification_attempt_ordinal(&request.request_id, &launch.job_id)?,
-                    launch,
-                ))
-            })
-            .collect::<Result<Vec<_>>>()?;
+        let mut request_launches = typed_request_launches(
+            &launches,
+            crate::RuntimeTypedRequestRef::FrontierVerification(&request.request_id),
+        )?
+        .into_iter()
+        .map(|launch| {
+            Ok((
+                verification_attempt_ordinal(&request.request_id, &launch.job_id)?,
+                launch,
+            ))
+        })
+        .collect::<Result<Vec<_>>>()?;
         request_launches.sort_by_key(|(ordinal, _)| *ordinal);
         if let Some((_, launch)) = request_launches.last()
             && let Some(result) =
@@ -640,14 +710,6 @@ fn current_verification_work(
             continue;
         };
         let result = cache.get::<crate::EpiphanyRuntimeRoleWorkerResult>(&launch.job_id)?;
-        if let Some(result) = result.as_ref()
-            && (result.verification_request_id.as_deref() != Some(request.request_id.as_str())
-                || result.frontier_route_id.as_deref() != Some(request.route_id.as_str()))
-        {
-            return Err(anyhow!(
-                "frontier Verification result crossed request authority"
-            ));
-        }
         let job = cache
             .get::<crate::EpiphanyRuntimeJob>(&launch.job_id)?
             .ok_or_else(|| anyhow!("frontier Verification launch lost its runtime job"))?;
@@ -699,19 +761,18 @@ fn current_frontier_verdict_modeling_work(
     let receipts = cache.get_all::<crate::EpiphanyMindCommitReceipt>()?;
     let admission_refusals = cache.get_all::<EpiphanyAgentPassAdmissionRefusal>()?;
     for request in requests {
-        let mut request_launches = launches
-            .iter()
-            .filter(|launch| {
-                launch.repo_frontier_modeling_request_id.as_deref()
-                    == Some(request.request_id.as_str())
-            })
-            .map(|launch| {
-                Ok((
-                    frontier_verdict_attempt_ordinal(&request.request_id, &launch.job_id)?,
-                    launch,
-                ))
-            })
-            .collect::<Result<Vec<_>>>()?;
+        let mut request_launches = typed_request_launches(
+            &launches,
+            crate::RuntimeTypedRequestRef::FrontierVerdictModeling(&request.request_id),
+        )?
+        .into_iter()
+        .map(|launch| {
+            Ok((
+                frontier_verdict_attempt_ordinal(&request.request_id, &launch.job_id)?,
+                launch,
+            ))
+        })
+        .collect::<Result<Vec<_>>>()?;
         request_launches.sort_by_key(|(ordinal, _)| *ordinal);
         if let Some((_, launch)) = request_launches.last()
             && let Some(result) =
@@ -736,14 +797,6 @@ fn current_frontier_verdict_modeling_work(
             }));
         };
         let result = cache.get::<crate::EpiphanyRuntimeRoleWorkerResult>(&launch.job_id)?;
-        if let Some(result) = result.as_ref()
-            && result.repo_frontier_modeling_request_id.as_deref()
-                != Some(request.request_id.as_str())
-        {
-            return Err(anyhow!(
-                "frontier verdict Modeling result crossed request authority"
-            ));
-        }
         let job = cache
             .get::<crate::EpiphanyRuntimeJob>(&launch.job_id)?
             .ok_or_else(|| anyhow!("frontier verdict Modeling launch lost its runtime job"))?;
@@ -804,16 +857,7 @@ fn body_modeling_launches(
                 || document.thread_id() != launch.job_id
                 || role.role_id != "modeling"
                 || role.repository_body_observation_basis.as_ref() != Some(&work.body_basis)
-                || launch.proposal_modeling_request_id.is_some()
-                || launch.repo_frontier_modeling_request_id.is_some()
-                || launch.frontier_planning_request_id.is_some()
-                || launch.frontier_plan_mind_request_id.is_some()
-                || launch.imagination_consideration_request_id.is_some()
-                || launch
-                    .admitted_model_direction_consideration_request_id
-                    .is_some()
-                || launch.repo_frontier_research_request_id.is_some()
-                || launch.repo_frontier_verification_request_id.is_some()
+                || role.family_context_count() != 0
             {
                 return Err(anyhow!(
                     "Body Modeling immutable launch crossed family authority"
@@ -886,18 +930,18 @@ fn current_proposal_modeling_work(
     let admission_refusals = cache.get_all::<EpiphanyAgentPassAdmissionRefusal>()?;
     'requests: for request in requests {
         crate::runtime_spine::validate_repo_frontier_proposal_modeling_request(&request)?;
-        let mut request_launches = launches
-            .iter()
-            .filter(|launch| {
-                launch.proposal_modeling_request_id.as_deref() == Some(request.request_id.as_str())
-            })
-            .map(|launch| {
-                Ok((
-                    proposal_modeling_attempt_ordinal(&request.request_id, &launch.job_id)?,
-                    launch,
-                ))
-            })
-            .collect::<Result<Vec<_>>>()?;
+        let mut request_launches = typed_request_launches(
+            &launches,
+            crate::RuntimeTypedRequestRef::ProposalModeling(&request.request_id),
+        )?
+        .into_iter()
+        .map(|launch| {
+            Ok((
+                proposal_modeling_attempt_ordinal(&request.request_id, &launch.job_id)?,
+                launch,
+            ))
+        })
+        .collect::<Result<Vec<_>>>()?;
         request_launches.sort_by_key(|(ordinal, _)| *ordinal);
         for (expected, (ordinal, _)) in request_launches.iter().enumerate() {
             if *ordinal != expected {
@@ -920,13 +964,6 @@ fn current_proposal_modeling_work(
         for (ordinal, launch) in &request_launches {
             let result = cache.get::<crate::EpiphanyRuntimeRoleWorkerResult>(&launch.job_id)?;
             if let Some(result) = result.as_ref() {
-                if result.proposal_modeling_request_id.as_deref()
-                    != Some(request.request_id.as_str())
-                {
-                    return Err(anyhow!(
-                        "proposal Modeling launch result crossed request authority"
-                    ));
-                }
                 if receipts.iter().any(|receipt| {
                     receipt.invariant_owner == "Modeling.proposal_frontier"
                         && matches!(
@@ -1099,12 +1136,10 @@ pub fn launch_current_frontier_planning_work(
     let identity = cache
         .get::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
         .ok_or_else(|| anyhow!("frontier Planning launch requires runtime identity"))?;
-    let mut prior = cache
-        .get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?
+    let launches = cache.get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?;
+    let mut prior = frontier_planning_launches(&launches, &request.request_id)?
         .into_iter()
-        .filter(|launch| {
-            launch.frontier_planning_request_id.as_deref() == Some(request.request_id.as_str())
-        })
+        .cloned()
         .map(|launch| {
             Ok((
                 frontier_planning_attempt_ordinal(&request.request_id, &launch.job_id)?,
@@ -1175,14 +1210,6 @@ pub fn launch_current_frontier_planning_work(
             instruction: "Act as Epiphany Imagination. Propose one bounded candidate for only the exact typed frontier and return the dedicated planning candidate contract.".into(),
             launch_document,
             output_contract_id: output_contract_id.clone(),
-            proposal_modeling_request_id: None,
-            frontier_planning_request_id: Some(request.request_id.clone()),
-            frontier_plan_mind_request_id: None,
-            imagination_consideration_request_id: None,
-            admitted_model_direction_consideration_request_id: None,
-            repo_frontier_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            repo_frontier_verification_request_id: None,
             created_at: created_at.into(),
         },
     )?;
@@ -1270,12 +1297,10 @@ pub fn launch_current_frontier_plan_mind_work(
     let identity = cache
         .get::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
         .ok_or_else(|| anyhow!("frontier plan Mind launch requires runtime identity"))?;
-    let mut prior = cache
-        .get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?
+    let launches = cache.get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?;
+    let mut prior = frontier_plan_mind_launches(&launches, &request.request_id)?
         .into_iter()
-        .filter(|launch| {
-            launch.frontier_plan_mind_request_id.as_deref() == Some(request.request_id.as_str())
-        })
+        .cloned()
         .map(|launch| {
             Ok((
                 frontier_plan_mind_attempt_ordinal(&request.request_id, &launch.job_id)?,
@@ -1346,14 +1371,6 @@ pub fn launch_current_frontier_plan_mind_work(
             instruction: "Act as Epiphany Mind. Adopt, refuse, or hold only the exact typed candidate and return the dedicated plan decision contract.".into(),
             launch_document,
             output_contract_id: output_contract_id.clone(),
-            proposal_modeling_request_id: None,
-            frontier_planning_request_id: None,
-            frontier_plan_mind_request_id: Some(request.request_id.clone()),
-            imagination_consideration_request_id: None,
-            admitted_model_direction_consideration_request_id: None,
-            repo_frontier_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            repo_frontier_verification_request_id: None,
             created_at: created_at.into(),
         },
     )?;
@@ -1446,14 +1463,12 @@ pub fn launch_current_frontier_verification_work(
     let identity = cache
         .get::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
         .ok_or_else(|| anyhow!("frontier Verification launch requires runtime identity"))?;
-    let attempt_ordinal = cache
-        .get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?
-        .into_iter()
-        .filter(|launch| {
-            launch.repo_frontier_verification_request_id.as_deref()
-                == Some(request.request_id.as_str())
-        })
-        .count()
+    let launches = cache.get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?;
+    let attempt_ordinal = typed_request_launches(
+        &launches,
+        crate::RuntimeTypedRequestRef::FrontierVerification(&request.request_id),
+    )?
+    .len()
         + cache
             .get_all::<crate::EpiphanyArchivedRuntimeWorkerAttempt>()?
             .into_iter()
@@ -1499,14 +1514,6 @@ pub fn launch_current_frontier_verification_work(
             instruction: "Act as Epiphany Verification. Audit only the exact typed Hands consequence and route carried by this request; return a structured verdict, evidence ids, and risks.".into(),
             launch_document,
             output_contract_id: output_contract_id.clone(),
-            proposal_modeling_request_id: None,
-            frontier_planning_request_id: None,
-            frontier_plan_mind_request_id: None,
-            imagination_consideration_request_id: None,
-            admitted_model_direction_consideration_request_id: None,
-            repo_frontier_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            repo_frontier_verification_request_id: Some(request.request_id.clone()),
             created_at: created_at.to_string(),
         },
     )?;
@@ -1606,13 +1613,12 @@ pub fn launch_current_frontier_research_work(
     let identity = cache
         .get::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
         .ok_or_else(|| anyhow!("frontier Research launch requires runtime identity"))?;
-    let attempt_ordinal = cache
-        .get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?
-        .into_iter()
-        .filter(|launch| {
-            launch.repo_frontier_research_request_id.as_deref() == Some(request.request_id.as_str())
-        })
-        .count()
+    let launches = cache.get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?;
+    let attempt_ordinal = typed_request_launches(
+        &launches,
+        crate::RuntimeTypedRequestRef::FrontierResearch(&request.request_id),
+    )?
+    .len()
         + cache
             .get_all::<crate::EpiphanyArchivedRuntimeWorkerAttempt>()?
             .into_iter()
@@ -1658,14 +1664,6 @@ pub fn launch_current_frontier_research_work(
             instruction: "Act as Epiphany Research. Gather only the evidence required by the exact frontier request and return keyed evidence and observations for Mind review.".into(),
             launch_document,
             output_contract_id: output_contract_id.clone(),
-            proposal_modeling_request_id: None,
-            frontier_planning_request_id: None,
-            frontier_plan_mind_request_id: None,
-            imagination_consideration_request_id: None,
-            admitted_model_direction_consideration_request_id: None,
-            repo_frontier_modeling_request_id: None,
-            repo_frontier_research_request_id: Some(request.request_id.clone()),
-            repo_frontier_verification_request_id: None,
             created_at: created_at.to_string(),
         },
     )?;
@@ -1732,23 +1730,24 @@ pub fn accept_frontier_research_result(
         }
         if let Some(receipt) = receipts.pop() {
             receipt.validate()?;
-            let request_id = result
-                .repo_frontier_research_request_id
-                .as_deref()
-                .ok_or_else(|| anyhow!("frontier Research replay lost its request identity"))?;
-            if !receipt.strong_reads.iter().any(|read| {
-                read.document_type == crate::RepoFrontierResearchRequest::TYPE
-                    && read.document_key == request_id
-            }) || !receipt.strong_reads.iter().any(|read| {
-                read.document_type == crate::EpiphanyRuntimeRoleWorkerResult::TYPE
-                    && read.document_key == job_id
-            }) || !receipt.writes.iter().any(|write| {
-                matches!(
-                    write.document_type.as_str(),
-                    crate::EpiphanyMindEvidenceDocument::TYPE
-                        | crate::EpiphanyMindObservationDocument::TYPE
-                )
-            }) {
+            if receipt
+                .strong_reads
+                .iter()
+                .filter(|read| read.document_type == crate::RepoFrontierResearchRequest::TYPE)
+                .count()
+                != 1
+                || !receipt.strong_reads.iter().any(|read| {
+                    read.document_type == crate::EpiphanyRuntimeRoleWorkerResult::TYPE
+                        && read.document_key == job_id
+                })
+                || !receipt.writes.iter().any(|write| {
+                    matches!(
+                        write.document_type.as_str(),
+                        crate::EpiphanyMindEvidenceDocument::TYPE
+                            | crate::EpiphanyMindObservationDocument::TYPE
+                    )
+                })
+            {
                 return Err(anyhow!(
                     "frontier Research replay does not preserve its exact accepted decision"
                 ));
@@ -1785,10 +1784,7 @@ pub fn accept_frontier_research_result(
     let result = cache
         .get::<crate::EpiphanyRuntimeRoleWorkerResult>(job_id)?
         .ok_or_else(|| anyhow!("frontier Research acceptance lost its typed result"))?;
-    if !result.role_id.eq_ignore_ascii_case("research")
-        || result.repo_frontier_research_request_id.as_deref() != Some(request.request_id.as_str())
-        || result.item_error.is_some()
-    {
+    if !result.role_id.eq_ignore_ascii_case("research") || result.item_error.is_some() {
         return Err(anyhow!("frontier Research result crossed family authority"));
     }
     let decision = result
@@ -1985,11 +1981,7 @@ pub fn accept_frontier_verification_result(
     let result = cache
         .get::<crate::EpiphanyRuntimeRoleWorkerResult>(job_id)?
         .ok_or_else(|| anyhow!("frontier Verification acceptance lost its typed result"))?;
-    if !result.role_id.eq_ignore_ascii_case("verification")
-        || result.verification_request_id.as_deref() != Some(request.request_id.as_str())
-        || result.frontier_route_id.as_deref() != Some(request.route_id.as_str())
-        || result.item_error.is_some()
-    {
+    if !result.role_id.eq_ignore_ascii_case("verification") || result.item_error.is_some() {
         return Err(anyhow!(
             "frontier Verification result crossed request authority"
         ));
@@ -2161,13 +2153,14 @@ pub fn accept_body_modeling_result(
     let result = cache
         .get::<crate::EpiphanyRuntimeRoleWorkerResult>(job_id)?
         .ok_or_else(|| anyhow!("Body Modeling acceptance lost its typed result"))?;
-    if result.role_id != "modeling"
-        || result.proposal_modeling_request_id.is_some()
-        || result.repo_frontier_modeling_request_id.is_some()
-    {
+    let launch = cache
+        .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(job_id)?
+        .ok_or_else(|| anyhow!("Body Modeling acceptance lost its immutable launch"))?;
+    let role_launch = role_launch_document(&launch)?;
+    if result.role_id != "modeling" || role_launch.family_context_count() != 0 {
         return Err(anyhow!("result is not baseline Body Modeling authority"));
     }
-    let body_basis = result
+    let body_basis = role_launch
         .repository_body_observation_basis
         .clone()
         .ok_or_else(|| anyhow!("Body Modeling result has no Body observation basis"))?;
@@ -2273,13 +2266,16 @@ pub fn accept_proposal_modeling_result(
     let result = cache
         .get::<crate::EpiphanyRuntimeRoleWorkerResult>(job_id)?
         .ok_or_else(|| anyhow!("proposal Modeling acceptance lost its typed result"))?;
-    let request_id = result
-        .proposal_modeling_request_id
-        .as_deref()
+    let launch = cache
+        .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(job_id)?
+        .ok_or_else(|| anyhow!("proposal Modeling acceptance lost its immutable launch"))?;
+    let role_launch = role_launch_document(&launch)?;
+    let request_id = role_launch
+        .proposal_modeling_context
+        .as_ref()
+        .map(|context| context.request_id.as_str())
         .ok_or_else(|| anyhow!("result is not proposal Modeling authority"))?;
-    if !result.role_id.eq_ignore_ascii_case("modeling")
-        || result.repo_frontier_modeling_request_id.is_some()
-    {
+    if !result.role_id.eq_ignore_ascii_case("modeling") || role_launch.family_context_count() != 1 {
         return Err(anyhow!("proposal Modeling result crossed family authority"));
     }
     let evidence = crate::runtime_typed_request_fulfillment(
@@ -2474,9 +2470,14 @@ pub fn accept_frontier_verdict_modeling_result(
     let result = cache
         .get::<crate::EpiphanyRuntimeRoleWorkerResult>(job_id)?
         .ok_or_else(|| anyhow!("frontier verdict Modeling acceptance lost its typed result"))?;
-    let request_id = result
-        .repo_frontier_modeling_request_id
-        .as_deref()
+    let launch = cache
+        .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(job_id)?
+        .ok_or_else(|| anyhow!("frontier verdict Modeling acceptance lost its immutable launch"))?;
+    let role_launch = role_launch_document(&launch)?;
+    let request_id = role_launch
+        .frontier_verdict_modeling_context
+        .as_ref()
+        .map(|context| context.request.request_id.as_str())
         .ok_or_else(|| anyhow!("result is not frontier verdict Modeling authority"))?;
     let current = match current_frontier_verdict_modeling_work(&cache) {
         Ok(Some(work))
@@ -2505,7 +2506,7 @@ pub fn accept_frontier_verdict_modeling_result(
     };
     if !result.role_id.eq_ignore_ascii_case("modeling")
         || request_id != current.request.request_id
-        || result.proposal_modeling_request_id.is_some()
+        || role_launch.family_context_count() != 1
     {
         return Err(anyhow!(
             "frontier verdict Modeling result crossed family authority"
@@ -2683,19 +2684,15 @@ fn launch_consideration_work(
     let model = crate::repo_model_documents::assemble_repo_model_view_from_cache(&cache)?;
     let request_id = launch.request_id().to_string();
     let is_feedback = matches!(launch, ConsiderationLaunch::PersonaFeedback(_));
-    let mut prior_launches = cache
-        .get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?
+    let launches = cache.get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?;
+    let request_ref = if is_feedback {
+        crate::RuntimeTypedRequestRef::ImaginationConsideration(&request_id)
+    } else {
+        crate::RuntimeTypedRequestRef::AdmittedModelDirection(&request_id)
+    };
+    let mut prior_launches = typed_request_launches(&launches, request_ref)?
         .into_iter()
-        .filter(|worker| {
-            if is_feedback {
-                worker.imagination_consideration_request_id.as_deref() == Some(request_id.as_str())
-            } else {
-                worker
-                    .admitted_model_direction_consideration_request_id
-                    .as_deref()
-                    == Some(request_id.as_str())
-            }
-        })
+        .cloned()
         .map(|worker| {
             Ok((
                 consideration_attempt_ordinal(&request_id, &worker.job_id)?,
@@ -2789,15 +2786,6 @@ fn launch_consideration_work(
             instruction: "Act as Epiphany Imagination for one exact proposal-only typed consideration pass and return only its dedicated terminal contract.".into(),
             launch_document,
             output_contract_id: output_contract_id.clone(),
-            proposal_modeling_request_id: None,
-            frontier_planning_request_id: None,
-            frontier_plan_mind_request_id: None,
-            imagination_consideration_request_id: is_feedback.then_some(request_id.clone()),
-            admitted_model_direction_consideration_request_id: (!is_feedback)
-                .then_some(request_id.clone()),
-            repo_frontier_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            repo_frontier_verification_request_id: None,
             created_at: created_at.into(),
         },
     )?;
@@ -2958,14 +2946,6 @@ pub fn launch_current_body_modeling_work(
             instruction: instruction.clone(),
             launch_document: launch_document.clone(),
             output_contract_id: output_contract_id.clone(),
-            proposal_modeling_request_id: None,
-            frontier_planning_request_id: None,
-            frontier_plan_mind_request_id: None,
-            imagination_consideration_request_id: None,
-            admitted_model_direction_consideration_request_id: None,
-            repo_frontier_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            repo_frontier_verification_request_id: None,
             created_at: created_at.into(),
         },
     )?;
@@ -3080,13 +3060,12 @@ pub fn launch_current_proposal_modeling_work(
         .repo_model
         .as_ref()
         .ok_or_else(|| anyhow!("proposal Modeling launch requires keyed RepoModel state"))?;
-    let attempt_ordinal = cache
-        .get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?
-        .into_iter()
-        .filter(|launch| {
-            launch.proposal_modeling_request_id.as_deref() == Some(request.request_id.as_str())
-        })
-        .count()
+    let launches = cache.get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?;
+    let attempt_ordinal = typed_request_launches(
+        &launches,
+        crate::RuntimeTypedRequestRef::ProposalModeling(&request.request_id),
+    )?
+    .len()
         + cache
             .get_all::<crate::EpiphanyArchivedRuntimeWorkerAttempt>()?
             .into_iter()
@@ -3140,14 +3119,6 @@ pub fn launch_current_proposal_modeling_work(
             instruction: "Act as Epiphany Modeling. Evaluate the exact admitted proposal against the sealed keyed Mind projection and return only the proposal Modeling result contract.".into(),
             launch_document,
             output_contract_id: output_contract_id.clone(),
-            proposal_modeling_request_id: Some(request.request_id.clone()),
-            frontier_planning_request_id: None,
-            frontier_plan_mind_request_id: None,
-            imagination_consideration_request_id: None,
-            admitted_model_direction_consideration_request_id: None,
-            repo_frontier_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            repo_frontier_verification_request_id: None,
             created_at: options.created_at.clone(),
         },
     )?;
@@ -3225,17 +3196,17 @@ pub fn launch_current_frontier_verdict_modeling_work(
     let identity = cache
         .get::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
         .ok_or_else(|| anyhow!("frontier verdict Modeling launch requires runtime identity"))?;
-    let attempt_ordinal = cache
-        .get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?
-        .into_iter()
-        .filter(|launch| {
-            launch.repo_frontier_modeling_request_id.as_deref() == Some(request.request_id.as_str())
-        })
-        .map(|launch| frontier_verdict_attempt_ordinal(&request.request_id, &launch.job_id))
-        .collect::<Result<Vec<_>>>()?
-        .into_iter()
-        .max()
-        .map_or(0, |ordinal| ordinal + 1);
+    let launches = cache.get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?;
+    let attempt_ordinal = typed_request_launches(
+        &launches,
+        crate::RuntimeTypedRequestRef::FrontierVerdictModeling(&request.request_id),
+    )?
+    .into_iter()
+    .map(|launch| frontier_verdict_attempt_ordinal(&request.request_id, &launch.job_id))
+    .collect::<Result<Vec<_>>>()?
+    .into_iter()
+    .max()
+    .map_or(0, |ordinal| ordinal + 1);
     let job_id = format!(
         "frontier-verdict-modeling-{}-attempt-{attempt_ordinal}",
         request.request_id
@@ -3278,14 +3249,6 @@ pub fn launch_current_frontier_verdict_modeling_work(
             instruction: "Act as Epiphany Modeling. Incorporate the exact typed Soul verdict into only its routed frontier item and return the frontier-verdict result contract.".into(),
             launch_document,
             output_contract_id: output_contract_id.clone(),
-            proposal_modeling_request_id: None,
-            frontier_planning_request_id: None,
-            frontier_plan_mind_request_id: None,
-            imagination_consideration_request_id: None,
-            admitted_model_direction_consideration_request_id: None,
-            repo_frontier_modeling_request_id: Some(request.request_id.clone()),
-            repo_frontier_research_request_id: None,
-            repo_frontier_verification_request_id: None,
             created_at: created_at.to_string(),
         },
     )?;
@@ -3875,19 +3838,9 @@ mod tests {
             item_error: None,
             metadata: Default::default(),
             repo_model_mutation_proposal_msgpack: None,
-            verification_request_id: None,
-            frontier_route_id: None,
-            repo_frontier_modeling_request_id: None,
-            proposal_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            frontier_planning_request_id: None,
             frontier_plan_candidate_msgpack: None,
-            frontier_plan_mind_request_id: None,
             frontier_plan_mind_decision_msgpack: None,
-            repository_body_observation_basis: Some(body.clone()),
-            imagination_consideration_request_id: None,
             imagination_consideration_candidate_msgpack: None,
-            admitted_model_direction_consideration_request_id: None,
             admitted_model_direction_consideration_result_msgpack: None,
             decision_context_id: context.context_id,
         };
@@ -4009,21 +3962,9 @@ mod tests {
             item_error: None,
             metadata: Default::default(),
             repo_model_mutation_proposal_msgpack: None,
-            verification_request_id: None,
-            frontier_route_id: None,
-            repo_frontier_modeling_request_id: None,
-            proposal_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            frontier_planning_request_id: None,
             frontier_plan_candidate_msgpack: None,
-            frontier_plan_mind_request_id: None,
             frontier_plan_mind_decision_msgpack: None,
-            repository_body_observation_basis: None,
-            imagination_consideration_request_id: None,
             imagination_consideration_candidate_msgpack: None,
-            admitted_model_direction_consideration_request_id: Some(
-                direction_request.request_id.clone(),
-            ),
             admitted_model_direction_consideration_result_msgpack: Some(rmp_serde::to_vec_named(
                 &direction_result,
             )?),
@@ -4181,10 +4122,13 @@ mod tests {
             final_cache
                 .get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?
                 .into_iter()
-                .filter(|launch| {
-                    launch.proposal_modeling_request_id.as_deref()
-                        == Some(request.request_id.as_str())
-                })
+                .map(
+                    |launch| crate::RuntimeTypedRequestRef::ProposalModeling(&request.request_id)
+                        .matches_launch(&launch)
+                )
+                .collect::<Result<Vec<_>>>()?
+                .into_iter()
+                .filter(|matches| *matches)
                 .count(),
             2
         );
@@ -4269,19 +4213,9 @@ mod tests {
             item_error: None,
             metadata: Default::default(),
             repo_model_mutation_proposal_msgpack: Some(rmp_serde::to_vec_named(&mutation)?),
-            verification_request_id: None,
-            frontier_route_id: None,
-            repo_frontier_modeling_request_id: None,
-            proposal_modeling_request_id: Some(request.request_id.clone()),
-            repo_frontier_research_request_id: None,
-            frontier_planning_request_id: None,
             frontier_plan_candidate_msgpack: None,
-            frontier_plan_mind_request_id: None,
             frontier_plan_mind_decision_msgpack: None,
-            repository_body_observation_basis: Some(body.clone()),
-            imagination_consideration_request_id: None,
             imagination_consideration_candidate_msgpack: None,
-            admitted_model_direction_consideration_request_id: None,
             admitted_model_direction_consideration_result_msgpack: None,
             decision_context_id: proposal_context.context_id.clone(),
         };
@@ -4714,12 +4648,6 @@ mod tests {
         let verification_launch = accepted_cache
             .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(&verification_job_id)?
             .expect("exact Verification launch");
-        assert_eq!(
-            verification_launch
-                .repo_frontier_verification_request_id
-                .as_deref(),
-            Some(verification_request.request_id.as_str())
-        );
         let crate::EpiphanyWorkerLaunchDocument::Role(verification_document) =
             verification_launch.launch_document()?
         else {
@@ -4808,19 +4736,9 @@ mod tests {
             item_error: None,
             metadata: Default::default(),
             repo_model_mutation_proposal_msgpack: None,
-            verification_request_id: Some(verification_request.request_id.clone()),
-            frontier_route_id: Some(route.route_id.clone()),
-            repo_frontier_modeling_request_id: None,
-            proposal_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            frontier_planning_request_id: None,
             frontier_plan_candidate_msgpack: None,
-            frontier_plan_mind_request_id: None,
             frontier_plan_mind_decision_msgpack: None,
-            repository_body_observation_basis: None,
-            imagination_consideration_request_id: None,
             imagination_consideration_candidate_msgpack: None,
-            admitted_model_direction_consideration_request_id: None,
             admitted_model_direction_consideration_result_msgpack: None,
             decision_context_id: verification_context.context_id.clone(),
         };
@@ -5153,19 +5071,9 @@ mod tests {
             item_error: None,
             metadata: Default::default(),
             repo_model_mutation_proposal_msgpack: Some(rmp_serde::to_vec_named(&verdict_mutation)?),
-            verification_request_id: None,
-            frontier_route_id: None,
-            repo_frontier_modeling_request_id: Some(verdict_request.request_id.clone()),
-            proposal_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            frontier_planning_request_id: None,
             frontier_plan_candidate_msgpack: None,
-            frontier_plan_mind_request_id: None,
             frontier_plan_mind_decision_msgpack: None,
-            repository_body_observation_basis: Some(body.clone()),
-            imagination_consideration_request_id: None,
             imagination_consideration_candidate_msgpack: None,
-            admitted_model_direction_consideration_request_id: None,
             admitted_model_direction_consideration_result_msgpack: None,
             decision_context_id: verdict_context.context_id.clone(),
         };
@@ -5407,8 +5315,16 @@ mod tests {
         let planning_launch = planning_cache
             .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(&planning_job)?
             .expect("exact Planning launch");
+        let crate::EpiphanyWorkerLaunchDocument::Role(planning_document) =
+            planning_launch.launch_document()?
+        else {
+            panic!("Planning must launch as a role pass")
+        };
         assert_eq!(
-            planning_launch.frontier_planning_request_id.as_deref(),
+            planning_document
+                .frontier_planning_context
+                .as_ref()
+                .map(|context| context.request_id.as_str()),
             Some(planning_request.request_id.as_str())
         );
         let planning_basis = crate::worker_reasoning_basis(&store, &planning_launch)?;
@@ -5482,19 +5398,9 @@ mod tests {
             item_error: None,
             metadata: Default::default(),
             repo_model_mutation_proposal_msgpack: None,
-            verification_request_id: None,
-            frontier_route_id: None,
-            repo_frontier_modeling_request_id: None,
-            proposal_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            frontier_planning_request_id: Some(planning_request.request_id.clone()),
             frontier_plan_candidate_msgpack: Some(rmp_serde::to_vec_named(&candidate)?),
-            frontier_plan_mind_request_id: None,
             frontier_plan_mind_decision_msgpack: None,
-            repository_body_observation_basis: None,
-            imagination_consideration_request_id: None,
             imagination_consideration_candidate_msgpack: None,
-            admitted_model_direction_consideration_request_id: None,
             admitted_model_direction_consideration_result_msgpack: None,
             decision_context_id: planning_context.context_id.clone(),
         };
@@ -5544,8 +5450,16 @@ mod tests {
         let mind_launch = planning_cache
             .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(&mind_job)?
             .expect("exact plan Mind launch");
+        let crate::EpiphanyWorkerLaunchDocument::Role(mind_document) =
+            mind_launch.launch_document()?
+        else {
+            panic!("plan Mind must launch as a role pass")
+        };
         assert_eq!(
-            mind_launch.frontier_plan_mind_request_id.as_deref(),
+            mind_document
+                .frontier_plan_mind_context
+                .as_ref()
+                .map(|context| context.request.request_id.as_str()),
             Some(mind_request.request_id.as_str())
         );
         let mind_basis = crate::worker_reasoning_basis(&store, &mind_launch)?;
@@ -5612,19 +5526,9 @@ mod tests {
             item_error: None,
             metadata: Default::default(),
             repo_model_mutation_proposal_msgpack: None,
-            verification_request_id: None,
-            frontier_route_id: None,
-            repo_frontier_modeling_request_id: None,
-            proposal_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            frontier_planning_request_id: None,
             frontier_plan_candidate_msgpack: None,
-            frontier_plan_mind_request_id: Some(mind_request.request_id.clone()),
             frontier_plan_mind_decision_msgpack: Some(rmp_serde::to_vec_named(&mind_decision)?),
-            repository_body_observation_basis: None,
-            imagination_consideration_request_id: None,
             imagination_consideration_candidate_msgpack: None,
-            admitted_model_direction_consideration_request_id: None,
             admitted_model_direction_consideration_result_msgpack: None,
             decision_context_id: mind_context.context_id.clone(),
         };
@@ -5760,13 +5664,11 @@ mod tests {
         let research_launch = research_cache
             .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(&research_job)?
             .expect("exact Research launch");
-        let research_request_id = research_launch
-            .repo_frontier_research_request_id
-            .clone()
-            .expect("exact Research request identity");
-        let research_request = research_cache
-            .get::<crate::RepoFrontierResearchRequest>(&research_request_id)?
-            .expect("exact Research request");
+        let research_request = crate::runtime_spine::frontier_research_request_for_launch(
+            &research_cache,
+            &research_launch,
+        )?
+        .expect("exact Research request");
         assert_eq!(research_request.frontier_item_id, eyes_frontier.id);
         assert!(
             research_request.frontier_authority_documents.len()
@@ -5838,19 +5740,9 @@ mod tests {
             item_error: None,
             metadata: Default::default(),
             repo_model_mutation_proposal_msgpack: None,
-            verification_request_id: None,
-            frontier_route_id: None,
-            repo_frontier_modeling_request_id: None,
-            proposal_modeling_request_id: None,
-            repo_frontier_research_request_id: Some(research_request_id.clone()),
-            frontier_planning_request_id: None,
             frontier_plan_candidate_msgpack: None,
-            frontier_plan_mind_request_id: None,
             frontier_plan_mind_decision_msgpack: None,
-            repository_body_observation_basis: None,
-            imagination_consideration_request_id: None,
             imagination_consideration_candidate_msgpack: None,
-            admitted_model_direction_consideration_request_id: None,
             admitted_model_direction_consideration_result_msgpack: None,
             decision_context_id: research_context.context_id.clone(),
         };

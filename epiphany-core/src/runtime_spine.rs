@@ -55,7 +55,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v38";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v39";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(type = "epiphany.runtime.identity", schema = "EpiphanyRuntimeIdentity")]
@@ -198,22 +198,6 @@ pub struct EpiphanyRuntimeWorkerLaunchRequest {
     pub launch_document_msgpack: Vec<u8>,
     #[cultcache(key = 9, default)]
     pub metadata: BTreeMap<String, String>,
-    #[cultcache(key = 11, default)]
-    pub proposal_modeling_request_id: Option<String>,
-    #[cultcache(key = 12, default)]
-    pub repo_frontier_verification_request_id: Option<String>,
-    #[cultcache(key = 13, default)]
-    pub frontier_planning_request_id: Option<String>,
-    #[cultcache(key = 14, default)]
-    pub frontier_plan_mind_request_id: Option<String>,
-    #[cultcache(key = 15, default)]
-    pub imagination_consideration_request_id: Option<String>,
-    #[cultcache(key = 16, default)]
-    pub admitted_model_direction_consideration_request_id: Option<String>,
-    #[cultcache(key = 17, default)]
-    pub repo_frontier_modeling_request_id: Option<String>,
-    #[cultcache(key = 19, default)]
-    pub repo_frontier_research_request_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -366,6 +350,21 @@ impl EpiphanyRuntimeWorkerLaunchRequest {
     }
 }
 
+fn role_launch_document_for_job(
+    cache: &CultCache,
+    job_id: &str,
+) -> Result<crate::EpiphanyRoleWorkerLaunchDocument> {
+    let launch = cache
+        .get::<EpiphanyRuntimeWorkerLaunchRequest>(job_id)?
+        .ok_or_else(|| anyhow!("typed role result lost its immutable launch"))?;
+    match launch.launch_document()? {
+        EpiphanyWorkerLaunchDocument::Role(document) => Ok(document),
+        EpiphanyWorkerLaunchDocument::Reorient(_) => {
+            Err(anyhow!("typed role result carried reorientation authority"))
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(
     type = "epiphany.runtime.role_worker_result",
@@ -404,39 +403,18 @@ pub struct EpiphanyRuntimeRoleWorkerResult {
     pub risks: Vec<String>,
     #[cultcache(key = 16, default)]
     pub research_decision_msgpack: Option<Vec<u8>>,
-    #[cultcache(key = 17, default)]
     #[cultcache(key = 18, default)]
     pub item_error: Option<String>,
     #[cultcache(key = 19, default)]
     pub metadata: BTreeMap<String, String>,
     #[cultcache(key = 20, default)]
     pub repo_model_mutation_proposal_msgpack: Option<Vec<u8>>,
-    #[cultcache(key = 21, default)]
-    pub verification_request_id: Option<String>,
-    #[cultcache(key = 22, default)]
-    pub frontier_route_id: Option<String>,
-    #[cultcache(key = 23, default)]
-    pub repo_frontier_modeling_request_id: Option<String>,
-    #[cultcache(key = 24, default)]
-    pub proposal_modeling_request_id: Option<String>,
-    #[cultcache(key = 25, default)]
-    pub repo_frontier_research_request_id: Option<String>,
-    #[cultcache(key = 26, default)]
-    pub frontier_planning_request_id: Option<String>,
     #[cultcache(key = 27, default)]
     pub frontier_plan_candidate_msgpack: Option<Vec<u8>>,
-    #[cultcache(key = 28, default)]
-    pub frontier_plan_mind_request_id: Option<String>,
     #[cultcache(key = 29, default)]
     pub frontier_plan_mind_decision_msgpack: Option<Vec<u8>>,
-    #[cultcache(key = 30, default)]
-    pub repository_body_observation_basis: Option<crate::RepositoryBodyObservationBasis>,
-    #[cultcache(key = 31, default)]
-    pub imagination_consideration_request_id: Option<String>,
     #[cultcache(key = 32, default)]
     pub imagination_consideration_candidate_msgpack: Option<Vec<u8>>,
-    #[cultcache(key = 33, default)]
-    pub admitted_model_direction_consideration_request_id: Option<String>,
     #[cultcache(key = 34, default)]
     pub admitted_model_direction_consideration_result_msgpack: Option<Vec<u8>>,
     #[cultcache(key = 35)]
@@ -692,14 +670,6 @@ pub struct RuntimeSpineHeartbeatJobOptions {
     pub instruction: String,
     pub launch_document: EpiphanyWorkerLaunchDocument,
     pub output_contract_id: String,
-    pub proposal_modeling_request_id: Option<String>,
-    pub frontier_planning_request_id: Option<String>,
-    pub frontier_plan_mind_request_id: Option<String>,
-    pub imagination_consideration_request_id: Option<String>,
-    pub admitted_model_direction_consideration_request_id: Option<String>,
-    pub repo_frontier_modeling_request_id: Option<String>,
-    pub repo_frontier_research_request_id: Option<String>,
-    pub repo_frontier_verification_request_id: Option<String>,
     pub created_at: String,
 }
 
@@ -2137,42 +2107,48 @@ pub fn prepare_runtime_spine_heartbeat_job(
     validate_proposal_modeling_launch_carrier(
         &options.role,
         &options.binding_id,
-        options.proposal_modeling_request_id.as_deref(),
         &options.launch_document,
     )?;
     validate_frontier_planning_launch_carrier(
         &options.role,
         &options.binding_id,
-        options.frontier_planning_request_id.as_deref(),
         &options.launch_document,
     )?;
     validate_frontier_plan_mind_launch_carrier(
         &options.role,
         &options.binding_id,
-        options.frontier_plan_mind_request_id.as_deref(),
         &options.launch_document,
     )?;
     validate_frontier_research_launch_carrier(
         &options.role,
         &options.binding_id,
-        options.repo_frontier_research_request_id.as_deref(),
         &options.launch_document,
     )?;
     validate_frontier_verification_launch_carrier(
         &options.role,
         &options.binding_id,
-        options.repo_frontier_verification_request_id.as_deref(),
         &options.launch_document,
     )?;
     validate_imagination_consideration_launch_carrier(
         &options.role,
         &options.binding_id,
-        options.imagination_consideration_request_id.as_deref(),
         &options.launch_document,
     )?;
+    validate_admitted_model_direction_launch_carrier(
+        &options.role,
+        &options.binding_id,
+        &options.launch_document,
+    )?;
+    if matches!(
+        &options.launch_document,
+        EpiphanyWorkerLaunchDocument::Role(document) if document.family_context_count() > 1
+    ) {
+        return Err(anyhow!(
+            "worker launch carries multiple family request authorities"
+        ));
+    }
     validate_repo_frontier_verdict_modeling_launch_authority(
         &options.role,
-        options.repo_frontier_modeling_request_id.as_deref(),
         &options.launch_document,
     )?;
     validate_non_empty(&options.binding_id, "binding id")?;
@@ -2253,15 +2229,6 @@ pub fn prepare_runtime_spine_heartbeat_job(
         document_kind: worker_launch_document_kind(&options.launch_document).to_string(),
         launch_document_msgpack: encode_worker_launch_document(&options.launch_document)?,
         metadata: BTreeMap::new(),
-        proposal_modeling_request_id: options.proposal_modeling_request_id,
-        frontier_planning_request_id: options.frontier_planning_request_id,
-        frontier_plan_mind_request_id: options.frontier_plan_mind_request_id,
-        imagination_consideration_request_id: options.imagination_consideration_request_id,
-        admitted_model_direction_consideration_request_id: options
-            .admitted_model_direction_consideration_request_id,
-        repo_frontier_modeling_request_id: options.repo_frontier_modeling_request_id,
-        repo_frontier_research_request_id: options.repo_frontier_research_request_id,
-        repo_frontier_verification_request_id: options.repo_frontier_verification_request_id,
     };
     let session_envelope =
         match cache.get_envelope::<EpiphanyRuntimeSession>(&session.session_id)? {
@@ -2279,7 +2246,6 @@ pub fn prepare_runtime_spine_heartbeat_job(
 
 fn validate_repo_frontier_verdict_modeling_launch_authority(
     role: &str,
-    request_id: Option<&str>,
     launch_document: &EpiphanyWorkerLaunchDocument,
 ) -> Result<()> {
     let authority = match launch_document {
@@ -2288,25 +2254,18 @@ fn validate_repo_frontier_verdict_modeling_launch_authority(
         }
         EpiphanyWorkerLaunchDocument::Reorient(_) => None,
     };
-    match (request_id, authority) {
-        (None, None) => Ok(()),
-        (Some(_), None) => Err(anyhow!(
-            "verdict-bound Modeling launch omitted its typed authority body"
-        )),
-        (None, Some(_)) => Err(anyhow!(
-            "verdict-bound Modeling authority body has no indexed request id"
-        )),
-        (Some(request_id), Some(authority)) => {
+    match authority {
+        None => Ok(()),
+        Some(authority) => {
             if role != EPIPHANY_MODELING_OWNER_ROLE {
                 return Err(anyhow!(
                     "verdict-bound Modeling authority belongs only to the Modeling owner role"
                 ));
             }
-            if request_id != authority.request.request_id {
-                return Err(anyhow!(
-                    "verdict-bound Modeling request id does not match its typed authority body"
-                ));
-            }
+            validate_non_empty(
+                &authority.request.request_id,
+                "verdict-bound Modeling request id",
+            )?;
             if authority.request.frontier_item_id != authority.frontier_item.id {
                 return Err(anyhow!(
                     "verdict-bound Modeling authority does not carry its exact frontier item"
@@ -2397,32 +2356,20 @@ fn validate_repo_frontier_verdict_modeling_mutation(
 fn validate_proposal_modeling_launch_carrier(
     role: &str,
     binding_id: &str,
-    proposal_modeling_request_id: Option<&str>,
     launch_document: &EpiphanyWorkerLaunchDocument,
 ) -> Result<()> {
     let projection = match launch_document {
         EpiphanyWorkerLaunchDocument::Role(document) => document.proposal_modeling_context.as_ref(),
         EpiphanyWorkerLaunchDocument::Reorient(_) => None,
     };
-    let Some(request_id) = proposal_modeling_request_id else {
-        if projection.is_some() {
-            return Err(anyhow!(
-                "proposal Modeling context requires its typed request id"
-            ));
-        }
+    let Some(projection) = projection else {
         return Ok(());
     };
-    validate_non_empty(request_id, "proposal Modeling request id")?;
+    validate_non_empty(&projection.request_id, "proposal Modeling request id")?;
     if role != EPIPHANY_MODELING_OWNER_ROLE || binding_id != EPIPHANY_MODELING_ROLE_BINDING_ID {
         return Err(anyhow!(
             "proposal Modeling request id may only be transported by the Modeling role launch"
         ));
-    }
-    let projection = projection.ok_or_else(|| {
-        anyhow!("proposal Modeling request id requires coordinator-owned typed context")
-    })?;
-    if projection.request_id != request_id {
-        return Err(anyhow!("proposal Modeling context/request mismatch"));
     }
     Ok(())
 }
@@ -2461,32 +2408,21 @@ fn validate_repository_body_launch_carrier(
 fn validate_frontier_planning_launch_carrier(
     role: &str,
     binding_id: &str,
-    planning_request_id: Option<&str>,
     launch_document: &EpiphanyWorkerLaunchDocument,
 ) -> Result<()> {
     let projection = match launch_document {
         EpiphanyWorkerLaunchDocument::Role(document) => document.frontier_planning_context.as_ref(),
         EpiphanyWorkerLaunchDocument::Reorient(_) => None,
     };
-    let Some(request_id) = planning_request_id else {
-        if projection.is_some() {
-            return Err(anyhow!(
-                "frontier planning context requires its typed request id"
-            ));
-        }
+    let Some(projection) = projection else {
         return Ok(());
     };
-    validate_non_empty(request_id, "frontier planning request id")?;
+    validate_non_empty(&projection.request_id, "frontier planning request id")?;
     if role != EPIPHANY_IMAGINATION_OWNER_ROLE || binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
     {
         return Err(anyhow!(
             "frontier planning request may only be transported by the Imagination role launch"
         ));
-    }
-    let projection = projection
-        .ok_or_else(|| anyhow!("frontier planning request requires its typed context"))?;
-    if projection.request_id != request_id {
-        return Err(anyhow!("frontier planning context/request mismatch"));
     }
     Ok(())
 }
@@ -2494,7 +2430,6 @@ fn validate_frontier_planning_launch_carrier(
 fn validate_frontier_plan_mind_launch_carrier(
     role: &str,
     binding_id: &str,
-    request_id: Option<&str>,
     launch_document: &EpiphanyWorkerLaunchDocument,
 ) -> Result<()> {
     let projection = match launch_document {
@@ -2503,24 +2438,17 @@ fn validate_frontier_plan_mind_launch_carrier(
         }
         EpiphanyWorkerLaunchDocument::Reorient(_) => None,
     };
-    let Some(request_id) = request_id else {
-        if projection.is_some() {
-            return Err(anyhow!(
-                "frontier plan Mind context requires its typed request id"
-            ));
-        }
+    let Some(projection) = projection else {
         return Ok(());
     };
-    validate_non_empty(request_id, "frontier plan Mind request id")?;
+    validate_non_empty(
+        &projection.request.request_id,
+        "frontier plan Mind request id",
+    )?;
     if role != EPIPHANY_MIND_OWNER_ROLE || binding_id != EPIPHANY_MIND_ROLE_BINDING_ID {
         return Err(anyhow!(
             "frontier plan Mind request may only be transported by the Mind role launch"
         ));
-    }
-    let projection = projection
-        .ok_or_else(|| anyhow!("frontier plan Mind request requires its typed context"))?;
-    if projection.request.request_id != request_id {
-        return Err(anyhow!("frontier plan Mind context/request mismatch"));
     }
     Ok(())
 }
@@ -2528,7 +2456,6 @@ fn validate_frontier_plan_mind_launch_carrier(
 fn validate_imagination_consideration_launch_carrier(
     role: &str,
     binding_id: &str,
-    request_id: Option<&str>,
     launch_document: &EpiphanyWorkerLaunchDocument,
 ) -> Result<()> {
     let projection = match launch_document {
@@ -2537,23 +2464,50 @@ fn validate_imagination_consideration_launch_carrier(
         }
         EpiphanyWorkerLaunchDocument::Reorient(_) => None,
     };
-    let Some(request_id) = request_id else {
-        if projection.is_some() {
-            return Err(anyhow!(
-                "consideration context requires its typed request id"
-            ));
-        }
+    let Some(projection) = projection else {
         return Ok(());
     };
-    validate_non_empty(request_id, "imagination consideration request id")?;
+    validate_non_empty(
+        &projection.request.request_id,
+        "imagination consideration request id",
+    )?;
     if role != EPIPHANY_IMAGINATION_OWNER_ROLE || binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
     {
         return Err(anyhow!(
             "consideration may only be transported by Imagination"
         ));
     }
-    if projection.map(|p| p.request.request_id.as_str()) != Some(request_id) {
-        return Err(anyhow!("consideration context/request mismatch"));
+    Ok(())
+}
+
+fn validate_admitted_model_direction_launch_carrier(
+    role: &str,
+    binding_id: &str,
+    launch_document: &EpiphanyWorkerLaunchDocument,
+) -> Result<()> {
+    let projection = match launch_document {
+        EpiphanyWorkerLaunchDocument::Role(document) => document
+            .admitted_model_direction_consideration_context
+            .as_ref(),
+        EpiphanyWorkerLaunchDocument::Reorient(_) => None,
+    };
+    let Some(projection) = projection else {
+        return Ok(());
+    };
+    validate_non_empty(
+        &projection.request.request_id,
+        "admitted model direction consideration request id",
+    )?;
+    if role != EPIPHANY_IMAGINATION_OWNER_ROLE
+        || binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
+        || projection.schema_version
+            != crate::surfaces::ADMITTED_MODEL_DIRECTION_CONSIDERATION_CONTEXT_SCHEMA_VERSION
+        || projection.contract
+            != crate::surfaces::ADMITTED_MODEL_DIRECTION_CONSIDERATION_CONTEXT_CONTRACT
+    {
+        return Err(anyhow!(
+            "admitted model direction consideration belongs only to its typed Imagination launch"
+        ));
     }
     Ok(())
 }
@@ -2611,22 +2565,16 @@ pub fn runtime_worker_process_claim(
 fn validate_frontier_research_launch_carrier(
     role: &str,
     binding_id: &str,
-    research_request_id: Option<&str>,
     launch_document: &EpiphanyWorkerLaunchDocument,
 ) -> Result<()> {
     let projection = match launch_document {
         EpiphanyWorkerLaunchDocument::Role(document) => document.frontier_research_context.as_ref(),
         EpiphanyWorkerLaunchDocument::Reorient(_) => None,
     };
-    let Some(request_id) = research_request_id else {
-        if projection.is_some() {
-            return Err(anyhow!(
-                "frontier Research context requires its typed request id"
-            ));
-        }
+    let Some(projection) = projection else {
         return Ok(());
     };
-    validate_non_empty(request_id, "frontier Research request id")?;
+    validate_non_empty(&projection.request_id, "frontier Research request id")?;
     if role != crate::EPIPHANY_RESEARCH_OWNER_ROLE
         || binding_id != crate::EPIPHANY_RESEARCH_ROLE_BINDING_ID
     {
@@ -2634,10 +2582,7 @@ fn validate_frontier_research_launch_carrier(
             "frontier Research request may only be transported by the Research role launch"
         ));
     }
-    let projection = projection
-        .ok_or_else(|| anyhow!("frontier Research request requires its typed context"))?;
-    if projection.request_id != request_id
-        || projection.schema_version != crate::REPO_FRONTIER_RESEARCH_CONTEXT_SCHEMA_VERSION
+    if projection.schema_version != crate::REPO_FRONTIER_RESEARCH_CONTEXT_SCHEMA_VERSION
         || projection.contract != crate::REPO_FRONTIER_RESEARCH_CONTEXT_CONTRACT
     {
         return Err(anyhow!("frontier Research context/request mismatch"));
@@ -2648,7 +2593,6 @@ fn validate_frontier_research_launch_carrier(
 fn validate_frontier_verification_launch_carrier(
     role: &str,
     binding_id: &str,
-    verification_request_id: Option<&str>,
     launch_document: &EpiphanyWorkerLaunchDocument,
 ) -> Result<()> {
     let projection = match launch_document {
@@ -2657,15 +2601,13 @@ fn validate_frontier_verification_launch_carrier(
         }
         EpiphanyWorkerLaunchDocument::Reorient(_) => None,
     };
-    let Some(request_id) = verification_request_id else {
-        if projection.is_some() {
-            return Err(anyhow!(
-                "frontier Verification context requires its typed request id"
-            ));
-        }
+    let Some(projection) = projection else {
         return Ok(());
     };
-    validate_non_empty(request_id, "frontier Verification request id")?;
+    validate_non_empty(
+        &projection.request.request_id,
+        "frontier Verification request id",
+    )?;
     if role != crate::EPIPHANY_VERIFICATION_OWNER_ROLE
         || binding_id != crate::EPIPHANY_VERIFICATION_ROLE_BINDING_ID
     {
@@ -2673,10 +2615,7 @@ fn validate_frontier_verification_launch_carrier(
             "frontier Verification request may only be transported by the Verification role launch"
         ));
     }
-    let projection = projection
-        .ok_or_else(|| anyhow!("frontier Verification request requires its typed context"))?;
-    if projection.request.request_id != request_id
-        || projection.schema_version != crate::REPO_FRONTIER_VERIFICATION_CONTEXT_SCHEMA_VERSION
+    if projection.schema_version != crate::REPO_FRONTIER_VERIFICATION_CONTEXT_SCHEMA_VERSION
         || projection.contract != crate::REPO_FRONTIER_VERIFICATION_CONTEXT_CONTRACT
     {
         return Err(anyhow!("frontier Verification context/request mismatch"));
@@ -2783,15 +2722,15 @@ pub(crate) fn frontier_research_request_for_launch(
 ) -> Result<Option<RepoFrontierResearchRequest>> {
     let document: EpiphanyWorkerLaunchDocument =
         rmp_serde::from_slice(&launch.launch_document_msgpack)?;
-    validate_frontier_research_launch_carrier(
-        &launch.role,
-        &launch.binding_id,
-        launch.repo_frontier_research_request_id.as_deref(),
-        &document,
-    )?;
-    let Some(request_id) = launch.repo_frontier_research_request_id.as_deref() else {
+    validate_frontier_research_launch_carrier(&launch.role, &launch.binding_id, &document)?;
+    let carried = match &document {
+        EpiphanyWorkerLaunchDocument::Role(document) => document.frontier_research_context.as_ref(),
+        EpiphanyWorkerLaunchDocument::Reorient(_) => None,
+    };
+    let Some(carried) = carried else {
         return Ok(None);
     };
+    let request_id = carried.request_id.as_str();
     let request = cache
         .get::<RepoFrontierResearchRequest>(request_id)?
         .ok_or_else(|| anyhow!("frontier Research launch lost its typed request"))?;
@@ -2802,15 +2741,7 @@ pub(crate) fn frontier_research_request_for_launch(
             "frontier Research launch names an invalid typed request"
         ));
     }
-    let carried = match document {
-        EpiphanyWorkerLaunchDocument::Role(document) => document.frontier_research_context,
-        EpiphanyWorkerLaunchDocument::Reorient(_) => None,
-    };
-    if carried.as_ref()
-        != Some(&crate::RepoFrontierResearchContextProjection::from(
-            &request,
-        ))
-    {
+    if carried != &crate::RepoFrontierResearchContextProjection::from(&request) {
         return Err(anyhow!(
             "frontier Research launch carries substituted context"
         ));
@@ -2824,24 +2755,21 @@ pub(crate) fn frontier_verification_request_for_launch(
 ) -> Result<Option<RepoFrontierVerificationRequest>> {
     let document: EpiphanyWorkerLaunchDocument =
         rmp_serde::from_slice(&launch.launch_document_msgpack)?;
-    validate_frontier_verification_launch_carrier(
-        &launch.role,
-        &launch.binding_id,
-        launch.repo_frontier_verification_request_id.as_deref(),
-        &document,
-    )?;
-    let Some(request_id) = launch.repo_frontier_verification_request_id.as_deref() else {
+    validate_frontier_verification_launch_carrier(&launch.role, &launch.binding_id, &document)?;
+    let carried = match &document {
+        EpiphanyWorkerLaunchDocument::Role(document) => {
+            document.frontier_verification_context.as_ref()
+        }
+        EpiphanyWorkerLaunchDocument::Reorient(_) => None,
+    };
+    let Some(carried) = carried else {
         return Ok(None);
     };
+    let request_id = carried.request.request_id.as_str();
     let request = cache
         .get::<RepoFrontierVerificationRequest>(request_id)?
         .ok_or_else(|| anyhow!("frontier Verification launch lost its typed request"))?;
     validate_repo_frontier_verification_request_intrinsic(&request)?;
-    let carried = match document {
-        EpiphanyWorkerLaunchDocument::Role(document) => document.frontier_verification_context,
-        EpiphanyWorkerLaunchDocument::Reorient(_) => None,
-    }
-    .ok_or_else(|| anyhow!("frontier Verification launch lost its typed context"))?;
     if carried.request != request
         || carried.route.route_id != request.route_id
         || carried.hands_authority.route_id != request.route_id
@@ -3727,12 +3655,38 @@ pub fn put_runtime_role_worker_result(
         .get::<EpiphanyRuntimeWorkerLaunchRequest>(&result.job_id)?
         .ok_or_else(|| anyhow!("role worker result requires its immutable worker launch"))?;
     let launch_document = worker_launch.launch_document()?;
-    let launch_body_basis = match &launch_document {
-        EpiphanyWorkerLaunchDocument::Role(document) => {
-            document.repository_body_observation_basis.as_ref()
-        }
-        EpiphanyWorkerLaunchDocument::Reorient(_) => None,
+    let EpiphanyWorkerLaunchDocument::Role(role_launch) = &launch_document else {
+        return Err(anyhow!(
+            "role worker result requires a role launch document"
+        ));
     };
+    if !role_launch.role_id.eq_ignore_ascii_case(&result.role_id) {
+        return Err(anyhow!(
+            "role worker result cannot substitute its sealed launch role"
+        ));
+    }
+    let is_failure = match result.item_error.as_deref() {
+        Some(error) if error.trim().is_empty() => {
+            return Err(anyhow!(
+                "typed role worker failure requires a nonempty error"
+            ));
+        }
+        Some(_) => true,
+        None => false,
+    };
+    let carries_semantic_success = result.research_decision_msgpack.is_some()
+        || result.repo_model_mutation_proposal_msgpack.is_some()
+        || result.frontier_plan_candidate_msgpack.is_some()
+        || result.frontier_plan_mind_decision_msgpack.is_some()
+        || result.imagination_consideration_candidate_msgpack.is_some()
+        || result
+            .admitted_model_direction_consideration_result_msgpack
+            .is_some();
+    if is_failure && carries_semantic_success {
+        return Err(anyhow!(
+            "typed role worker failure cannot carry successful semantic cargo"
+        ));
+    }
     let launch_is_modeling = worker_launch.role == EPIPHANY_MODELING_OWNER_ROLE;
     let result_is_modeling = result.role_id.eq_ignore_ascii_case("modeling");
     if launch_is_modeling != result_is_modeling {
@@ -3741,137 +3695,71 @@ pub fn put_runtime_role_worker_result(
         ));
     }
     if launch_is_modeling {
-        let expected = launch_body_basis.ok_or_else(|| {
-            anyhow!("Modeling worker launch is missing its repository Body observation basis")
-        })?;
-        if result.repository_body_observation_basis.as_ref() != Some(expected) {
+        role_launch
+            .repository_body_observation_basis
+            .as_ref()
+            .ok_or_else(|| {
+                anyhow!("Modeling worker launch is missing its repository Body observation basis")
+            })?;
+    } else if role_launch.repository_body_observation_basis.is_some() {
+        return Err(anyhow!(
+            "non-Modeling worker launch must not carry a repository Body observation basis"
+        ));
+    }
+    let launch_context_count = role_launch.family_context_count();
+    if launch_context_count > 1 {
+        return Err(anyhow!(
+            "role worker launch carries multiple family request authorities"
+        ));
+    }
+
+    if role_launch.frontier_research_context.is_some() {
+        if !result.role_id.eq_ignore_ascii_case("research") {
             return Err(anyhow!(
-                "Modeling runtime result must exactly bind its immutable launch repository Body observation basis"
+                "frontier Research result must retain its launch role"
             ));
         }
-    } else if launch_body_basis.is_some() || result.repository_body_observation_basis.is_some() {
-        return Err(anyhow!(
-            "non-Modeling worker launch and result must not carry a repository Body observation basis"
-        ));
-    }
-    let is_verification = result.role_id == "verification";
-    if is_verification
-        != (result
-            .verification_request_id
-            .as_ref()
-            .is_some_and(|id| !id.trim().is_empty())
-            && result
-                .frontier_route_id
-                .as_ref()
-                .is_some_and(|id| !id.trim().is_empty()))
-    {
-        return Err(anyhow!(
-            "Verification results require verificationRequestId and frontierRouteId; other roles must not claim them"
-        ));
-    }
-    if result.repo_frontier_modeling_request_id.is_some()
-        && !result.role_id.eq_ignore_ascii_case("modeling")
-    {
-        return Err(anyhow!(
-            "only Modeling results may carry a frontier Modeling request binding"
-        ));
-    }
-    if result.proposal_modeling_request_id.is_some()
-        && !result.role_id.eq_ignore_ascii_case("modeling")
-    {
-        return Err(anyhow!(
-            "only Modeling results may carry a proposal Modeling request binding"
-        ));
-    }
-    let is_modeling = result.role_id.eq_ignore_ascii_case("modeling");
-    let modeling_binding_count = [
-        result.repo_frontier_modeling_request_id.is_some(),
-        result.proposal_modeling_request_id.is_some(),
-    ]
-    .into_iter()
-    .filter(|present| *present)
-    .count();
-    if is_modeling && modeling_binding_count > 1 {
-        return Err(anyhow!(
-            "Modeling result authority bindings are mutually exclusive"
-        ));
-    }
-    if is_modeling
-        && (result.repo_frontier_modeling_request_id
-            != worker_launch.repo_frontier_modeling_request_id
-            || result.proposal_modeling_request_id != worker_launch.proposal_modeling_request_id)
-    {
-        return Err(anyhow!(
-            "Modeling result must exactly preserve its runtime-owned request authority"
-        ));
-    }
-    let is_frontier_research = worker_launch.repo_frontier_research_request_id.is_some();
-    if is_frontier_research
-        != result
-            .repo_frontier_research_request_id
-            .as_ref()
-            .is_some_and(|id| !id.trim().is_empty())
-        || result.repo_frontier_research_request_id
-            != worker_launch.repo_frontier_research_request_id
-        || (is_frontier_research && !result.role_id.eq_ignore_ascii_case("research"))
-        || (!is_frontier_research && result.repo_frontier_research_request_id.is_some())
-    {
-        return Err(anyhow!(
-            "Research result must exactly preserve its runtime-owned frontier request"
-        ));
-    }
-    if is_frontier_research {
-        let request = frontier_research_request_for_launch(&cache, &worker_launch)?
+        frontier_research_request_for_launch(&cache, &worker_launch)?
             .ok_or_else(|| anyhow!("Research result lost its typed request"))?;
-        if result.repo_frontier_research_request_id.as_deref() != Some(request.request_id.as_str())
-        {
-            return Err(anyhow!("Research result substituted its typed request"));
+        if !is_failure {
+            result
+                .research_decision()?
+                .ok_or_else(|| anyhow!("Research result requires its typed decision"))?
+                .validate()?;
         }
-        result
-            .research_decision()?
-            .ok_or_else(|| anyhow!("Research result requires its typed decision"))?
-            .validate()?;
     } else if result.research_decision_msgpack.is_some() {
         return Err(anyhow!(
             "only an exact frontier Research result may carry a Research decision"
         ));
     }
-    let is_frontier_verification = worker_launch
-        .repo_frontier_verification_request_id
-        .is_some();
-    if is_verification != is_frontier_verification {
+    let is_verification = result.role_id.eq_ignore_ascii_case("verification");
+    if is_verification != role_launch.frontier_verification_context.is_some() {
         return Err(anyhow!(
             "Verification result and launch must share one exact frontier request"
         ));
     }
-    if is_frontier_verification {
-        let request = frontier_verification_request_for_launch(&cache, &worker_launch)?
+    if is_verification {
+        frontier_verification_request_for_launch(&cache, &worker_launch)?
             .ok_or_else(|| anyhow!("Verification result lost its typed request"))?;
-        if result.verification_request_id.as_deref() != Some(request.request_id.as_str())
-            || result.frontier_route_id.as_deref() != Some(request.route_id.as_str())
-        {
-            return Err(anyhow!(
-                "Verification result substituted its exact request or route"
-            ));
-        }
     }
-    if is_modeling
-        && (result.verification_request_id.is_some() || result.frontier_route_id.is_some())
-    {
+
+    let has_frontier_modeling_context = role_launch.proposal_modeling_context.is_some()
+        || role_launch.frontier_verdict_modeling_context.is_some();
+    if !result_is_modeling && result.repo_model_mutation_proposal_msgpack.is_some() {
         return Err(anyhow!(
-            "Modeling result cannot claim Verification route authority"
+            "only Modeling results may carry a RepoModel mutation proposal"
         ));
     }
-    if is_modeling
-        && (modeling_binding_count == 1 || result.repo_model_mutation_proposal_msgpack.is_some())
+    if result_is_modeling
+        && !is_failure
+        && (has_frontier_modeling_context || result.repo_model_mutation_proposal_msgpack.is_some())
     {
         let proposal = result.repo_model_mutation_proposal()?.ok_or_else(|| {
             anyhow!("Modeling authority binding requires a RepoModel mutation proposal")
         })?;
         proposal.validate()?;
         let operations = proposal.operations()?;
-        if (worker_launch.repo_frontier_modeling_request_id.is_some()
-            || worker_launch.proposal_modeling_request_id.is_some())
+        if has_frontier_modeling_context
             && operations.iter().any(|operation| {
                 !matches!(
                     operation,
@@ -3883,21 +3771,29 @@ pub fn put_runtime_role_worker_result(
                 "frontier Modeling request may authorize only semantic RepoModel frontier mutation"
             ));
         }
-        if worker_launch.repo_frontier_modeling_request_id.is_some() {
+        if role_launch.frontier_verdict_modeling_context.is_some() {
             validate_repo_frontier_verdict_modeling_mutation(&cache, &launch_document, &proposal)?;
         }
     }
-    let has_planning_echo = result.frontier_planning_request_id.is_some();
+
+    let planning_context = role_launch.frontier_planning_context.as_ref();
     let has_planning_candidate = result.frontier_plan_candidate_msgpack.is_some();
-    if has_planning_echo != has_planning_candidate {
+    if planning_context.is_none() && has_planning_candidate {
         return Err(anyhow!(
-            "frontier planning result requires both its request echo and typed candidate"
+            "frontier planning candidate requires its immutable launch context"
         ));
     }
-    if has_planning_echo {
+    if planning_context.is_some() && !is_failure && !has_planning_candidate {
+        return Err(anyhow!(
+            "successful frontier planning result requires its typed candidate"
+        ));
+    }
+    if let Some(planning_context) = planning_context
+        && has_planning_candidate
+    {
         if !result.role_id.eq_ignore_ascii_case("imagination") {
             return Err(anyhow!(
-                "only Imagination results may echo a frontier planning request"
+                "only Imagination results may carry a frontier planning candidate"
             ));
         }
         if result.item_error.is_some() {
@@ -3905,21 +3801,7 @@ pub fn put_runtime_role_worker_result(
                 "frontier planning result with an item error cannot carry an executable candidate"
             ));
         }
-        if result.research_decision_msgpack.is_some()
-            || result.repo_model_mutation_proposal_msgpack.is_some()
-            || result.verification_request_id.is_some()
-            || result.frontier_route_id.is_some()
-            || result.repo_frontier_modeling_request_id.is_some()
-            || result.proposal_modeling_request_id.is_some()
-        {
-            return Err(anyhow!(
-                "frontier planning result may carry only its request echo and typed candidate authority"
-            ));
-        }
-        let request_id = result
-            .frontier_planning_request_id
-            .as_deref()
-            .ok_or_else(|| anyhow!("frontier planning request echo disappeared"))?;
+        let request_id = planning_context.request_id.as_str();
         let request = cache
             .get::<RepoFrontierPlanningRequest>(request_id)?
             .ok_or_else(|| anyhow!("frontier planning result requires persisted request"))?;
@@ -3928,16 +3810,6 @@ pub fn put_runtime_role_worker_result(
             .frontier_plan_candidate()?
             .ok_or_else(|| anyhow!("frontier planning candidate disappeared"))?;
         validate_repo_frontier_plan_candidate_against_request(&cache, &candidate, &request)?;
-        let worker_launch = cache
-            .get::<EpiphanyRuntimeWorkerLaunchRequest>(&result.job_id)?
-            .ok_or_else(|| anyhow!("frontier planning result requires its worker launch"))?;
-        let launch_document = worker_launch.launch_document()?;
-        let projection = match &launch_document {
-            EpiphanyWorkerLaunchDocument::Role(document) => {
-                document.frontier_planning_context.as_ref()
-            }
-            EpiphanyWorkerLaunchDocument::Reorient(_) => None,
-        };
         let expected_projection =
             crate::RepoFrontierPlanningContextProjection::from_request(&request);
         crate::current_work::frontier_planning_attempt_ordinal(
@@ -3947,11 +3819,8 @@ pub fn put_runtime_role_worker_result(
         if worker_launch.job_id != result.job_id
             || worker_launch.role != EPIPHANY_IMAGINATION_OWNER_ROLE
             || worker_launch.binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
-            || worker_launch.frontier_planning_request_id.as_deref()
-                != Some(request.request_id.as_str())
-            || worker_launch.proposal_modeling_request_id.is_some()
             || launch_document.thread_id() != result.job_id
-            || projection != Some(&expected_projection)
+            || planning_context != &expected_projection
         {
             return Err(anyhow!(
                 "frontier planning result does not exactly bind request, immutable launch, and candidate"
@@ -3959,33 +3828,36 @@ pub fn put_runtime_role_worker_result(
         }
     }
     let mut model_direction_companion = None;
-    let has_model_direction_echo = result
-        .admitted_model_direction_consideration_request_id
-        .is_some();
+    let model_direction_context = role_launch
+        .admitted_model_direction_consideration_context
+        .as_ref();
     let has_model_direction_result = result
         .admitted_model_direction_consideration_result_msgpack
         .is_some();
-    if has_model_direction_echo != has_model_direction_result {
+    if model_direction_context.is_none() && has_model_direction_result {
         return Err(anyhow!(
-            "model direction result requires exact request echo and result"
+            "model direction result requires its immutable launch context"
         ));
     }
-    if has_model_direction_echo {
+    if model_direction_context.is_some() && !is_failure && !has_model_direction_result {
+        return Err(anyhow!(
+            "successful model direction result requires its typed decision"
+        ));
+    }
+    if let Some(model_direction_context) = model_direction_context
+        && has_model_direction_result
+    {
         if !result.role_id.eq_ignore_ascii_case("imagination")
             || result.item_error.is_some()
             || result.research_decision_msgpack.is_some()
             || result.repo_model_mutation_proposal_msgpack.is_some()
-            || result.imagination_consideration_request_id.is_some()
             || result.imagination_consideration_candidate_msgpack.is_some()
         {
             return Err(anyhow!(
                 "model direction result carries foreign authority cargo"
             ));
         }
-        let request_id = result
-            .admitted_model_direction_consideration_request_id
-            .as_deref()
-            .unwrap();
+        let request_id = model_direction_context.request.request_id.as_str();
         let request = cache
             .get::<crate::AdmittedModelDirectionConsiderationRequest>(request_id)?
             .ok_or_else(|| anyhow!("model direction result request disappeared"))?;
@@ -4004,25 +3876,11 @@ pub fn put_runtime_role_worker_result(
                 "model direction result identity was not assigned by exact launch"
             ));
         }
-        let worker = cache
-            .get::<EpiphanyRuntimeWorkerLaunchRequest>(&result.job_id)?
-            .ok_or_else(|| anyhow!("model direction result requires worker launch"))?;
-        let document = worker.launch_document()?;
-        let projection = match &document {
-            EpiphanyWorkerLaunchDocument::Role(document) => document
-                .admitted_model_direction_consideration_context
-                .as_ref(),
-            EpiphanyWorkerLaunchDocument::Reorient(_) => None,
-        };
-        if worker.role != EPIPHANY_IMAGINATION_OWNER_ROLE
-            || worker.binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
-            || worker
-                .admitted_model_direction_consideration_request_id
-                .as_deref()
-                != Some(request_id)
-            || projection.map(|projection| &projection.request) != Some(&request)
-            || projection.map(|projection| projection.model.reasoning_basis())
-                != Some(crate::EpiphanyRepoModelBasis {
+        if worker_launch.role != EPIPHANY_IMAGINATION_OWNER_ROLE
+            || worker_launch.binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
+            || model_direction_context.request != request
+            || model_direction_context.model.reasoning_basis()
+                != (crate::EpiphanyRepoModelBasis {
                     projection_digest: request.model_projection_digest.clone(),
                     source_documents: request.model_source_documents.clone(),
                 })
@@ -4034,35 +3892,33 @@ pub fn put_runtime_role_worker_result(
         model_direction_companion = Some(direction_result);
     }
     let mut imagination_candidate_companion = None;
-    let has_consideration_echo = result.imagination_consideration_request_id.is_some();
+    let consideration_context = role_launch.imagination_consideration_context.as_ref();
     let has_consideration_candidate = result.imagination_consideration_candidate_msgpack.is_some();
-    if has_consideration_echo != has_consideration_candidate {
+    if consideration_context.is_none() && has_consideration_candidate {
         return Err(anyhow!(
-            "consideration result requires request echo and candidate"
+            "consideration candidate requires its immutable launch context"
         ));
     }
-    if has_consideration_echo {
+    if consideration_context.is_some() && !is_failure && !has_consideration_candidate {
+        return Err(anyhow!(
+            "successful consideration result requires its typed candidate"
+        ));
+    }
+    if let Some(consideration_context) = consideration_context
+        && has_consideration_candidate
+    {
         if !result.role_id.eq_ignore_ascii_case("imagination")
             || result.item_error.is_some()
             || result.research_decision_msgpack.is_some()
             || result.repo_model_mutation_proposal_msgpack.is_some()
-            || result.verification_request_id.is_some()
-            || result.frontier_route_id.is_some()
-            || result.repo_frontier_modeling_request_id.is_some()
-            || result.proposal_modeling_request_id.is_some()
-            || result.frontier_planning_request_id.is_some()
             || result.frontier_plan_candidate_msgpack.is_some()
-            || result.frontier_plan_mind_request_id.is_some()
             || result.frontier_plan_mind_decision_msgpack.is_some()
         {
             return Err(anyhow!(
                 "consideration result carries foreign authority cargo"
             ));
         }
-        let request_id = result
-            .imagination_consideration_request_id
-            .as_deref()
-            .unwrap();
+        let request_id = consideration_context.request.request_id.as_str();
         let request = cache
             .get::<crate::ImaginationConsiderationRequest>(request_id)?
             .ok_or_else(|| anyhow!("consideration result request disappeared"))?;
@@ -4078,25 +3934,14 @@ pub fn put_runtime_role_worker_result(
                 "consideration candidate identity was not assigned by exact launch"
             ));
         }
-        let worker = cache
-            .get::<EpiphanyRuntimeWorkerLaunchRequest>(&result.job_id)?
-            .ok_or_else(|| anyhow!("consideration result requires worker launch"))?;
-        let document = worker.launch_document()?;
-        let projection = match &document {
-            EpiphanyWorkerLaunchDocument::Role(document) => {
-                document.imagination_consideration_context.as_ref()
-            }
-            EpiphanyWorkerLaunchDocument::Reorient(_) => None,
-        };
         crate::current_work::consideration_attempt_ordinal(request_id, &result.job_id)?;
-        if worker.job_id != result.job_id
-            || worker.role != EPIPHANY_IMAGINATION_OWNER_ROLE
-            || worker.binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
-            || worker.imagination_consideration_request_id.as_deref() != Some(request_id)
-            || document.thread_id() != result.job_id
-            || projection.map(|projection| &projection.request) != Some(&request)
-            || projection.map(|projection| projection.model.reasoning_basis())
-                != Some(crate::EpiphanyRepoModelBasis {
+        if worker_launch.job_id != result.job_id
+            || worker_launch.role != EPIPHANY_IMAGINATION_OWNER_ROLE
+            || worker_launch.binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
+            || launch_document.thread_id() != result.job_id
+            || consideration_context.request != request
+            || consideration_context.model.reasoning_basis()
+                != (crate::EpiphanyRepoModelBasis {
                     projection_digest: request.model_projection_digest.clone(),
                     source_documents: request.model_source_documents.clone(),
                 })
@@ -4107,30 +3952,32 @@ pub fn put_runtime_role_worker_result(
         }
         imagination_candidate_companion = Some(candidate);
     }
-    let has_mind_echo = result.frontier_plan_mind_request_id.is_some();
+    let mind_context = role_launch.frontier_plan_mind_context.as_ref();
     let has_mind_decision = result.frontier_plan_mind_decision_msgpack.is_some();
-    if has_mind_echo != has_mind_decision {
+    if mind_context.is_none() && has_mind_decision {
         return Err(anyhow!(
-            "Mind result requires both exact request echo and typed decision"
+            "Mind decision requires its immutable launch context"
         ));
     }
-    if has_mind_echo {
+    if mind_context.is_some() && !is_failure && !has_mind_decision {
+        return Err(anyhow!(
+            "successful Mind result requires its typed decision"
+        ));
+    }
+    if let Some(mind_context) = mind_context
+        && has_mind_decision
+    {
         if !result.role_id.eq_ignore_ascii_case("mindAdmissionReview")
             || result.item_error.is_some()
             || result.research_decision_msgpack.is_some()
             || result.repo_model_mutation_proposal_msgpack.is_some()
-            || result.frontier_planning_request_id.is_some()
             || result.frontier_plan_candidate_msgpack.is_some()
-            || result.verification_request_id.is_some()
-            || result.frontier_route_id.is_some()
-            || result.repo_frontier_modeling_request_id.is_some()
-            || result.proposal_modeling_request_id.is_some()
         {
             return Err(anyhow!(
                 "Mind decision result carries foreign authority cargo"
             ));
         }
-        let request_id = result.frontier_plan_mind_request_id.as_deref().unwrap();
+        let request_id = mind_context.request.request_id.as_str();
         let request = cache
             .get::<RepoFrontierPlanMindRequest>(request_id)?
             .ok_or_else(|| anyhow!("Mind result request disappeared"))?;
@@ -4150,25 +3997,16 @@ pub fn put_runtime_role_worker_result(
                 "Mind decision substituted request echo or immutable candidate identity"
             ));
         }
-        let launch = cache
-            .get::<EpiphanyRuntimeWorkerLaunchRequest>(&result.job_id)?
-            .ok_or_else(|| anyhow!("Mind result launch disappeared"))?;
-        let document = launch.launch_document()?;
-        let projection = match &document {
-            EpiphanyWorkerLaunchDocument::Role(d) => d.frontier_plan_mind_context.as_ref(),
-            _ => None,
-        };
         let expected = RepoFrontierPlanMindContextProjection::new(&request, &planning, &candidate);
         crate::current_work::frontier_plan_mind_attempt_ordinal(
             &request.request_id,
             &result.job_id,
         )?;
-        if launch.job_id != result.job_id
-            || launch.role != EPIPHANY_MIND_OWNER_ROLE
-            || launch.binding_id != EPIPHANY_MIND_ROLE_BINDING_ID
-            || launch.frontier_plan_mind_request_id.as_deref() != Some(request.request_id.as_str())
-            || document.thread_id() != result.job_id
-            || projection != Some(&expected)
+        if worker_launch.job_id != result.job_id
+            || worker_launch.role != EPIPHANY_MIND_OWNER_ROLE
+            || worker_launch.binding_id != EPIPHANY_MIND_ROLE_BINDING_ID
+            || launch_document.thread_id() != result.job_id
+            || mind_context != &expected
         {
             return Err(anyhow!(
                 "Mind result does not exactly bind request, immutable launch, and candidate"
@@ -4327,15 +4165,21 @@ fn validated_proposal_modeling_worker_fulfillment(
     cache: &CultCache,
     result: &EpiphanyRuntimeRoleWorkerResult,
 ) -> Result<ValidatedProposalModelingWorkerFulfillment> {
-    let request_id = result
-        .proposal_modeling_request_id
-        .as_deref()
-        .ok_or_else(|| anyhow!("proposal Modeling fulfillment lost request echo"))?;
     if !result.role_id.eq_ignore_ascii_case("modeling") || result.item_error.is_some() {
         return Err(anyhow!(
             "proposal Modeling fulfillment requires a successful Modeling result"
         ));
     }
+    let launch = cache
+        .get::<EpiphanyRuntimeWorkerLaunchRequest>(&result.job_id)?
+        .ok_or_else(|| anyhow!("proposal Modeling fulfillment worker launch is missing"))?;
+    let document = launch.launch_document()?;
+    let projection = match &document {
+        EpiphanyWorkerLaunchDocument::Role(document) => document.proposal_modeling_context.as_ref(),
+        EpiphanyWorkerLaunchDocument::Reorient(_) => None,
+    }
+    .ok_or_else(|| anyhow!("proposal Modeling fulfillment lost immutable launch context"))?;
+    let request_id = projection.request_id.as_str();
     let mutation_proposal = result
         .repo_model_mutation_proposal()?
         .ok_or_else(|| anyhow!("proposal Modeling fulfillment lost RepoModel mutation proposal"))?;
@@ -4350,14 +4194,6 @@ fn validated_proposal_modeling_worker_fulfillment(
         .ok_or_else(|| anyhow!("proposal Modeling fulfillment proposal is missing"))?;
     validate_repo_frontier_work_proposal(&proposal)?;
     validate_autonomous_proposal_origin_request(cache, &proposal)?;
-    let launch = cache
-        .get::<EpiphanyRuntimeWorkerLaunchRequest>(&result.job_id)?
-        .ok_or_else(|| anyhow!("proposal Modeling fulfillment worker launch is missing"))?;
-    let document = launch.launch_document()?;
-    let projection = match &document {
-        EpiphanyWorkerLaunchDocument::Role(document) => document.proposal_modeling_context.as_ref(),
-        EpiphanyWorkerLaunchDocument::Reorient(_) => None,
-    };
     let identity = require_identity(cache)?;
     let proposal_payload_sha256 = crate::repo_frontier_proposal_payload_sha256(
         &proposal.title,
@@ -4372,7 +4208,7 @@ fn validated_proposal_modeling_worker_fulfillment(
         request_id,
         attempt_ordinal,
     )?;
-    let projection_matches_authenticated_request = projection.is_some_and(|projection| {
+    let projection_matches_authenticated_request = {
         let expected = crate::RepoFrontierProposalModelingContextProjection {
             schema_version: crate::REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_SCHEMA_VERSION.into(),
             contract: crate::REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_CONTRACT.into(),
@@ -4392,7 +4228,7 @@ fn validated_proposal_modeling_worker_fulfillment(
             prior_admission_refusals: prior_admission_refusals.clone(),
         };
         projection == &expected
-    });
+    };
     let mismatches = [
         (
             "request.payload",
@@ -4418,10 +4254,6 @@ fn validated_proposal_modeling_worker_fulfillment(
             launch.binding_id != EPIPHANY_MODELING_ROLE_BINDING_ID,
         ),
         ("launch.role", launch.role != EPIPHANY_MODELING_OWNER_ROLE),
-        (
-            "launch.request",
-            launch.proposal_modeling_request_id.as_deref() != Some(request.request_id.as_str()),
-        ),
         (
             "launch.projection",
             !projection_matches_authenticated_request,
@@ -4546,16 +4378,6 @@ pub(crate) fn runtime_typed_request_fulfillment(
             return Err(anyhow!("archived typed fulfillment tombstone is invalid"));
         }
         attempt.validate_decision_record(true)?;
-        let archived_role_result = attempt
-            .decision
-            .as_ref()
-            .and_then(|decision| decision.role_result.as_ref())
-            .ok_or_else(|| anyhow!("archived typed fulfillment lost its structured result"))?;
-        if !request.matches_result(archived_role_result) {
-            return Err(anyhow!(
-                "archived typed fulfillment substituted its structured result"
-            ));
-        }
         if cache
             .get::<EpiphanyRuntimeWorkerLaunchRequest>(&attempt.job_id)?
             .is_some()
@@ -4580,11 +4402,20 @@ pub(crate) fn runtime_typed_request_fulfillment(
                 .expect("validated archived result"),
         }));
     }
+    let matching_job_ids = cache
+        .get_all::<EpiphanyRuntimeWorkerLaunchRequest>()?
+        .into_iter()
+        .filter_map(|launch| match request.matches_launch(&launch) {
+            Ok(true) => Some(Ok(launch.job_id)),
+            Ok(false) => None,
+            Err(error) => Some(Err(error)),
+        })
+        .collect::<Result<BTreeSet<_>>>()?;
     let matches = cache
         .get_all::<EpiphanyRuntimeRoleWorkerResult>()?
         .into_iter()
         .filter(|result| {
-            request.matches_result(result)
+            matching_job_ids.contains(&result.job_id)
                 && !admission_refusals.iter().any(|refusal| {
                     refusal.pass_family.request_kind() == request.kind()
                         && refusal.request_id == request_id
@@ -4732,13 +4563,6 @@ fn validate_autonomous_proposal_origin_request(
             "worker role",
             worker_result.role_id.eq_ignore_ascii_case("imagination"),
         ),
-        (
-            "worker request echo",
-            worker_result
-                .admitted_model_direction_consideration_request_id
-                .as_deref()
-                == Some(request.request_id.as_str()),
-        ),
         ("worker direction cargo", worker_direction == result),
         (
             "direction launch identity",
@@ -4761,13 +4585,6 @@ fn validate_autonomous_proposal_origin_request(
         (
             "launch binding",
             worker_launch.binding_id == EPIPHANY_IMAGINATION_ROLE_BINDING_ID,
-        ),
-        (
-            "launch request echo",
-            worker_launch
-                .admitted_model_direction_consideration_request_id
-                .as_deref()
-                == Some(request.request_id.as_str()),
         ),
         (
             "launch request projection",
@@ -5416,10 +5233,12 @@ pub fn commit_repo_frontier_plan_mind_request(
     }
     let result = &results[0];
     put_runtime_role_worker_result(runtime_store, result)?;
-    let planning_request_id = result
-        .frontier_planning_request_id
-        .as_deref()
-        .ok_or_else(|| anyhow!("Mind request source lacks planning request echo"))?;
+    let source_launch = role_launch_document_for_job(&cache, &result.job_id)?;
+    let planning_request_id = source_launch
+        .frontier_planning_context
+        .as_ref()
+        .map(|context| context.request_id.as_str())
+        .ok_or_else(|| anyhow!("Mind request source lacks typed planning authority"))?;
     let planning = cache
         .get::<RepoFrontierPlanningRequest>(planning_request_id)?
         .ok_or_else(|| anyhow!("Mind request source planning request disappeared"))?;
@@ -5511,9 +5330,13 @@ fn validate_repo_frontier_plan_mind_request_identity(
         .frontier_plan_candidate()?
         .ok_or_else(|| anyhow!("Mind request candidate disappeared"))?;
     let hash = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(&candidate)?));
+    let source_launch = role_launch_document_for_job(cache, &result.job_id)?;
+    let launch_planning_request_id = source_launch
+        .frontier_planning_context
+        .as_ref()
+        .map(|context| context.request_id.as_str());
     if result.job_id != request.imagination_job_id
-        || result.frontier_planning_request_id.as_deref()
-            != Some(request.planning_request_id.as_str())
+        || launch_planning_request_id != Some(request.planning_request_id.as_str())
         || candidate.candidate_id != request.candidate_id
         || hash != request.candidate_sha256
         || request.runtime_id != planning.runtime_id
@@ -5657,11 +5480,14 @@ fn commit_repo_frontier_plan_decision_inner(
                 let typed = result.frontier_plan_mind_decision()?.ok_or_else(|| {
                     anyhow!("frontier plan decision requires a typed Mind decision")
                 })?;
+                let launch = role_launch_document_for_job(&cache, &result.job_id)?;
+                let mind_request_id = launch
+                    .frontier_plan_mind_context
+                    .as_ref()
+                    .map(|context| context.request.request_id.clone())
+                    .ok_or_else(|| anyhow!("Mind result lacks typed plan authority"))?;
                 (
-                    result
-                        .frontier_plan_mind_request_id
-                        .clone()
-                        .ok_or_else(|| anyhow!("Mind result lacks its plan request echo"))?,
+                    mind_request_id,
                     typed.decision,
                     typed.rationale,
                     typed.decided_at,
@@ -6376,9 +6202,16 @@ pub(crate) fn runtime_repo_frontier_research_lifecycle(
     };
     let mut attempts = launches
         .iter()
-        .filter(|launch| {
-            launch.repo_frontier_research_request_id.as_deref() == Some(request.request_id.as_str())
+        .map(|launch| {
+            Ok(
+                crate::RuntimeTypedRequestRef::FrontierResearch(&request.request_id)
+                    .matches_launch(launch)?
+                    .then_some(launch),
+            )
         })
+        .filter_map(Result::transpose)
+        .collect::<Result<Vec<_>>>()?
+        .into_iter()
         .map(|launch| {
             let carried_request = frontier_research_request_for_launch(&cache, launch)?
                 .ok_or_else(|| anyhow!("frontier Research launch lost its typed request"))?;
@@ -6418,10 +6251,7 @@ pub(crate) fn runtime_repo_frontier_research_lifecycle(
                 .iter()
                 .find(|result| result.job_id == job.job_id)
                 .ok_or_else(|| anyhow!("completed frontier Research job lost its typed result"))?;
-            if result.repo_frontier_research_request_id.as_deref()
-                != Some(request.request_id.as_str())
-                || !result.role_id.eq_ignore_ascii_case("research")
-            {
+            if !result.role_id.eq_ignore_ascii_case("research") {
                 return Err(anyhow!(
                     "frontier Research result crossed request-family authority"
                 ));
@@ -6503,7 +6333,9 @@ fn repo_frontier_research_request_is_covered(
 ) -> Result<bool> {
     let mut matching_jobs = BTreeSet::new();
     for launch in launches {
-        if launch.repo_frontier_research_request_id.as_deref() != Some(&request.request_id) {
+        if !crate::RuntimeTypedRequestRef::FrontierResearch(&request.request_id)
+            .matches_launch(launch)?
+        {
             continue;
         }
         let carried_request = frontier_research_request_for_launch(&cache, launch)?
@@ -6517,21 +6349,18 @@ fn repo_frontier_research_request_is_covered(
     }
     for job_id in matching_jobs {
         if let Some(result) = cache.get::<EpiphanyRuntimeRoleWorkerResult>(job_id)?
-            && result.repo_frontier_research_request_id.as_deref()
-                == Some(request.request_id.as_str())
             && result.role_id.eq_ignore_ascii_case("research")
             && result.item_error.is_none()
             && worker_result_has_keyed_mind_commit(cache, &result)?
         {
             return Ok(true);
         }
-        if let Some(attempt) = cache.get::<EpiphanyArchivedRuntimeWorkerAttempt>(job_id)?
-            && attempt.request_kind == "frontier-research"
+    }
+    for attempt in cache.get_all::<EpiphanyArchivedRuntimeWorkerAttempt>()? {
+        if attempt.request_kind == "frontier-research"
             && attempt.request_id == request.request_id
             && let Some(decision) = attempt.decision.as_ref()
             && let Some(result) = decision.role_result.as_ref()
-            && result.repo_frontier_research_request_id.as_deref()
-                == Some(request.request_id.as_str())
             && result.role_id.eq_ignore_ascii_case("research")
             && result.item_error.is_none()
             && attempt.fulfilled_result_id() == Some(result.result_id.as_str())
@@ -6779,9 +6608,18 @@ pub fn runtime_repo_frontier_planning_lifecycle(
     let mut imagination_launches = cache
         .get_all::<EpiphanyRuntimeWorkerLaunchRequest>()?
         .into_iter()
-        .filter(|launch| {
-            launch.frontier_planning_request_id.as_deref() == Some(request.request_id.as_str())
+        .map(|launch| {
+            let matches = match launch.launch_document()? {
+                EpiphanyWorkerLaunchDocument::Role(document) => document
+                    .frontier_planning_context
+                    .is_some_and(|context| context.request_id == request.request_id),
+                EpiphanyWorkerLaunchDocument::Reorient(_) => false,
+            };
+            Ok(matches.then_some(launch))
         })
+        .filter_map(Result::transpose)
+        .collect::<Result<Vec<_>>>()?
+        .into_iter()
         .map(|launch| {
             Ok((
                 crate::current_work::frontier_planning_attempt_ordinal(
@@ -6821,9 +6659,7 @@ pub fn runtime_repo_frontier_planning_lifecycle(
     };
     lifecycle.imagination_job_id = Some(imagination_result.job_id.clone());
     lifecycle.imagination_result_id = Some(imagination_result.result_id.clone());
-    if imagination_result.frontier_planning_request_id.as_deref()
-        != Some(request.request_id.as_str())
-    {
+    if imagination_result.item_error.is_some() {
         if !imagination_result
             .role_id
             .eq_ignore_ascii_case("imagination")
@@ -6850,6 +6686,15 @@ pub fn runtime_repo_frontier_planning_lifecycle(
         };
         return Ok(lifecycle);
     }
+    if !imagination_result
+        .role_id
+        .eq_ignore_ascii_case("imagination")
+        || imagination_result.frontier_plan_candidate_msgpack.is_none()
+    {
+        return Err(anyhow!(
+            "Self found malformed typed frontier planning result"
+        ));
+    }
     let mind_requests = cache
         .get_all::<RepoFrontierPlanMindRequest>()?
         .into_iter()
@@ -6870,10 +6715,18 @@ pub fn runtime_repo_frontier_planning_lifecycle(
     let mut mind_launches = cache
         .get_all::<EpiphanyRuntimeWorkerLaunchRequest>()?
         .into_iter()
-        .filter(|launch| {
-            launch.frontier_plan_mind_request_id.as_deref()
-                == Some(mind_request.request_id.as_str())
+        .map(|launch| {
+            let matches = match launch.launch_document()? {
+                EpiphanyWorkerLaunchDocument::Role(document) => document
+                    .frontier_plan_mind_context
+                    .is_some_and(|context| context.request.request_id == mind_request.request_id),
+                EpiphanyWorkerLaunchDocument::Reorient(_) => false,
+            };
+            Ok(matches.then_some(launch))
         })
+        .filter_map(Result::transpose)
+        .collect::<Result<Vec<_>>>()?
+        .into_iter()
         .map(|launch| {
             Ok((
                 crate::current_work::frontier_plan_mind_attempt_ordinal(
@@ -6911,9 +6764,7 @@ pub fn runtime_repo_frontier_planning_lifecycle(
     };
     lifecycle.mind_job_id = Some(mind_result.job_id.clone());
     lifecycle.mind_result_id = Some(mind_result.result_id.clone());
-    if mind_result.frontier_plan_mind_request_id.as_deref()
-        != Some(mind_request.request_id.as_str())
-    {
+    if mind_result.item_error.is_some() {
         if !mind_result
             .role_id
             .eq_ignore_ascii_case("mindAdmissionReview")
@@ -6934,6 +6785,13 @@ pub fn runtime_repo_frontier_planning_lifecycle(
             RepoFrontierPlanningLifecycleStage::MindFailed
         };
         return Ok(lifecycle);
+    }
+    if !mind_result
+        .role_id
+        .eq_ignore_ascii_case("mindAdmissionReview")
+        || mind_result.frontier_plan_mind_decision_msgpack.is_none()
+    {
+        return Err(anyhow!("Self found malformed typed Mind result"));
     }
     lifecycle.stage = RepoFrontierPlanningLifecycleStage::MindResultReady;
     Ok(lifecycle)
@@ -7561,6 +7419,13 @@ pub(crate) fn derive_repo_frontier_modeling_request(
     let verification_request = cache
         .get::<RepoFrontierVerificationRequest>(&verdict.verification_request_id)?
         .ok_or_else(|| anyhow!("frontier Modeling request requires the exact Soul request"))?;
+    let verification_launch = cache
+        .get::<EpiphanyRuntimeWorkerLaunchRequest>(&result.job_id)?
+        .ok_or_else(|| anyhow!("frontier Modeling request lost the Verification launch"))?;
+    let launched_verification_request =
+        frontier_verification_request_for_launch(&cache, &verification_launch)?.ok_or_else(
+            || anyhow!("frontier Modeling request lost typed Verification authority"),
+        )?;
     let route = cache
         .get::<RepoFrontierRoute>(&verdict.frontier_route_id)?
         .ok_or_else(|| anyhow!("frontier Modeling request requires the exact frontier route"))?;
@@ -7588,9 +7453,7 @@ pub(crate) fn derive_repo_frontier_modeling_request(
         || result.item_error.is_some()
         || result.result_id != verdict.source_result_id
         || result.job_id != verdict.source_job_id
-        || result.verification_request_id.as_deref()
-            != Some(verification_request.request_id.as_str())
-        || result.frontier_route_id.as_deref() != Some(route.route_id.as_str())
+        || launched_verification_request != verification_request
         || verdict.verdict != result.verdict
         || verdict.summary != result.summary
         || verdict.risks != result.risks
@@ -8054,15 +7917,16 @@ pub(crate) fn runtime_typed_request_attempt_exists(
             ))
         })
         .collect::<Result<BTreeMap<_, _>>>()?;
-    Ok(cache
-        .get_all::<EpiphanyRuntimeWorkerLaunchRequest>()?
-        .iter()
-        .filter(|launch| {
-            claims
-                .get(&launch.job_id)
-                .is_none_or(|status| !status.allows_retry())
-        })
-        .any(|launch| request.matches_launch(launch)))
+    for launch in cache.get_all::<EpiphanyRuntimeWorkerLaunchRequest>()? {
+        if claims
+            .get(&launch.job_id)
+            .is_none_or(|status| !status.allows_retry())
+            && request.matches_launch(&launch)?
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn validate_archivable_typed_worker_launch(
@@ -8080,12 +7944,7 @@ fn validate_archivable_typed_worker_launch(
     let identity = require_identity(cache)?;
     match request_kind {
         "proposal-modeling" => {
-            validate_proposal_modeling_launch_carrier(
-                &launch.role,
-                &launch.binding_id,
-                Some(request_id),
-                &document,
-            )?;
+            validate_proposal_modeling_launch_carrier(&launch.role, &launch.binding_id, &document)?;
             validate_repository_body_launch_carrier(&launch.role, &document)?;
             let request = cache
                 .get::<RepoFrontierProposalModelingRequest>(request_id)?
@@ -8119,11 +7978,7 @@ fn validate_archivable_typed_worker_launch(
             }
         }
         "frontier-verdict-modeling" => {
-            validate_repo_frontier_verdict_modeling_launch_authority(
-                &launch.role,
-                Some(request_id),
-                &document,
-            )?;
+            validate_repo_frontier_verdict_modeling_launch_authority(&launch.role, &document)?;
             validate_repository_body_launch_carrier(&launch.role, &document)?;
             let request = cache
                 .get::<RepoFrontierModelingRequest>(request_id)?
@@ -8167,7 +8022,6 @@ fn validate_archivable_typed_worker_launch(
             validate_imagination_consideration_launch_carrier(
                 &launch.role,
                 &launch.binding_id,
-                Some(request_id),
                 &document,
             )?;
             let request = cache
@@ -8283,7 +8137,8 @@ fn archive_runtime_worker_attempt(
     let launch = cache
         .get::<EpiphanyRuntimeWorkerLaunchRequest>(job_id)?
         .ok_or_else(|| anyhow!("worker attempt archive requires its immutable launch"))?;
-    let request = launch.typed_request_ref()?.ok_or_else(|| {
+    let document = launch.launch_document()?;
+    let request = document.typed_request_ref()?.ok_or_else(|| {
         anyhow!("worker attempt archive requires exactly one supported typed request")
     })?;
     let request_kind = request.kind();
@@ -8490,14 +8345,14 @@ pub fn retain_failed_runtime_worker_attempts(
         .into_iter()
         .map(|launch| (launch.job_id.clone(), launch))
         .collect::<BTreeMap<_, _>>();
-    let typed_request_ids = launches
+    let typed_requests = launches
         .values()
         .map(|launch| {
+            let document = launch.launch_document()?;
+            let request = document.typed_request_ref()?;
             Ok((
                 launch.job_id.clone(),
-                launch
-                    .typed_request_ref()?
-                    .map(|request| request.request_id().to_string()),
+                request.map(|request| (request.kind(), request.request_id().to_string())),
             ))
         })
         .collect::<Result<BTreeMap<_, _>>>()?;
@@ -8522,7 +8377,7 @@ pub fn retain_failed_runtime_worker_attempts(
             ) {
                 return None;
             }
-            let request_id = typed_request_ids.get(&claim.job_id)?.as_deref()?;
+            let request_id = typed_requests.get(&claim.job_id)?.as_ref()?.1.as_str();
             (!live_resident_request_ids.contains(request_id)).then_some(claim)
         })
         .collect::<Vec<_>>();
@@ -8556,14 +8411,14 @@ pub fn retain_fulfilled_runtime_worker_attempts(
         .into_iter()
         .map(|launch| (launch.job_id.clone(), launch))
         .collect::<BTreeMap<_, _>>();
-    let typed_request_ids = launches
+    let typed_requests = launches
         .values()
         .map(|launch| {
+            let document = launch.launch_document()?;
+            let request = document.typed_request_ref()?;
             Ok((
                 launch.job_id.clone(),
-                launch
-                    .typed_request_ref()?
-                    .map(|request| request.request_id().to_string()),
+                request.map(|request| (request.kind(), request.request_id().to_string())),
             ))
         })
         .collect::<Result<BTreeMap<_, _>>>()?;
@@ -8586,16 +8441,19 @@ pub fn retain_fulfilled_runtime_worker_attempts(
         .into_iter()
         .filter(|(status, _)| status.is_fulfilled_terminal())
         .filter_map(|(_, claim)| {
-            let launch = launches.get(&claim.job_id)?;
+            launches.get(&claim.job_id)?;
             let job = jobs.get(&claim.job_id)?;
             let result = role_results.get(&claim.job_id)?;
             if job.status != EpiphanyRuntimeJobStatus::Completed
-                || (launch.proposal_modeling_request_id.is_some()
+                || (typed_requests
+                    .get(&claim.job_id)?
+                    .as_ref()
+                    .is_some_and(|(kind, _)| *kind == "proposal-modeling")
                     && !worker_result_has_keyed_mind_commit(&cache, result).ok()?)
             {
                 return None;
             }
-            let request_id = typed_request_ids.get(&claim.job_id)?.as_deref()?;
+            let request_id = typed_requests.get(&claim.job_id)?.as_ref()?.1.as_str();
             (!live_resident_request_ids.contains(request_id)).then_some(claim)
         })
         .collect::<Vec<_>>();

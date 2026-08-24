@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-pub const ROLE_WORKER_OUTPUT_CONTRACT_ID: &str = "epiphany.worker.role_result.v4";
+pub const ROLE_WORKER_OUTPUT_CONTRACT_ID: &str = "epiphany.worker.role_result.v5";
 pub const REORIENT_WORKER_OUTPUT_CONTRACT_ID: &str = "epiphany.worker.reorient_result.v0";
 pub const REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_SCHEMA_VERSION: &str =
     "epiphany.worker.repo_frontier_proposal_modeling_context.v4";
@@ -100,6 +100,25 @@ pub struct EpiphanyRoleWorkerLaunchDocument {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub admitted_model_direction_consideration_context:
         Option<AdmittedModelDirectionConsiderationContextProjection>,
+}
+
+impl EpiphanyRoleWorkerLaunchDocument {
+    pub(crate) fn family_context_count(&self) -> usize {
+        [
+            self.proposal_modeling_context.is_some(),
+            self.frontier_verdict_modeling_context.is_some(),
+            self.frontier_planning_context.is_some(),
+            self.frontier_research_context.is_some(),
+            self.frontier_verification_context.is_some(),
+            self.frontier_plan_mind_context.is_some(),
+            self.imagination_consideration_context.is_some(),
+            self.admitted_model_direction_consideration_context
+                .is_some(),
+        ]
+        .into_iter()
+        .filter(|present| *present)
+        .count()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
