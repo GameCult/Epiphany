@@ -2,10 +2,10 @@
 
 Updated: 2026-08-25
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany source cut: `7374be5e`
+Latest committed Epiphany source cut: `5f1bea39`
 Current connector source: `6dc80f6d266db4d82566d2434adcc55a48e8ecad`
-Current pass: current work projects from one exact Mind snapshot; continue the
-semantic-owner audit of runtime path-based reloads; Ox17 and Atlas Gate 1 remain paused
+Current pass: current work and typed fulfillment use one exact Mind snapshot;
+continue the coordinator-status/runtime-reader audit; Ox17 and Atlas Gate 1 remain paused
 
 ## Orientation
 
@@ -2106,3 +2106,16 @@ transport, and replay. Its lean typed client is the ABI stub shared by
 Epiphany and Ghostlight; removing that stub would merely duplicate encryption
 and framing in both consumers. Consumers continue to own their exact native
 and provider requests, prompts, tools, decisions, and state admission.
+
+Exact `5f1bea39` extends the same snapshot law through typed fulfillment.
+Research, Verification, Proposal Modeling, PlanMind continuation, fulfilled
+worker archival, and Resident Self now validate an immutable result against
+the cache they already pulled instead of reopening runtime state mid-decision.
+The generic path wrapper is deleted; provider execution retains the sole
+path-based role-result CAS writer. The cut is 17 maintained lines net additive
+because the private cache-local seam replaces repeated physical reads without
+adding schema, dependency, target, process, or authority. Core check,
+current-work 3/3, reasoning-context 8/8, structured-failure refusal, and the
+release-owned swarm entrypoint pass. The focused build produced 2.2 GiB across
+3,189 files; cleanup again restored only the exact authenticated state
+inspector.

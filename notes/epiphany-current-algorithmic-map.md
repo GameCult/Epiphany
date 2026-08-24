@@ -1,9 +1,9 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-25
-Latest committed implementation cut: `7a125d78` on `codex/epiphany-shakedown-live`
-Current pass: vendored Codex evicted; semantic-owner audit of
-`runtime_spine.rs` is next; Ox17 remains paused
+Latest committed implementation cut: `5f1bea39` on `codex/epiphany-shakedown-live`
+Current pass: current work and typed fulfillment consume one exact Mind
+snapshot; coordinator-status/runtime-reader audit is next; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke
@@ -667,6 +667,16 @@ Codex/OpenRouter authentication, credential reading, and network calls for the
 model and Persona entrypoints. Persona keeps its three-stage family executor;
 the service owns its concrete runner. Workers have one governed tool-capable
 route, not a tool route plus a parallel no-tools opinion.
+
+One logical state judgment consumes one pulled snapshot. Exact `7374be5e`
+makes Mind assembly, keyed RepoModel assembly, current-work projection,
+reasoning-basis construction, and Reorientation reuse the same CultCache.
+Exact `5f1bea39` extends that rule through immutable typed-fulfillment replay:
+family admission, PlanMind continuation, worker archival, and Resident Self do
+not reopen runtime state while validating the result they just selected. The
+provider runtime retains one path-based role-result CAS writer; read-only
+replay consumes an explicit `&CultCache` and cannot silently rebase model
+output against a newer store head.
 
 The target boundary is independent `GameCult/CodexConnector`; exact
 `6dc80f6d266db4d82566d2434adcc55a48e8ecad` owns one typed multi-caller
