@@ -1204,7 +1204,7 @@ mod tests {
                 created_at: options.created_at.clone(),
             },
         )?;
-        epiphany_core::ensure_runtime_session(
+        epiphany_core::create_runtime_session(
             store,
             epiphany_core::RuntimeSpineSessionOptions {
                 session_id: options.session_id.clone(),

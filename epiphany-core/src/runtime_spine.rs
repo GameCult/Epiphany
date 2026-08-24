@@ -1077,42 +1077,6 @@ pub fn create_runtime_session(
     Ok(session)
 }
 
-pub fn ensure_runtime_session(
-    store_path: impl AsRef<Path>,
-    options: RuntimeSpineSessionOptions,
-) -> Result<EpiphanyRuntimeSession> {
-    validate_non_empty(&options.session_id, "session id")?;
-    validate_non_empty(&options.objective, "objective")?;
-    validate_non_empty(&options.created_at, "created at")?;
-    let mut cache = runtime_spine_cache(store_path.as_ref())?;
-    cache.pull_all_backing_stores()?;
-    require_identity(&cache)?;
-    require_runtime_identity_not_archived(&cache, "session", &options.session_id)?;
-    if let Some(existing) = cache.get::<EpiphanyRuntimeSession>(&options.session_id)? {
-        if matches!(
-            existing.status,
-            EpiphanyRuntimeSessionStatus::Completed | EpiphanyRuntimeSessionStatus::Archived
-        ) {
-            return Err(anyhow!(
-                "runtime session {:?} is terminal and cannot accept jobs",
-                options.session_id
-            ));
-        }
-        return Ok(existing);
-    }
-    let session = EpiphanyRuntimeSession {
-        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
-        session_id: options.session_id.clone(),
-        objective: options.objective,
-        status: EpiphanyRuntimeSessionStatus::Active,
-        created_at: options.created_at.clone(),
-        updated_at: options.created_at,
-        coordinator_note: options.coordinator_note,
-    };
-    cache.put(&options.session_id, &session)?;
-    Ok(session)
-}
-
 pub fn close_runtime_session(
     store_path: impl AsRef<Path>,
     options: RuntimeSpineSessionClosureOptions,
