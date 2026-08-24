@@ -85,7 +85,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v26";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v27";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";

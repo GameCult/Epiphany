@@ -135,11 +135,7 @@ fn require_resident_git(executable: &str) -> Result<()> {
 
 fn maintain_resident_runtime(args: &Args, state: &ResidentSelfState) -> Result<()> {
     retain_runtime_receipts(args, state)?;
-    retain_resident_self_lifecycles(
-        &args.state_store,
-        args.retained_closed_lifecycles,
-        Utc::now().timestamp_millis().max(0) as u64,
-    )?;
+    retain_resident_self_lifecycles(&args.state_store, args.retained_closed_lifecycles)?;
     retain_runtime_worker_attempts(args)?;
     Ok(())
 }

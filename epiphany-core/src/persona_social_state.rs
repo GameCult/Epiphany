@@ -21,7 +21,6 @@ pub const PERSONA_CONVERSATION_RETENTION_PLAN_SCHEMA_VERSION: &str =
 pub struct PersonaSocialMention {
     pub id: String,
     pub target_role_id: String,
-    pub target_agent_id: String,
     pub source_surface: String,
     pub channel_id: String,
     pub message_id: String,
@@ -146,7 +145,7 @@ pub struct PersonaTurnBlockedEvidence {
     pub bridge_receipt_sha256: Option<String>,
 }
 
-pub const PERSONA_SOCIAL_MENTION_TYPE: &str = "epiphany.persona.social_mention.v1";
+pub const PERSONA_SOCIAL_MENTION_TYPE: &str = "epiphany.persona.social_mention.v2";
 pub const PERSONA_SOCIAL_TURN_REQUEST_TYPE: &str = "epiphany.persona.turn_request.v1";
 pub const PERSONA_SOCIAL_TURN_TERMINAL_TYPE: &str = "epiphany.persona.turn_terminal.v1";
 pub const PERSONA_SOCIAL_RETENTION_HEAD_TYPE: &str = "epiphany.persona.retention_head.v1";
@@ -175,7 +174,7 @@ pub struct PersonaSocialQueueMentionOptions {
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(
-    type = "epiphany.persona.social_mention.v1",
+    type = "epiphany.persona.social_mention.v2",
     schema = "PersonaSocialMentionDocument"
 )]
 pub struct PersonaSocialMentionDocument {
@@ -234,6 +233,11 @@ pub fn persona_social_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     register_persona_social_types(&mut cache)?;
     let mut identities = HashSet::new();
     for envelope in SingleFileMessagePackBackingStore::new(store_path.as_ref()).pull_all()? {
+        if envelope.r#type == "epiphany.persona.social_mention.v1" {
+            return Err(anyhow!(
+                "Persona social store contains an obsolete writable mention epoch"
+            ));
+        }
         if !is_persona_social_type(&envelope.r#type) {
             continue;
         }
@@ -289,7 +293,6 @@ pub fn queue_persona_social_mention(
         mention: PersonaSocialMention {
             id: mention_id.clone(),
             target_role_id: options.target_role_id.clone(),
-            target_agent_id: "epiphany.Persona".into(),
             source_surface: options.source_surface,
             channel_id: options.channel_id,
             message_id: options.message_id,

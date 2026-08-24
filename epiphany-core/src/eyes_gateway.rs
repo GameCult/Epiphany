@@ -6,7 +6,7 @@ pub const EYES_SOURCE_LOOKUP_RECEIPT_TYPE: &str = "epiphany.eyes.source_lookup_r
 pub const EYES_EVIDENCE_PACKET_TYPE: &str = "epiphany.eyes.evidence_packet";
 pub const EYES_SOURCE_LOOKUP_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.eyes.source_lookup_receipt.v0";
-pub const EYES_EVIDENCE_PACKET_SCHEMA_VERSION: &str = "epiphany.eyes.evidence_packet.v1";
+pub const EYES_EVIDENCE_PACKET_SCHEMA_VERSION: &str = "epiphany.eyes.evidence_packet.v2";
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
@@ -58,26 +58,24 @@ pub struct EyesEvidencePacket {
     #[cultcache(key = 3)]
     pub source_job_id: String,
     #[cultcache(key = 4)]
-    pub source_role_id: String,
-    #[cultcache(key = 5)]
     pub evidence_ids: Vec<String>,
-    #[cultcache(key = 6)]
+    #[cultcache(key = 5)]
     pub observation_ids: Vec<String>,
-    #[cultcache(key = 7)]
+    #[cultcache(key = 6)]
     pub source_refs: Vec<String>,
-    #[cultcache(key = 8)]
+    #[cultcache(key = 7)]
     pub summary: String,
-    #[cultcache(key = 9)]
+    #[cultcache(key = 8)]
     pub uncertainty: String,
-    #[cultcache(key = 10)]
+    #[cultcache(key = 9)]
     pub emitted_at: String,
-    #[cultcache(key = 11)]
+    #[cultcache(key = 10)]
     pub contract: String,
-    #[cultcache(key = 12, default)]
+    #[cultcache(key = 11, default)]
     pub source_lookup_receipt_ids: Vec<String>,
-    #[cultcache(key = 13)]
+    #[cultcache(key = 12)]
     pub research_request_id: String,
-    #[cultcache(key = 14)]
+    #[cultcache(key = 13)]
     pub decision_context_id: String,
 }
 
@@ -129,7 +127,6 @@ pub fn eyes_evidence_packet_from_research_finding(
         packet_id,
         source_result_id: finding.runtime_result_id.clone().unwrap_or_default(),
         source_job_id: finding.runtime_job_id.clone().unwrap_or_default(),
-        source_role_id: "research".to_string(),
         evidence_ids,
         observation_ids,
         source_refs,

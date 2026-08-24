@@ -8,7 +8,7 @@ use std::collections::{BTreeSet, HashSet};
 use std::path::{Path, PathBuf};
 
 pub const RESIDENT_SELF_STATE_KEY: &str = "resident-self";
-pub const RESIDENT_SELF_STATE_SCHEMA_VERSION: &str = "epiphany.resident_self.state.v2";
+pub const RESIDENT_SELF_STATE_SCHEMA_VERSION: &str = "epiphany.resident_self.state.v3";
 pub const RESIDENT_SELF_PRESSURE_SCHEMA_VERSION: &str = "epiphany.resident_self.pressure.v0";
 pub const RESIDENT_SELF_COORDINATOR_CONTINUATION_PRESSURE_KIND: &str =
     "coordinator-internal-continuation";
@@ -24,7 +24,7 @@ pub const RESIDENT_SELF_TERMINAL_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.resident_self.terminal_receipt.v1";
 pub const RESIDENT_SELF_CHILD_CLAIM_SCHEMA_VERSION: &str = "epiphany.resident_self.child_claim.v0";
 pub const RESIDENT_SELF_RETENTION_HEAD_SCHEMA_VERSION: &str =
-    "epiphany.resident_self.retention_head.v0";
+    "epiphany.resident_self.retention_head.v1";
 pub const RESIDENT_SELF_RETENTION_HEAD_KEY: &str = "resident-self-retention";
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -239,7 +239,7 @@ pub struct ResidentSelfChildClaim {
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
-    type = "epiphany.resident_self.retention_head.v0",
+    type = "epiphany.resident_self.retention_head.v1",
     schema = "ResidentSelfRetentionHead"
 )]
 pub struct ResidentSelfRetentionHead {
@@ -253,9 +253,7 @@ pub struct ResidentSelfRetentionHead {
     pub retired_envelope_count: u64,
     #[cultcache(key = 4)]
     pub retired_chain_digest: String,
-    #[cultcache(key = 5)]
-    pub retained_at_millis: u64,
-    #[cultcache(key = 6, default)]
+    #[cultcache(key = 5, default)]
     pub private_state_exposed: bool,
 }
 
@@ -766,7 +764,9 @@ fn state_cache(path: &Path) -> Result<CultCache> {
     for envelope in SingleFileMessagePackBackingStore::new(path).pull_all()? {
         if matches!(
             envelope.r#type.as_str(),
-            "epiphany.resident_self.heartbeat_grant.v0" | "epiphany.resident_self.terminal_ack.v0"
+            "epiphany.resident_self.heartbeat_grant.v0"
+                | "epiphany.resident_self.terminal_ack.v0"
+                | "epiphany.resident_self.retention_head.v0"
         ) {
             return Err(anyhow!(
                 "resident Self store contains a pre-cut heartbeat lifecycle document"
@@ -2529,7 +2529,6 @@ pub fn resident_self_terminal_receipts(path: &Path) -> Result<Vec<ResidentSelfTe
 pub fn retain_resident_self_lifecycles(
     path: &Path,
     retain_closed: usize,
-    now_millis: u64,
 ) -> Result<Option<ResidentSelfRetentionHead>> {
     let cache = state_cache(path)?;
     let state = cache
@@ -2671,7 +2670,6 @@ pub fn retain_resident_self_lifecycles(
             head.retired_envelope_count + deletions.len() as u64
         }),
         retired_chain_digest: digest_parts(digest_inputs),
-        retained_at_millis: now_millis,
         private_state_exposed: false,
     };
     let (replacement, _) = cache.prepare_entry(RESIDENT_SELF_RETENTION_HEAD_KEY, &head)?;
@@ -2715,7 +2713,7 @@ mod pressure_replay_tests {
         let store = temp.path().join("resident.cc");
         let cache = state_cache(&store)?;
         let mut state = ResidentSelfState::default();
-        state.schema_version = "epiphany.resident_self.state.v1".into();
+        state.schema_version = "epiphany.resident_self.state.v2".into();
         SingleFileMessagePackBackingStore::new(&store)
             .push(&cache.prepare_entry(RESIDENT_SELF_STATE_KEY, &state)?.0)?;
         let before = std::fs::read(&store)?;
