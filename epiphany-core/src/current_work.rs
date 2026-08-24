@@ -3694,12 +3694,6 @@ mod tests {
         failed_native.source_worker_job_id = Some(failed_launch.job_id.clone());
         crate::open_runtime_model_execution(
             &store,
-            crate::RuntimeSpineSessionOptions {
-                session_id: "body-failed-model-session".into(),
-                objective: "Model the exact Body projection.".into(),
-                created_at: "2026-08-17T00:00:02.100Z".into(),
-                coordinator_note: "Test dead worker audit context.".into(),
-            },
             crate::RuntimeSpineJobOptions {
                 job_id: "body-failed-model-job".into(),
                 session_id: "body-failed-model-session".into(),
@@ -4675,12 +4669,6 @@ mod tests {
         verification_native.source_worker_job_id = Some(verification_job_id.clone());
         crate::open_runtime_model_execution(
             &store,
-            crate::RuntimeSpineSessionOptions {
-                session_id: "verification-model-session".into(),
-                objective: "Verify the exact Hands consequence.".into(),
-                created_at: "2026-08-17T00:00:14.750Z".into(),
-                coordinator_note: "Bound Verification model pass.".into(),
-            },
             crate::RuntimeSpineJobOptions {
                 job_id: "verification-model-job".into(),
                 session_id: "verification-model-session".into(),
@@ -5344,12 +5332,6 @@ mod tests {
         )?);
         crate::open_runtime_model_execution(
             &store,
-            crate::RuntimeSpineSessionOptions {
-                session_id: "planning-model-session".into(),
-                objective: "Propose the exact frontier plan.".into(),
-                created_at: "2026-08-17T00:00:21.750Z".into(),
-                coordinator_note: "Bound Planning model pass.".into(),
-            },
             crate::RuntimeSpineJobOptions {
                 job_id: "planning-model-job".into(),
                 session_id: "planning-model-session".into(),
@@ -5479,12 +5461,6 @@ mod tests {
         )?);
         crate::open_runtime_model_execution(
             &store,
-            crate::RuntimeSpineSessionOptions {
-                session_id: "plan-mind-model-session".into(),
-                objective: "Adjudicate the exact frontier plan.".into(),
-                created_at: "2026-08-17T00:00:22.250Z".into(),
-                coordinator_note: "Bound plan Mind model pass.".into(),
-            },
             crate::RuntimeSpineJobOptions {
                 job_id: "plan-mind-model-job".into(),
                 session_id: "plan-mind-model-session".into(),

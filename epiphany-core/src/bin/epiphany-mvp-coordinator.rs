@@ -1315,11 +1315,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         ];
         let receipt_created_at = now();
         let coordinator_run_receipt = EpiphanyCoordinatorRunReceipt {
-            receipt_id: format!(
-                "coordinator-run-{}-{}",
-                sanitize_id(&thread_id),
-                chrono::Utc::now().timestamp_millis()
-            ),
+            receipt_id: format!("coordinator-run-terminal-{runtime_session_id}"),
             session_id: runtime_session_id.clone(),
             thread_id: thread_id.clone(),
             mode: args.mode.clone(),
@@ -1417,11 +1413,7 @@ fn failed_coordinator_run_receipt(
 ) -> EpiphanyCoordinatorRunReceipt {
     let created_at = now();
     EpiphanyCoordinatorRunReceipt {
-        receipt_id: format!(
-            "coordinator-run-{}-failed-{}",
-            sanitize_id(thread_id),
-            chrono::Utc::now().timestamp_millis()
-        ),
+        receipt_id: format!("coordinator-run-terminal-{session_id}"),
         session_id: session_id.to_string(),
         thread_id: thread_id.to_string(),
         mode: args.mode.clone(),
@@ -2092,7 +2084,7 @@ mod tests {
     }
 
     #[test]
-    fn coordinator_error_after_opening_terminalizes_the_exact_session() -> Result<()> {
+    fn coordinator_error_preserves_basis_and_writes_terminal_receipt() -> Result<()> {
         let smoke_root = env::current_dir()?.join(".epiphany-smoke");
         fs::create_dir_all(&smoke_root)?;
         let temp = tempfile::tempdir_in(smoke_root)?;
@@ -2141,17 +2133,25 @@ mod tests {
         );
         let mut cache = epiphany_core::runtime_spine_cache(&runtime_store)?;
         cache.pull_all_backing_stores()?;
-        let session = cache.get_required::<epiphany_core::EpiphanyRuntimeSession>(
-            "coordinator-error-terminalization",
-        )?;
-        assert_eq!(
-            session.status,
-            epiphany_core::EpiphanyRuntimeSessionStatus::Completed
+        assert!(
+            cache
+                .get::<epiphany_core::EpiphanyCoordinatorRunBasis>(
+                    "coordinator-error-terminalization",
+                )?
+                .is_some(),
+            "terminal receipt must retain the exact immutable coordinator basis"
         );
         let receipts = cache.get_all::<EpiphanyCoordinatorRunReceipt>()?;
         assert_eq!(receipts.len(), 1);
         assert_eq!(receipts[0].status, "failed");
-        assert_eq!(receipts[0].session_id, session.session_id);
+        assert_eq!(receipts[0].session_id, "coordinator-error-terminalization");
+        assert!(
+            cache
+                .get::<epiphany_core::EpiphanyCoordinatorRunTerminality>(
+                    "coordinator-error-terminalization",
+                )?
+                .is_some()
+        );
         Ok(())
     }
 

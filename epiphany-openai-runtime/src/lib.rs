@@ -15,7 +15,6 @@ use epiphany_core::EpiphanyWorkerLaunchDocument;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::RuntimeSpineJobOptions;
 use epiphany_core::RuntimeSpineJobResultOptions;
-use epiphany_core::RuntimeSpineSessionOptions;
 use epiphany_core::complete_runtime_job;
 use epiphany_core::initialize_runtime_spine;
 use epiphany_core::open_runtime_model_execution;
@@ -115,12 +114,6 @@ pub fn open_model_turn(
     ensure_openai_runtime_ready(&options)?;
     open_runtime_model_execution(
         &options.store_path,
-        RuntimeSpineSessionOptions {
-            session_id: options.session_id.clone(),
-            objective: options.objective.clone(),
-            created_at: now(),
-            coordinator_note: options.coordinator_note.clone(),
-        },
         RuntimeSpineJobOptions {
             job_id: options.job_id.clone(),
             session_id: options.session_id.clone(),
@@ -2966,12 +2959,6 @@ mod tests {
         ensure_openai_runtime_ready(&options)?;
         open_runtime_model_execution(
             &store,
-            RuntimeSpineSessionOptions {
-                session_id: options.session_id.clone(),
-                objective: options.objective.clone(),
-                created_at: now(),
-                coordinator_note: options.coordinator_note.clone(),
-            },
             RuntimeSpineJobOptions {
                 job_id: options.job_id.clone(),
                 session_id: options.session_id.clone(),
@@ -3069,12 +3056,6 @@ mod tests {
         )?;
         epiphany_core::open_runtime_model_execution(
             &store,
-            RuntimeSpineSessionOptions {
-                session_id: "openai-worker-session-modeling-checkpoint-worker".into(),
-                objective: "Run the exact Modeling pass.".into(),
-                created_at: "2026-08-14T00:00:00Z".into(),
-                coordinator_note: "decision context fixture".into(),
-            },
             RuntimeSpineJobOptions {
                 job_id: "openai-worker-worker-job-1".into(),
                 session_id: "openai-worker-session-modeling-checkpoint-worker".into(),
@@ -3441,12 +3422,6 @@ mod tests {
         ensure_openai_runtime_ready(&options)?;
         open_runtime_model_execution(
             &store,
-            RuntimeSpineSessionOptions {
-                session_id: options.session_id.clone(),
-                objective: options.objective.clone(),
-                created_at: now(),
-                coordinator_note: options.coordinator_note.clone(),
-            },
             RuntimeSpineJobOptions {
                 job_id: options.job_id.clone(),
                 session_id: options.session_id.clone(),

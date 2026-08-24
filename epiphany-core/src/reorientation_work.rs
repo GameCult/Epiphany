@@ -968,12 +968,6 @@ mod tests {
         )?);
         crate::open_runtime_model_execution(
             &store,
-            crate::RuntimeSpineSessionOptions {
-                session_id: "reorientation-model-session".into(),
-                objective: "Reorient from exact Mind state".into(),
-                created_at: "2026-08-18T10:00:03Z".into(),
-                coordinator_note: "test".into(),
-            },
             crate::RuntimeSpineJobOptions {
                 job_id: "reorientation-model-job".into(),
                 session_id: "reorientation-model-session".into(),
@@ -1098,12 +1092,6 @@ mod tests {
         )?);
         crate::open_runtime_model_execution(
             &store,
-            crate::RuntimeSpineSessionOptions {
-                session_id: "failed-reorientation-model-session".into(),
-                objective: "Fail from exact Mind state".into(),
-                created_at: "2026-08-18T10:00:10Z".into(),
-                coordinator_note: "test".into(),
-            },
             crate::RuntimeSpineJobOptions {
                 job_id: "failed-reorientation-model-job".into(),
                 session_id: "failed-reorientation-model-session".into(),

@@ -593,11 +593,6 @@ async fn run_worker_launch(
         &options.store_path,
         epiphany_core::RuntimeSpineSessionClosureOptions {
             session_id: openai_options.session_id.clone(),
-            completed_at: chrono::Utc::now().to_rfc3339(),
-            summary: format!(
-                "Worker model execution {} reached terminal result {}.",
-                launch_request.job_id, worker_result.result_id
-            ),
         },
     )?;
 
@@ -1146,12 +1141,6 @@ mod tests {
         model_request.reasoning_basis_id = Some(basis.basis_id);
         epiphany_core::open_runtime_model_execution(
             store,
-            epiphany_core::RuntimeSpineSessionOptions {
-                session_id: session_id.clone(),
-                objective: format!("Run model execution for {worker_job_id}."),
-                created_at: chrono::Utc::now().to_rfc3339(),
-                coordinator_note: "test".to_string(),
-            },
             epiphany_core::RuntimeSpineJobOptions {
                 job_id: job_id.clone(),
                 session_id: session_id.clone(),
@@ -1391,12 +1380,6 @@ mod tests {
         request.reasoning_basis_id = Some(basis.basis_id);
         epiphany_core::open_runtime_model_execution(
             &store,
-            epiphany_core::RuntimeSpineSessionOptions {
-                session_id: "openai-runtime-error".into(),
-                objective: "Exercise model-backed runtime failure.".into(),
-                created_at: now(),
-                coordinator_note: "test".into(),
-            },
             epiphany_core::RuntimeSpineJobOptions {
                 job_id: "openai-job-runtime-error".into(),
                 session_id: "openai-runtime-error".into(),

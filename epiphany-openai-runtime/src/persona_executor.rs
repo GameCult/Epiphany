@@ -14,8 +14,7 @@ use epiphany_core::{
     build_persona_projector_prompt_with_transcript, build_persona_turn_prompt,
     close_runtime_session, model_pass_failure_for_request,
     parse_and_validate_persona_interpreter_effect_set, persona_interpreter_effect_set_json_schema,
-    runtime_spine_cache,
-    terminalize_model_pass_failure_session,
+    runtime_spine_cache, terminalize_model_pass_failure_session,
 };
 use epiphany_model_adapter::{EpiphanyModelInputItem, EpiphanyModelRequest};
 use sha2::{Digest, Sha256};
@@ -82,18 +81,11 @@ pub async fn execute_persona_model_turn<R: PersonaModelRunner>(
 ) -> Result<PersonaModelTerminalReceipt> {
     match execute_persona_model_turn_with_runner(store_path, plan, runner).await {
         Ok(terminal) => {
-            close_persona_session_if_active(
-                store_path,
-                plan,
-                format!(
-                    "Persona turn {} reached terminal decision {}.",
-                    plan.turn_id, terminal.receipt_id
-                ),
-            )?;
+            close_persona_session_if_active(store_path, plan)?;
             Ok(terminal)
         }
         Err(error) => {
-            terminalize_persona_execution_error(store_path, plan, &error)?;
+            terminalize_persona_execution_error(store_path, plan)?;
             Err(error)
         }
     }
@@ -102,7 +94,6 @@ pub async fn execute_persona_model_turn<R: PersonaModelRunner>(
 fn terminalize_persona_execution_error(
     store_path: &Path,
     plan: &PersonaModelExecutionPlan,
-    error: &anyhow::Error,
 ) -> Result<()> {
     for stage in ["interpreter", "persona", "projector"] {
         let request_id = stage_request_id(&plan.turn_id, stage);
@@ -110,17 +101,12 @@ fn terminalize_persona_execution_error(
             return Ok(());
         }
     }
-    close_persona_session_if_active(
-        store_path,
-        plan,
-        format!("Persona turn orchestration refused: {error:#}"),
-    )
+    close_persona_session_if_active(store_path, plan)
 }
 
 fn close_persona_session_if_active(
     store_path: &Path,
     plan: &PersonaModelExecutionPlan,
-    summary: String,
 ) -> Result<()> {
     let session_id = format!("persona-turn-{}", plan.turn_id);
     let mut cache = runtime_spine_cache(store_path)?;
@@ -131,14 +117,7 @@ fn close_persona_session_if_active(
             session.status == epiphany_core::EpiphanyRuntimeSessionStatus::Active
         })
     {
-        close_runtime_session(
-            store_path,
-            RuntimeSpineSessionClosureOptions {
-                session_id,
-                completed_at: now(),
-                summary,
-            },
-        )?;
+        close_runtime_session(store_path, RuntimeSpineSessionClosureOptions { session_id })?;
     }
     Ok(())
 }
@@ -612,12 +591,6 @@ mod tests {
                 }
                 epiphany_core::open_runtime_model_execution(
                     store_path,
-                    epiphany_core::RuntimeSpineSessionOptions {
-                        session_id: format!("persona-turn-{turn_id}"),
-                        objective: format!("Run Persona {stage} test stage"),
-                        created_at: "2026-08-14T00:00:00Z".into(),
-                        coordinator_note: "Persona test".into(),
-                    },
                     epiphany_core::RuntimeSpineJobOptions {
                         job_id: format!("persona-{stage}-{turn_id}"),
                         session_id: format!("persona-turn-{turn_id}"),

@@ -2235,12 +2235,6 @@ mod tests {
         let (initial_native, _) = requests(&reasoning_basis);
         crate::open_runtime_model_execution(
             &store,
-            crate::RuntimeSpineSessionOptions {
-                session_id: "session-1".into(),
-                objective: "Prove governed decision context".into(),
-                created_at: "2026-08-17T00:00:01Z".into(),
-                coordinator_note: "decision context binding test".into(),
-            },
             crate::RuntimeSpineJobOptions {
                 job_id: "model-job-1".into(),
                 session_id: "session-1".into(),
@@ -2288,12 +2282,6 @@ mod tests {
         ]);
         crate::open_runtime_model_execution(
             &store,
-            crate::RuntimeSpineSessionOptions {
-                session_id: "session-1".into(),
-                objective: "Prove governed decision context".into(),
-                created_at: "2026-08-17T00:00:04Z".into(),
-                coordinator_note: "decision context binding test".into(),
-            },
             crate::RuntimeSpineJobOptions {
                 job_id: "model-job-2".into(),
                 session_id: "session-1".into(),
@@ -2362,12 +2350,6 @@ mod tests {
         let (native, _provider) = requests(&reasoning_basis);
         crate::open_runtime_model_execution(
             &store,
-            crate::RuntimeSpineSessionOptions {
-                session_id: "failed-pass-session".into(),
-                objective: "Prove terminal failure ownership".into(),
-                created_at: "2026-08-18T00:00:01Z".into(),
-                coordinator_note: "model pass failure test".into(),
-            },
             crate::RuntimeSpineJobOptions {
                 job_id: "failed-model-job".into(),
                 session_id: "failed-pass-session".into(),
@@ -2587,12 +2569,6 @@ mod tests {
         let (native, _) = requests(&basis);
         crate::open_runtime_model_execution(
             &store,
-            crate::RuntimeSpineSessionOptions {
-                session_id: "session-1".into(),
-                objective: "Test sealed decision context".into(),
-                created_at: "2026-08-14T00:00:01Z".into(),
-                coordinator_note: "reasoning context test".into(),
-            },
             crate::RuntimeSpineJobOptions {
                 job_id: "model-job-1".into(),
                 session_id: "session-1".into(),
