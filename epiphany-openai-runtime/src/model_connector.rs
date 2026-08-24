@@ -249,6 +249,7 @@ async fn serve_one_connection(
         Ok(value) => value,
         Err(error) => {
             release_request(&replay, &outer_request_id).await;
+            eprintln!("model connector pre-execution refusal for {outer_request_id}: {error:#}");
             return send_error(connection, "model connector rejected the invocation")
                 .await
                 .with_context(|| error.to_string());
