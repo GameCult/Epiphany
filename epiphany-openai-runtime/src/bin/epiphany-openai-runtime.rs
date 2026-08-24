@@ -819,15 +819,6 @@ mod tests {
                 created_at: options.created_at.clone(),
             },
         )?;
-        epiphany_core::create_runtime_session(
-            store,
-            epiphany_core::RuntimeSpineSessionOptions {
-                session_id: options.session_id.clone(),
-                objective: options.objective.clone(),
-                created_at: options.created_at.clone(),
-                coordinator_note: options.coordinator_note.clone(),
-            },
-        )?;
         let mut cache = epiphany_core::runtime_spine_cache(store)?;
         cache.pull_all_backing_stores()?;
         let prepared = epiphany_core::prepare_runtime_spine_heartbeat_job(&cache, options)?;

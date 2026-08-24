@@ -253,8 +253,6 @@ pub use runtime_spine::commit_repo_frontier_plan_mind_request;
 pub use runtime_spine::complete_runtime_job;
 pub use runtime_spine::coordinator_run_receipts;
 pub use runtime_spine::coordinator_run_session_id;
-pub use runtime_spine::create_runtime_job;
-pub use runtime_spine::create_runtime_session;
 pub use runtime_spine::finalize_coordinator_run;
 pub use runtime_spine::initialize_runtime_spine;
 pub use runtime_spine::model_pass_failure_for_request;

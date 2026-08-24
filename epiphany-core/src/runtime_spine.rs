@@ -962,38 +962,6 @@ pub fn bind_runtime_to_swarm(
     }
 }
 
-pub fn create_runtime_session(
-    store_path: impl AsRef<Path>,
-    options: RuntimeSpineSessionOptions,
-) -> Result<EpiphanyRuntimeSession> {
-    validate_non_empty(&options.session_id, "session id")?;
-    validate_non_empty(&options.objective, "objective")?;
-    validate_non_empty(&options.created_at, "created at")?;
-    let mut cache = runtime_spine_cache(store_path.as_ref())?;
-    cache.pull_all_backing_stores()?;
-    require_identity(&cache)?;
-    require_runtime_identity_not_archived(&cache, "session", &options.session_id)?;
-    if cache
-        .get::<EpiphanyRuntimeSession>(&options.session_id)?
-        .is_some()
-    {
-        return Err(anyhow!(
-            "runtime session {:?} already exists",
-            options.session_id
-        ));
-    }
-    let session = EpiphanyRuntimeSession {
-        session_id: options.session_id.clone(),
-        objective: options.objective,
-        status: EpiphanyRuntimeSessionStatus::Active,
-        created_at: options.created_at.clone(),
-        updated_at: options.created_at,
-        coordinator_note: options.coordinator_note,
-    };
-    cache.put(&options.session_id, &session)?;
-    Ok(session)
-}
-
 pub fn close_runtime_session(
     store_path: impl AsRef<Path>,
     options: RuntimeSpineSessionClosureOptions,
@@ -1243,45 +1211,6 @@ pub fn model_pass_failure_for_request(
         ));
     }
     Ok(Some(failure))
-}
-
-pub fn create_runtime_job(
-    store_path: impl AsRef<Path>,
-    options: RuntimeSpineJobOptions,
-) -> Result<EpiphanyRuntimeJob> {
-    validate_non_empty(&options.job_id, "job id")?;
-    validate_non_empty(&options.session_id, "session id")?;
-    validate_non_empty(&options.role, "role")?;
-    validate_non_empty(&options.created_at, "created at")?;
-    let mut cache = runtime_spine_cache(store_path.as_ref())?;
-    cache.pull_all_backing_stores()?;
-    require_identity(&cache)?;
-    require_runtime_identity_not_archived(&cache, "job", &options.job_id)?;
-    let session = cache
-        .get::<EpiphanyRuntimeSession>(&options.session_id)?
-        .ok_or_else(|| anyhow!("runtime session {:?} does not exist", options.session_id))?;
-    if matches!(
-        session.status,
-        EpiphanyRuntimeSessionStatus::Completed | EpiphanyRuntimeSessionStatus::Archived
-    ) {
-        return Err(anyhow!(
-            "runtime session {:?} is not open for jobs",
-            options.session_id
-        ));
-    }
-    if cache.get::<EpiphanyRuntimeJob>(&options.job_id)?.is_some() {
-        return Err(anyhow!("runtime job {:?} already exists", options.job_id));
-    }
-    let job = EpiphanyRuntimeJob {
-        job_id: options.job_id.clone(),
-        session_id: options.session_id.clone(),
-        role: options.role,
-        status: EpiphanyRuntimeJobStatus::Queued,
-        created_at: options.created_at.clone(),
-        updated_at: options.created_at.clone(),
-    };
-    cache.put(&options.job_id, &job)?;
-    Ok(job)
 }
 
 pub fn open_runtime_model_execution(

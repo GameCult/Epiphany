@@ -218,6 +218,35 @@ mod tests {
     use epiphany_tool_adapter::EPIPHANY_TOOL_RUNTIME_ADAPTER_ID;
     use epiphany_tool_adapter::tool_invocation_receipt_key;
 
+    fn seed_test_tool_job(store: &Path, session_id: &str, job_id: &str) -> Result<()> {
+        let created_at = "2026-08-10T01:00:01Z";
+        let mut cache = epiphany_core::runtime_spine_cache(store)?;
+        cache.pull_all_backing_stores()?;
+        cache.put(
+            session_id,
+            &epiphany_core::EpiphanyRuntimeSession {
+                session_id: session_id.into(),
+                objective: "Exercise the native tool boundary.".into(),
+                status: epiphany_core::EpiphanyRuntimeSessionStatus::Active,
+                created_at: created_at.into(),
+                updated_at: created_at.into(),
+                coordinator_note: "test fixture".into(),
+            },
+        )?;
+        cache.put(
+            job_id,
+            &epiphany_core::EpiphanyRuntimeJob {
+                job_id: job_id.into(),
+                session_id: session_id.into(),
+                role: "tool-runtime".into(),
+                status: epiphany_core::EpiphanyRuntimeJobStatus::Queued,
+                created_at: created_at.into(),
+                updated_at: created_at.into(),
+            },
+        )?;
+        Ok(())
+    }
+
     #[test]
     fn parses_production_cli_without_legacy_codex_flags() -> Result<()> {
         let options = parse_cli(vec![
@@ -269,24 +298,7 @@ mod tests {
             "prove provider-independent native tools",
             "now",
         );
-        epiphany_core::create_runtime_session(
-            &store,
-            epiphany_core::RuntimeSpineSessionOptions {
-                session_id: "native-tool-session".into(),
-                objective: "Prove owned native tool execution.".into(),
-                created_at: "2026-08-10T01:00:01Z".into(),
-                coordinator_note: "test".into(),
-            },
-        )?;
-        epiphany_core::create_runtime_job(
-            &store,
-            epiphany_core::RuntimeSpineJobOptions {
-                job_id: "native-tool-job".into(),
-                session_id: "native-tool-session".into(),
-                role: "tool-runtime".into(),
-                created_at: "2026-08-10T01:00:02Z".into(),
-            },
-        )?;
+        seed_test_tool_job(&store, "native-tool-session", "native-tool-job")?;
         epiphany_core::put_runtime_tool_execution_intent(
             &store,
             "native-tool-session",
@@ -354,24 +366,7 @@ mod tests {
             "prove grant-owned state observation",
             "now",
         );
-        epiphany_core::create_runtime_session(
-            &runtime_store,
-            epiphany_core::RuntimeSpineSessionOptions {
-                session_id: "state-tool-session".into(),
-                objective: "Observe resident state.".into(),
-                created_at: "2026-08-11T00:00:00Z".into(),
-                coordinator_note: "test".into(),
-            },
-        )?;
-        epiphany_core::create_runtime_job(
-            &runtime_store,
-            epiphany_core::RuntimeSpineJobOptions {
-                job_id: "state-tool-job".into(),
-                session_id: "state-tool-session".into(),
-                role: "tool-runtime".into(),
-                created_at: "2026-08-11T00:00:01Z".into(),
-            },
-        )?;
+        seed_test_tool_job(&runtime_store, "state-tool-session", "state-tool-job")?;
         epiphany_core::put_runtime_tool_execution_intent(
             &runtime_store,
             "state-tool-session",
