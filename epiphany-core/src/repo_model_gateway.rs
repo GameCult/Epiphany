@@ -61,16 +61,14 @@ pub const REPO_FRONTIER_RESEARCH_REQUEST_CONTRACT: &str =
     "epiphany.repo_frontier_research_request.v3";
 pub const REPO_FRONTIER_WORK_PROPOSAL_CONTRACT: &str =
     "epiphany.repo_frontier_work_proposal.inert.v3";
-pub const REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_SCHEMA_VERSION: &str =
-    "epiphany.self.repo_frontier_autonomous_proposal_binding.v2";
 pub const RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY: &str = "runtime-repository-domain-binding";
 pub const RUNTIME_REPOSITORY_DOMAIN_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.repository_domain_binding.v0";
 pub const RUNTIME_REPOSITORY_DOMAIN_BINDING_CONTRACT: &str = "deployment configuration binds one organizational repository name to one exact authenticated repository Body; Self may consume but not relabel it";
 pub const REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_SCHEMA_VERSION: &str =
-    "epiphany.coordinator.repo_frontier_proposal_modeling_request.v0";
+    "epiphany.coordinator.repo_frontier_proposal_modeling_request.v1";
 pub const REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_CONTRACT: &str =
-    "epiphany.repo_frontier_proposal_modeling_request.v0";
+    "epiphany.repo_frontier_proposal_modeling_request.v1";
 pub const REPO_FRONTIER_PLAN_MIND_REQUEST_SCHEMA_VERSION: &str =
     "epiphany.self.repo_frontier_plan_mind_request.v1";
 pub const REPO_FRONTIER_PLAN_MIND_REQUEST_CONTRACT: &str =
@@ -108,26 +106,6 @@ pub fn repo_frontier_proposal_payload_sha256(
 ) -> Result<String> {
     let content = rmp_serde::to_vec_named(&(title, body, constraints, evidence_refs))?;
     Ok(format!("{:x}", Sha256::digest(content)))
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.self.repo_frontier_autonomous_proposal_binding",
-    schema = "RepoFrontierAutonomousProposalBinding"
-)]
-pub struct RepoFrontierAutonomousProposalBinding {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub direction_result_id: String,
-    #[cultcache(key = 2)]
-    pub option_ordinal: u32,
-    #[cultcache(key = 3)]
-    pub direction_worker_job_id: String,
-    #[cultcache(key = 4)]
-    pub direction_worker_result_sha256: String,
-    #[cultcache(key = 5)]
-    pub direction_worker_launch_sha256: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
@@ -182,6 +160,12 @@ pub struct RepoFrontierProposalModelingRequest {
     pub selected_at: String,
     #[cultcache(key = 9)]
     pub contract: String,
+    #[cultcache(key = 10)]
+    pub direction_result_id: String,
+    #[cultcache(key = 11)]
+    pub direction_option_ordinal: u32,
+    #[cultcache(key = 12)]
+    pub direction_worker_job_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]

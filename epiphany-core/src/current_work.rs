@@ -3077,7 +3077,7 @@ pub fn launch_current_proposal_modeling_work(
         .get::<crate::RepoFrontierWorkProposal>(&request.proposal_id)?
         .ok_or_else(|| anyhow!("proposal Modeling launch lost its proposal"))?;
     crate::runtime_spine::validate_repo_frontier_work_proposal(&proposal)?;
-    crate::runtime_spine::validate_autonomous_proposal_binding(&cache, &proposal)?;
+    crate::runtime_spine::validate_autonomous_proposal_origin(&cache, &proposal)?;
     let identity = cache
         .get::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
         .ok_or_else(|| anyhow!("proposal Modeling launch requires runtime identity"))?;
