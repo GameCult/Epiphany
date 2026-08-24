@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `0a97eef8`
-Current worktree: documentation/evidence for sole current-work projection ownership;
+Latest committed implementation cut: `5a047944`
+Current worktree: documentation/evidence for callerless helper deletion;
 Ox17 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `0a97eef8` is the current
+production symlink body and is inactive. Exact `5a047944` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,15 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `5a047944` deletes ninety pure lines of callerless helper API: a
+JSON-shaped state-ledger status projection and its dead label, generic role
+binding/owner lookups, a unique-string wrapper and implementation, and an
+unused successful-coordinator receipt wrapper. Typed ledger reads, exact
+role-family constants/schemas, and the live coordinator binding validator
+remain with their actual consumers. Core and the state binary compile
+warning-free; swarm remains 4/4. No durable contract, schema, target, test, or
+Atlas path changed. Live inter-swarm collaboration remains unproven.
 
 Exact `0a97eef8` makes `project_current_work` the sole assembler of current
 typed work. The callerless Body-only and unresolved-Body projectors separately
@@ -90,7 +99,7 @@ the live resident fields. Runtime writable state advances to v20. JSON schemas
 parse; core check, old-epoch refusal, coordinator 5/5, and swarm 4/4 pass. The
 cut removes 59 maintained lines and leaves `runtime_spine.rs` at 9,807 lines.
 
-Continue the public-API/test-liability audit after exact `0a97eef8`. Model Atlas remains protected
+Continue the public-API/test-liability audit after exact `5a047944`. Model Atlas remains protected
 for its first live inter-swarm collaboration trial.
 
 Exact `3ed1d564` deletes the public

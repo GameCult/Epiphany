@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `0a97eef8` on `codex/epiphany-shakedown-live`
-Current worktree cut: documentation/evidence for sole current-work projection ownership;
+Latest committed implementation cut: `5a047944` on `codex/epiphany-shakedown-live`
+Current worktree cut: documentation/evidence for callerless helper deletion;
 Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -287,6 +287,12 @@ It also deletes three unused per-job continuation wrappers that each rebuilt
 the entire projection. Live coordinator review selectors consume the one shared
 slice directly. The retained lifecycle proof confirms projection remains
 thread-free and performs no live Body scan.
+
+Exact `5a047944` removes the callerless generic helper shelf rather than
+preserving API because it looks reusable: JSON ledger status, role binding and
+owner lookups, unique-string accumulation, and a successful-coordinator
+receipt wrapper. Typed owners and the exact coordinator binding validator stay
+where live callers use them. No replacement utility layer exists.
 
 Bifrost owns its private feedback-signing identity. Exact `94098223` deletes
 Epiphany's host-identity executable and the private signer, persisted identity,
