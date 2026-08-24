@@ -223,8 +223,8 @@ bindings are deleted, so those identities cannot resurrect. Neither document
 duplicates a decision or transcript.
 
 Exact `24023265` deletes Verification's live Hands-receipt reread path. The
-sealed Verification projection already contains the full intent, review,
-authority, patch, command, and commit records. The extra MCP tool reopened the
+sealed Verification projection already contains the full intent, authority,
+patch, command, and commit records. The extra MCP tool reopened the
 mutable runtime store for decision-bearing input already fixed in the basis.
 Its tool schema, prompt mandate, dispatcher, source-store argument, three public
 read wrappers and exports, stale Substrate Gate allowlist entry, and one
@@ -234,6 +234,21 @@ writers, and atomic commit-to-Verification admission remain. Tool runtime passes
 keyed lifecycle proof still commits concurrent Persona/Hands consequences and
 creates exact Verification work. Focused verification generated 4.909 GiB over
 7,687 files; cleanup restored only the authenticated 1,776,640-byte state tool.
+
+Exact `a01c6842` deletes `HandsActionReview`, which the coordinator created as
+approved beside its own intent and grant. It had no independent reviewer or
+refusal producer, so it was paperwork impersonating authority. The adopted
+route owns the write ceiling, the Substrate Gate grant owns permitted
+operations and paths, the minimal intent binds the runtime job to that grant,
+and `RepoFrontierHandsAuthority` binds the exact route, intent, and grant.
+Patch, command, and commit receipts cite the intent; their other causal facts
+derive through that chain. Commit admission now requires exactly one patch and
+one successful command receipt for the intent instead of selecting a latest
+receipt by timestamp. Ambiguity refuses. Runtime advances to v46 and the sealed
+Verification context to v2 with no compatibility reader. The cut removes 381
+maintained lines net. Core passes 152/152, the coordinator 4/4, and the OpenAI
+runtime 21/21. Verification generated 5.8 GiB across 6,583 target files;
+cleanup again restored only the authenticated state inspector.
 
 Exact `a6cf9383` quarantines concrete Codex/OpenRouter authentication,
 credential reading, and network transport at the two release entrypoints that
@@ -1324,18 +1339,17 @@ coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 ## Immediate next action
 
 The Ox17 deployment lane remains paused. Continue subtraction from exact
-`24023265` by mapping the remaining Hands consequence surface as an ABI
-boundary: the coordinator's truthful `awaitingHandsExecutor` stop, exact
-intent/review/grant, receipt constructors and writers, atomic commit-to-
-Verification admission, sealed Verification projection, and the absent
-production actuator. Preserve the consequence contract; do not fabricate a
-daemon during the audit or keep speculative public mouths merely because a
-future actuator may exist. Delete or demote only surfaces that no live or
-explicitly adopted actuator contract requires, then resume the single-caller
-runtime-spine/status/retention audit. Connector publication and Yggdrasil
-caller admission remain queued behind source stabilization. Preserve keyed
-Mind, direct Body-to-Modeling flow, and the complete Model Atlas vertical slice;
-no live inter-swarm collaboration has run.
+`a01c6842`. Map the remaining Codex provider boundary before changing it: the
+decision context currently seals `EpiphanyOpenAiModelRequest`, then the release
+edge derives the final `CodexProviderRequest` that crosses the standalone
+daemon boundary. Collapse that two-request seam without moving prompts, tools,
+retry, interpretation, or Mind admission into CodexConnector. Then reconcile
+the consumer protocol pins and stale deployment maps. The 3,592-file vendored
+Codex tree is excluded from every production build and has no nonhistorical
+source consumer; preserve its current uncommitted edits before deciding its
+deletion. Resume the single-caller runtime-spine audit after this boundary is
+watertight. Preserve keyed Mind, direct Body-to-Modeling flow, OpenRouter as a
+separate temporary provider edge, and the complete unrun Model Atlas slice.
 
 Yggdrasil previously exposed 96 GiB of dead native Cargo targets after
 interrupted full-workspace builds; exact cleanup returned the builder target

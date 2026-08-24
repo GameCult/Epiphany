@@ -873,6 +873,16 @@ Cut in this order:
    deleted: 78 net lines. The consequence receipts and atomic Hands-to-
    Verification admission remain. Next map the missing production Hands
    actuator as an ABI boundary and demote only speculative public mouths.
+56. **Hands review authority is deleted at `a01c6842`:** the coordinator's
+   same-function always-approved `HandsActionReview` had no independent reviewer
+   or refusal producer. Adopted route, Substrate Gate grant, minimal intent,
+   and frontier authority now form the complete authorization chain. Patch,
+   command, and commit consequences cite the intent and derive the remaining
+   identities. Commit admission requires exactly one patch and one successful
+   command; ambiguous competing receipts refuse instead of being ordered by
+   timestamp. Runtime advances to v46 and the sealed Verification projection
+   to v2. The cut removes 381 maintained lines net; core 152/152, coordinator
+   4/4, and OpenAI runtime 21/21 pass.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,

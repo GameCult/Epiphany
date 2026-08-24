@@ -104,10 +104,11 @@ artifacts without removing the prebuilt state tool. Atlas is untouched.
 Hands consequence receipts carry consequence, not doctrine commentary. Exact
 `65bf044f` removes fixed schema-version strings and unread contract prose from
 the patch, command, and commit documents. CultCache owns their type/schema
-identity; admission still proves exact intent, review, Substrate Gate grant,
-runtime job, affected paths or command, immutable receipt identity, and the
-resulting consequence. Fourteen unused shadow type constants and one callerless
-reorient display enum are also gone. Runtime advances to v29; old writable
+identity; admission at that cut still proved the then-live intent, review,
+Substrate Gate grant, runtime job, affected paths or command, immutable receipt
+identity, and the resulting consequence. Fourteen unused shadow type constants
+and one callerless reorient display enum are also gone. Runtime advances to
+v29; old writable
 state refuses. The existing lifecycle proof carries Hands concurrently with a
 Persona admission and creates exact Verification work, while package cleanup
 removes the 678.6 MiB it generated. The cut removes 67 net maintained lines.
@@ -554,9 +555,9 @@ Epiphany-authored facsimile.
 Exact `25d4d1fa` deletes a second fictional Hands branch: the callerless route-
 relinquishment writer, its refusal receipt, its Mind receipt, and both schema
 registrations. No scheduler, coordinator, actuator, admission owner, or test
-consumed it. The live path is narrower: exact intent/review/grant authority,
-then patch/command/commit receipts, with the commit atomically creating the
-Verification request. Epiphany has no durable Hands-relinquishment lifecycle
+consumed it. That intermediate path was narrower: exact intent/review/grant
+authority, then patch/command/commit receipts, with the commit atomically
+creating the Verification request. Epiphany has no durable Hands-relinquishment lifecycle
 until a real consequence owner requires and verifies one.
 
 Hands also does not record operator-authored descriptions as if they were
@@ -567,6 +568,17 @@ but reports `awaitingHandsExecutor`; it cannot terminalize that gate. Exact
 receipt-chain admission and Verification projection remain ready for a future
 actuator that performs the operation and emits receipts from its own observed
 effects.
+
+Exact `a01c6842` removes the remaining counterfeit review. The coordinator
+created `HandsActionReview` as approved in the same function and instant as its
+intent and grant; no independent reviewer or refusal producer existed. The
+live chain is now adopted route plus Substrate Gate grant, minimal intent, and
+`RepoFrontierHandsAuthority`, followed by exact patch, command, and commit
+receipts. Receipt cargo derives job, grant, and route identity through the
+intent and authority rather than copying them. Commit admission requires one
+exact patch and one successful command receipt for the intent; a competing
+receipt refuses instead of winning a timestamp race. Runtime is v46 and the
+sealed Verification projection contract is v2.
 
 The handoff from Hands to Soul has no transient aggregate. Exact `6ccc7dd2`
 deletes the 20-field receipt-chain summary and derives the Verification request
@@ -1129,7 +1141,7 @@ and decision context—not an ID/digest tombstone—and preserve typed failure
 cargo when the terminal process status is failure.
 
 Verification receives its complete Hands consequence chain in the sealed typed
-projection: route, authority, intent, review, patch, command, and commit. Exact
+projection: route, authority, intent, patch, command, and commit. Exact
 `24023265` deletes the second input path that exposed a governed tool for live
 runtime-store rereads of the same three receipts. The MCP schema/dispatch,
 prompt mandate, three public readers and exports, source executor store
