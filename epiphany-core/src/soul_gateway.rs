@@ -46,15 +46,13 @@ pub struct RepoFrontierVerificationRequest {
     #[cultcache(key = 7)]
     pub hands_intent_id: String,
     #[cultcache(key = 8)]
-    pub hands_review_id: String,
-    #[cultcache(key = 9)]
     pub hands_patch_receipt_id: String,
-    #[cultcache(key = 10)]
+    #[cultcache(key = 9)]
     pub hands_command_receipt_id: String,
-    #[cultcache(key = 11)]
+    #[cultcache(key = 10)]
     pub hands_commit_receipt_id: String,
-    #[cultcache(key = 12)]
+    #[cultcache(key = 11)]
     pub requested_at: String,
-    #[cultcache(key = 14)]
+    #[cultcache(key = 12)]
     pub frontier_authority_documents: Vec<crate::EpiphanyMindDocumentVersion>,
 }

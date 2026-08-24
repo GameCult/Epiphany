@@ -16,9 +16,9 @@ pub const REPO_FRONTIER_RESEARCH_CONTEXT_SCHEMA_VERSION: &str =
 pub const REPO_FRONTIER_RESEARCH_CONTEXT_CONTRACT: &str =
     "epiphany.repo_frontier_research_context.v3";
 pub const REPO_FRONTIER_VERIFICATION_CONTEXT_SCHEMA_VERSION: &str =
-    "epiphany.worker.repo_frontier_verification_context.v1";
+    "epiphany.worker.repo_frontier_verification_context.v2";
 pub const REPO_FRONTIER_VERIFICATION_CONTEXT_CONTRACT: &str =
-    "epiphany.repo_frontier_verification_context.v1";
+    "epiphany.repo_frontier_verification_context.v2";
 pub const REPO_FRONTIER_PLAN_MIND_CONTEXT_SCHEMA_VERSION: &str =
     "epiphany.worker.repo_frontier_plan_mind_context.v0";
 pub const REPO_FRONTIER_PLAN_MIND_CONTEXT_CONTRACT: &str =
@@ -241,7 +241,6 @@ pub struct RepoFrontierVerificationContextProjection {
     pub route: crate::RepoFrontierRoute,
     pub hands_authority: crate::RepoFrontierHandsAuthority,
     pub hands_intent: crate::HandsActionIntent,
-    pub hands_review: crate::HandsActionReview,
     pub patch_receipt: crate::HandsPatchReceipt,
     pub command_receipt: crate::HandsCommandReceipt,
     pub commit_receipt: crate::HandsCommitReceipt,

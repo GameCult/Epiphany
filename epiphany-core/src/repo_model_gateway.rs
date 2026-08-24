@@ -434,21 +434,7 @@ pub struct RepoFrontierHandsAuthority {
     #[cultcache(key = 2)]
     pub route_id: String,
     #[cultcache(key = 3)]
-    pub model_projection_digest: String,
-    #[cultcache(key = 4)]
-    pub model_source_documents: Vec<crate::EpiphanyMindDocumentVersion>,
-    #[cultcache(key = 5)]
-    pub frontier_item_id: String,
-    #[cultcache(key = 6)]
-    pub frontier_item_hash: String,
-    #[cultcache(key = 7)]
     pub hands_intent_id: String,
-    #[cultcache(key = 8)]
-    pub hands_review_id: String,
-    #[cultcache(key = 9)]
+    #[cultcache(key = 4)]
     pub substrate_grant_receipt_id: String,
-    #[cultcache(key = 10)]
-    pub requested_paths: Vec<String>,
-    #[cultcache(key = 11)]
-    pub granted_at: String,
 }

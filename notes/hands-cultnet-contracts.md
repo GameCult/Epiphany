@@ -10,27 +10,27 @@ receipts that can be verified or admitted into Mind state.
 - Inputs: typed action intents, Substrate Gate access grants, requested commands or
   patches, current repo policy, Soul verification requirements, and coordinator
   authority.
-- Outputs: Hands action reviews, command receipts, patch receipts, commit
-  receipts, and action refusal receipts.
+- Outputs: observed patch, command, and commit receipts.
 - Derived state: diffs, command logs, and commits are action receipts. They are
   not durable Mind state until Mind admits them.
 - Forbidden writers: raw workers, Persona, Eyes, Imagination, Self, compatibility
   JSON-RPC routes, and bridge tools must not execute repo-affecting commands,
   edit files, commit, or publish without the Hands path after Body
   access.
-- Shared path: file edits, shell commands, and commits share Hands action
-  intent/review/receipt semantics.
+- Shared path: file edits, shell commands, and commits share the exact adopted
+  route, action intent, Substrate Gate grant, frontier authority, and receipt
+  admission path.
 - Deletion line: Substrate Gate grants access; it does not execute. Soul verifies; it
   does not execute. Mind records durable state; it does not execute.
 
 ## Contract Families
 
 - `epiphany.hands.action_intent`: request for bounded action.
-- `epiphany.hands.action_review`: Hands decision and execution plan.
+- `epiphany.hands.repo_frontier_authority`: exact binding among the adopted
+  route, action intent, and Substrate Gate grant.
 - `epiphany.hands.command_receipt`: proof of command execution.
 - `epiphany.hands.patch_receipt`: proof of file mutation.
 - `epiphany.hands.commit_receipt`: proof of commit creation.
-- `epiphany.hands.action_refusal_receipt`: proof that Hands refused to act.
 
 ## Neighboring Gates
 
@@ -52,21 +52,28 @@ Epiphany may consume that provider-owned receipt after the local commit exists.
 The first runtime-spine proof chain now exists:
 
 ```text
-HandsActionIntent
--> HandsActionReview
+RepoFrontierRoute + SubstrateGateRepoAccessGrantReceipt
+-> HandsActionIntent + RepoFrontierHandsAuthority
 -> HandsPatchReceipt
 -> HandsCommandReceipt
 -> HandsCommitReceipt
+-> RepoFrontierVerificationRequest
 ```
 
 `epiphany-core::hands_gateway` owns the typed document bodies and constructors.
-`epiphany-core::runtime_spine` can persist and reread the intent, review, patch,
-command, and commit receipts from the runtime-spine CultCache store.
-The launch organ contract's repo-action proof profile now requires the full
-Hands chain, not only the final patch receipt.
+`epiphany-core::runtime_spine` admits the intent and consequence receipts into
+the runtime-spine CultCache store and atomically creates Verification work with
+the commit. The typed CultCache documents are the process boundary; public Rust
+helper functions are not a substitute ABI.
 `epiphany-mvp-coordinator` turns `continueImplementation` into a persisted
-Substrate Gate grant plus Hands intent/review gate and exposes the exact receipt
-identities required by downstream Verification.
+Substrate Gate grant, Hands intent, and frontier authority, then exposes the
+exact receipt families required by downstream Verification.
+
+There is no separate Hands review document. The coordinator formerly authored
+the grant, intent, review, and authority in one function, and the review could
+only repeat `approved` plus the grant operations. It was a paper authority, not
+an independent decision. Consequences now validate directly against the route,
+intent, grant, and authority.
 
 Epiphany currently has no admitted repository actuator. The former
 `epiphany-hands-action` executable only accepted operator-authored descriptions

@@ -4,7 +4,6 @@ use anyhow::anyhow;
 use chrono::SecondsFormat;
 use epiphany_core::COORDINATOR_RUN_RECEIPT_TYPE;
 use epiphany_core::EpiphanyCoordinatorRunReceipt;
-use epiphany_core::HANDS_ACTION_INTENT_SCHEMA_VERSION;
 use epiphany_core::HANDS_COMMAND_RECEIPT_TYPE;
 use epiphany_core::HANDS_COMMIT_RECEIPT_TYPE;
 use epiphany_core::HANDS_PATCH_RECEIPT_TYPE;
@@ -13,12 +12,10 @@ use epiphany_core::RepoFrontierHandsAuthority;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::coordinator_status as status_projection;
 use epiphany_core::finalize_coordinator_run;
-use epiphany_core::hands_action_review_for_intent;
 use epiphany_core::initialize_runtime_spine;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
 use epiphany_core::open_coordinator_run;
 use epiphany_core::put_hands_action_intent;
-use epiphany_core::put_hands_action_review;
 use epiphany_core::put_repo_frontier_hands_authority;
 use epiphany_core::put_substrate_gate_repo_access_grant_receipt;
 use epiphany_core::select_and_commit_repo_frontier_route;
@@ -1533,71 +1530,17 @@ fn record_hands_implementation_gate(
     put_substrate_gate_repo_access_grant_receipt(runtime_store, &substrate_grant)?;
 
     let intent = HandsActionIntent {
-        schema_version: HANDS_ACTION_INTENT_SCHEMA_VERSION.to_string(),
         intent_id: format!("hands-intent-{suffix}"),
         runtime_job_id: runtime_job_id.clone(),
-        binding_id: "implementation-worker".to_string(),
-        role: "epiphany-hands".to_string(),
-        authority_scope: "epiphany.role.implementation".to_string(),
-        requested_action: "continueImplementation".to_string(),
         requested_paths: requested_paths.clone(),
         substrate_gate_grant_receipt_id: grant_id.clone(),
-        requested_at: requested_at.clone(),
-        contract: "Coordinator continuation becomes a typed Hands action intent before any file edit, command, or commit may count as implementation evidence."
-            .to_string(),
-        frontier_route_id: route
-            .adopted_plan
-            .as_ref()
-            .map(|_| route.route_id.clone())
-            .unwrap_or_default(),
-        plan_candidate_sha256: route
-            .adopted_plan
-            .as_ref()
-            .map(|plan| plan.candidate_sha256.clone())
-            .unwrap_or_default(),
-        plan_action: route
-            .adopted_plan
-            .as_ref()
-            .map(|plan| plan.effective_action().to_string())
-            .unwrap_or_default(),
     };
     put_hands_action_intent(runtime_store, &intent)?;
-
-    let mut review = hands_action_review_for_intent(
-        format!("hands-review-{suffix}"),
-        &intent,
-        "approved".to_string(),
-        vec![
-            "patch".to_string(),
-            "command".to_string(),
-            "commit".to_string(),
-        ],
-        vec![
-            "Coordinator selected continueImplementation for the current thread state."
-                .to_string(),
-            "Hands remains the action owner; Mind and Soul still own state admission and verification."
-                .to_string(),
-        ],
-        requested_at,
-    );
-    review.required_receipts = vec![
-        HANDS_PATCH_RECEIPT_TYPE.to_string(),
-        HANDS_COMMAND_RECEIPT_TYPE.to_string(),
-        HANDS_COMMIT_RECEIPT_TYPE.to_string(),
-    ];
-    put_hands_action_review(runtime_store, &review)?;
     let authority = RepoFrontierHandsAuthority {
         authority_id: format!("repo-frontier-hands-authority-{}", intent.intent_id),
         route_id: route.route_id.clone(),
-        model_projection_digest: route.model_projection_digest.clone(),
-        model_source_documents: route.model_source_documents.clone(),
-        frontier_item_id: route.frontier_item_id.clone(),
-        frontier_item_hash: route.frontier_item_hash.clone(),
         hands_intent_id: intent.intent_id.clone(),
-        hands_review_id: review.review_id.clone(),
         substrate_grant_receipt_id: grant_id.clone(),
-        requested_paths: requested_paths.clone(),
-        granted_at: review.reviewed_at.clone(),
     };
     put_repo_frontier_hands_authority(runtime_store, &authority)?;
 
@@ -1606,13 +1549,12 @@ fn record_hands_implementation_gate(
         "runtimeJobId": runtime_job_id,
         "substrateGateGrantReceiptId": grant_id,
         "intentId": intent.intent_id,
-        "reviewId": review.review_id,
         "routeId": route.route_id,
         "modelProjectionDigest": route.model_projection_digest,
         "modelSourceDocuments": route.model_source_documents,
         "frontierItemId": route.frontier_item_id,
         "requestedPaths": requested_paths,
-        "requiredReceipts": review.required_receipts,
+        "requiredReceipts": [HANDS_PATCH_RECEIPT_TYPE, HANDS_COMMAND_RECEIPT_TYPE, HANDS_COMMIT_RECEIPT_TYPE],
         "plannedAction": route.adopted_plan.as_ref().map(|plan| plan.effective_action()),
         "plannedCommand": route.adopted_plan.as_ref().map(|plan| plan.effective_command()),
         "originalPlannedAction": route.adopted_plan.as_ref().map(|plan| plan.action.as_str()),

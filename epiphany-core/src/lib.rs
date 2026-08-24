@@ -247,7 +247,6 @@ pub use runtime_spine::open_runtime_model_execution;
 pub use runtime_spine::prepare_runtime_spine_heartbeat_job;
 pub(crate) use runtime_spine::promote_autonomous_direction_options_for_modeling;
 pub use runtime_spine::put_hands_action_intent;
-pub use runtime_spine::put_hands_action_review;
 pub use runtime_spine::put_hands_command_receipt;
 pub use runtime_spine::put_hands_commit_receipt;
 pub use runtime_spine::put_hands_patch_receipt;

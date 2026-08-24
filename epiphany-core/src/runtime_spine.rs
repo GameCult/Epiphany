@@ -55,7 +55,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v45";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v46";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(type = "epiphany.runtime.identity", schema = "EpiphanyRuntimeIdentity")]
@@ -696,7 +696,6 @@ fn runtime_spine_schema_cache() -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyCoordinatorDeathRecovery>()?;
     cache.register_entry_type::<SubstrateGateRepoAccessGrantReceipt>()?;
     cache.register_entry_type::<HandsActionIntent>()?;
-    cache.register_entry_type::<HandsActionReview>()?;
     cache.register_entry_type::<HandsPatchReceipt>()?;
     cache.register_entry_type::<HandsCommandReceipt>()?;
     cache.register_entry_type::<HandsCommitReceipt>()?;
@@ -2610,9 +2609,7 @@ pub(crate) fn frontier_verification_request_for_launch(
         || carried.route.route_id != request.route_id
         || carried.hands_authority.route_id != request.route_id
         || carried.hands_authority.hands_intent_id != request.hands_intent_id
-        || carried.hands_authority.hands_review_id != request.hands_review_id
         || carried.hands_intent.intent_id != request.hands_intent_id
-        || carried.hands_review.review_id != request.hands_review_id
         || carried.patch_receipt.receipt_id != request.hands_patch_receipt_id
         || carried.command_receipt.receipt_id != request.hands_command_receipt_id
         || carried.commit_receipt.receipt_id != request.hands_commit_receipt_id
@@ -6810,23 +6807,12 @@ pub fn put_hands_action_intent(
 ) -> Result<()> {
     validate_non_empty(&intent.intent_id, "Hands action intent id")?;
     validate_non_empty(&intent.runtime_job_id, "Hands action runtime job")?;
-    validate_non_empty(&intent.binding_id, "Hands action binding")?;
-    validate_non_empty(&intent.role, "Hands action role")?;
-    validate_non_empty(&intent.authority_scope, "Hands action authority scope")?;
-    validate_non_empty(&intent.requested_action, "Hands requested action")?;
     validate_non_empty(
         &intent.substrate_gate_grant_receipt_id,
         "Hands Substrate Gate grant receipt",
     )?;
-    validate_non_empty(&intent.requested_at, "Hands action requested timestamp")?;
     if intent.requested_paths.is_empty() {
         return Err(anyhow!("Hands action intent must name requested paths"));
-    }
-    if intent.schema_version != HANDS_ACTION_INTENT_SCHEMA_VERSION
-        || chrono::DateTime::parse_from_rfc3339(&intent.requested_at).is_err()
-        || intent.contract.trim().is_empty()
-    {
-        return Err(anyhow!("invalid Hands action intent contract"));
     }
     let store_path = store_path.as_ref();
     let mut cache = runtime_spine_cache(store_path)?;
@@ -6838,9 +6824,6 @@ pub fn put_hands_action_intent(
             anyhow!("Hands action intent requires its persisted Substrate Gate grant")
         })?;
     if grant.runtime_job_id != intent.runtime_job_id
-        || grant.binding_id != intent.binding_id
-        || grant.role != intent.role
-        || grant.authority_scope != intent.authority_scope
         || !grant
             .granted_operations
             .iter()
@@ -6867,40 +6850,6 @@ pub fn put_hands_action_intent(
     match reloaded.get::<HandsActionIntent>(&intent.intent_id)? {
         Some(existing) if existing == *intent => Ok(()),
         _ => Err(anyhow!("Hands action intent ids are immutable")),
-    }
-}
-
-pub fn put_hands_action_review(
-    store_path: impl AsRef<Path>,
-    review: &HandsActionReview,
-) -> Result<()> {
-    validate_non_empty(&review.review_id, "Hands action review id")?;
-    validate_non_empty(&review.intent_id, "Hands action review intent")?;
-    validate_non_empty(&review.decision, "Hands action review decision")?;
-    validate_non_empty(&review.reviewed_at, "Hands action review timestamp")?;
-    if review.allowed_operations.is_empty() {
-        return Err(anyhow!("Hands action review must name allowed operations"));
-    }
-    if review.schema_version != HANDS_ACTION_REVIEW_SCHEMA_VERSION
-        || chrono::DateTime::parse_from_rfc3339(&review.reviewed_at).is_err()
-        || review.contract.trim().is_empty()
-    {
-        return Err(anyhow!("invalid Hands action review contract"));
-    }
-    let store_path = store_path.as_ref();
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    require_identity(&cache)?;
-    let (envelope, _) = cache.prepare_entry(&review.review_id, review)?;
-    let backing = SingleFileMessagePackBackingStore::new(store_path);
-    if backing.compare_and_swap_batch(&[], vec![envelope])? {
-        return Ok(());
-    }
-    let mut reloaded = runtime_spine_cache(store_path)?;
-    reloaded.pull_all_backing_stores()?;
-    match reloaded.get::<HandsActionReview>(&review.review_id)? {
-        Some(existing) if existing == *review => Ok(()),
-        _ => Err(anyhow!("Hands action review ids are immutable")),
     }
 }
 
@@ -6937,80 +6886,28 @@ fn validate_repo_frontier_hands_authority_chain(
     let intent = cache
         .get::<HandsActionIntent>(&authority.hands_intent_id)?
         .ok_or_else(|| anyhow!("Hands authority requires its persisted intent"))?;
-    let review = cache
-        .get::<HandsActionReview>(&authority.hands_review_id)?
-        .ok_or_else(|| anyhow!("Hands authority requires its persisted review"))?;
     let grant = cache
         .get::<SubstrateGateRepoAccessGrantReceipt>(&authority.substrate_grant_receipt_id)?
         .ok_or_else(|| anyhow!("Hands authority requires its persisted Substrate grant"))?;
-    let within_scope = authority.requested_paths.iter().all(|path| {
-        route.authorized_paths.iter().any(|scope| {
-            path == scope || path.starts_with(&format!("{}/", scope.trim_end_matches(['/', '\\'])))
-        })
-    });
-    let requested_operations: &[&str] = match intent.requested_action.as_str() {
-        "patch" => &["patch"],
-        "continueImplementation" => &["patch", "command", "commit"],
-        _ => {
-            return Err(anyhow!(
-                "Hands authority names an unsupported requested action"
-            ));
-        }
-    };
-    let adopted_plan_binding_is_exact = match route.adopted_plan.as_ref() {
-        Some(plan) => {
-            intent.frontier_route_id == route.route_id
-                && intent.plan_candidate_sha256 == plan.candidate_sha256
-                && intent.plan_action == plan.effective_action()
-        }
-        None => {
-            intent.frontier_route_id.is_empty()
-                && intent.plan_candidate_sha256.is_empty()
-                && intent.plan_action.is_empty()
-        }
-    };
-    if intent.schema_version != HANDS_ACTION_INTENT_SCHEMA_VERSION
-        || review.schema_version != HANDS_ACTION_REVIEW_SCHEMA_VERSION
-        || grant.schema_version != SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION
-        || intent.contract.trim().is_empty()
-        || review.contract.trim().is_empty()
+    if grant.schema_version != SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION
         || grant.contract.trim().is_empty()
-        || chrono::DateTime::parse_from_rfc3339(&intent.requested_at).is_err()
-        || chrono::DateTime::parse_from_rfc3339(&review.reviewed_at).is_err()
         || chrono::DateTime::parse_from_rfc3339(&grant.granted_at).is_err()
         || route.next_organ != RepoFrontierNextOrgan::Hands
-        || authority.model_projection_digest != route.model_projection_digest
-        || authority.model_source_documents != route.model_source_documents
-        || authority.frontier_item_id != route.frontier_item_id
-        || authority.frontier_item_hash != route.frontier_item_hash
         || current_item.adopted_plan != route.adopted_plan
         || route
             .adopted_plan
             .as_ref()
             .is_some_and(|plan| route.authorized_paths != plan.safe_paths)
-        || !adopted_plan_binding_is_exact
-        || review.intent_id != intent.intent_id
-        || review.decision != "approved"
-        || !requested_operations.iter().all(|required| {
-            review
-                .allowed_operations
-                .iter()
-                .any(|operation| operation == required)
-        })
         || intent.substrate_gate_grant_receipt_id != grant.receipt_id
         || grant.runtime_job_id != intent.runtime_job_id
-        || grant.binding_id != intent.binding_id
-        || grant.role != intent.role
-        || grant.authority_scope != intent.authority_scope
-        || !requested_operations.iter().all(|required| {
+        || !["patch", "command", "commit"].iter().all(|required| {
             grant
                 .granted_operations
                 .iter()
                 .any(|operation| operation == required)
         })
-        || authority.requested_paths != intent.requested_paths
-        || authority.requested_paths != grant.granted_paths
-        || !within_scope
+        || intent.requested_paths != grant.granted_paths
+        || intent.requested_paths != route.authorized_paths
     {
         return Err(anyhow!(
             "repo frontier Hands authority chain violates its full authority contract"
@@ -7024,9 +6921,14 @@ pub fn put_repo_frontier_hands_authority(
     authority: &RepoFrontierHandsAuthority,
 ) -> Result<()> {
     let store_path = store_path.as_ref();
-    if chrono::DateTime::parse_from_rfc3339(&authority.granted_at).is_err()
-        || !crate::memory_graph::repo_paths_are_canonical_and_safe(&authority.requested_paths)
-        || authority.requested_paths.is_empty()
+    if [
+        authority.authority_id.as_str(),
+        authority.route_id.as_str(),
+        authority.hands_intent_id.as_str(),
+        authority.substrate_grant_receipt_id.as_str(),
+    ]
+    .into_iter()
+    .any(str::is_empty)
     {
         return Err(anyhow!("invalid repo frontier Hands authority contract"));
     }
@@ -7040,40 +6942,11 @@ pub fn put_repo_frontier_hands_authority(
     let intent = cache
         .get::<HandsActionIntent>(&authority.hands_intent_id)?
         .ok_or_else(|| anyhow!("repo frontier Hands authority requires its persisted intent"))?;
-    let review = cache
-        .get::<HandsActionReview>(&authority.hands_review_id)?
-        .ok_or_else(|| anyhow!("repo frontier Hands authority requires its persisted review"))?;
     let grant = cache
         .get::<SubstrateGateRepoAccessGrantReceipt>(&authority.substrate_grant_receipt_id)?
         .ok_or_else(|| {
             anyhow!("repo frontier Hands authority requires its persisted Substrate grant")
         })?;
-    let within_scope = authority.requested_paths.iter().all(|path| {
-        route.authorized_paths.iter().any(|scope| {
-            path == scope || path.starts_with(&format!("{}/", scope.trim_end_matches(['/', '\\'])))
-        })
-    });
-    if route.next_organ != RepoFrontierNextOrgan::Hands
-        || authority.route_id != route.route_id
-        || authority.model_projection_digest != route.model_projection_digest
-        || authority.model_source_documents != route.model_source_documents
-        || authority.frontier_item_id != route.frontier_item_id
-        || authority.frontier_item_hash != route.frontier_item_hash
-        || review.intent_id != intent.intent_id
-        || review.decision != "approved"
-        || intent.substrate_gate_grant_receipt_id != grant.receipt_id
-        || grant.runtime_job_id != intent.runtime_job_id
-        || grant.binding_id != intent.binding_id
-        || grant.role != intent.role
-        || grant.authority_scope != intent.authority_scope
-        || authority.requested_paths != intent.requested_paths
-        || authority.requested_paths != grant.granted_paths
-        || !within_scope
-    {
-        return Err(anyhow!(
-            "repo frontier Hands authority does not exactly bind route, model, intent, review, grant, and scope"
-        ));
-    }
     let (envelope, _) = cache.prepare_entry(&authority.authority_id, authority)?;
     let backing = SingleFileMessagePackBackingStore::new(store_path);
     let expected = vec![
@@ -7084,13 +6957,10 @@ pub fn put_repo_frontier_hands_authority(
             .get_envelope::<HandsActionIntent>(&intent.intent_id)?
             .ok_or_else(|| anyhow!("repo frontier Hands authority lost its intent envelope"))?,
         cache
-            .get_envelope::<HandsActionReview>(&review.review_id)?
-            .ok_or_else(|| anyhow!("repo frontier Hands authority lost its review envelope"))?,
-        cache
             .get_envelope::<SubstrateGateRepoAccessGrantReceipt>(&grant.receipt_id)?
             .ok_or_else(|| anyhow!("repo frontier Hands authority lost its grant envelope"))?,
         cache
-            .get_envelope::<crate::EpiphanyRepoModelFrontierDocument>(&authority.frontier_item_id)?
+            .get_envelope::<crate::EpiphanyRepoModelFrontierDocument>(&route.frontier_item_id)?
             .ok_or_else(|| anyhow!("repo frontier Hands authority lost its frontier envelope"))?,
     ];
     let mut writes = expected.clone();
@@ -7157,7 +7027,6 @@ pub(crate) fn validate_repo_frontier_verification_request_intrinsic(
             request.frontier_item_id.as_str(),
             request.frontier_item_hash.as_str(),
             request.hands_intent_id.as_str(),
-            request.hands_review_id.as_str(),
             request.hands_patch_receipt_id.as_str(),
             request.hands_command_receipt_id.as_str(),
             request.hands_commit_receipt_id.as_str(),
@@ -7244,7 +7113,6 @@ fn repo_frontier_verification_context_with_commit(
         .filter(|authority| {
             authority.route_id == request.route_id
                 && authority.hands_intent_id == request.hands_intent_id
-                && authority.hands_review_id == request.hands_review_id
         })
         .collect::<Vec<_>>();
     let [hands_authority] = authorities.as_slice() else {
@@ -7256,9 +7124,6 @@ fn repo_frontier_verification_context_with_commit(
     let hands_intent = cache
         .get::<HandsActionIntent>(&request.hands_intent_id)?
         .ok_or_else(|| anyhow!("Verification context lost its Hands intent"))?;
-    let hands_review = cache
-        .get::<HandsActionReview>(&request.hands_review_id)?
-        .ok_or_else(|| anyhow!("Verification context lost its Hands review"))?;
     let patch_receipt = cache
         .get::<HandsPatchReceipt>(&request.hands_patch_receipt_id)?
         .ok_or_else(|| anyhow!("Verification context lost its patch receipt"))?;
@@ -7268,8 +7133,7 @@ fn repo_frontier_verification_context_with_commit(
     let commit_receipt = match prospective_commit {
         Some(receipt)
             if receipt.receipt_id == request.hands_commit_receipt_id
-                && receipt.intent_id == request.hands_intent_id
-                && receipt.review_id == request.hands_review_id =>
+                && receipt.intent_id == request.hands_intent_id =>
         {
             receipt.clone()
         }
@@ -7288,7 +7152,6 @@ fn repo_frontier_verification_context_with_commit(
         route,
         hands_authority: hands_authority.clone(),
         hands_intent,
-        hands_review,
         patch_receipt,
         command_receipt,
         commit_receipt,
@@ -7415,9 +7278,7 @@ fn derive_repo_frontier_verification_request_for_chain(
     let authorities = cache
         .get_all::<RepoFrontierHandsAuthority>()?
         .into_iter()
-        .filter(|value| {
-            value.hands_intent_id == commit.intent_id && value.hands_review_id == commit.review_id
-        })
+        .filter(|value| value.hands_intent_id == commit.intent_id)
         .collect::<Vec<_>>();
     if authorities.len() != 1 {
         return Err(anyhow!(
@@ -7425,8 +7286,11 @@ fn derive_repo_frontier_verification_request_for_chain(
         ));
     }
     let authority = &authorities[0];
+    let route = cache
+        .get::<RepoFrontierRoute>(&authority.route_id)?
+        .ok_or_else(|| anyhow!("Hands authority lost its exact route"))?;
     let frontier_envelope = cache
-        .get_envelope::<crate::EpiphanyRepoModelFrontierDocument>(&authority.frontier_item_id)?
+        .get_envelope::<crate::EpiphanyRepoModelFrontierDocument>(&route.frontier_item_id)?
         .ok_or_else(|| anyhow!("Hands authority lost its exact frontier document"))?;
     let frontier_authority_documents = vec![crate::EpiphanyMindDocumentVersion::from_envelope(
         "epiphany-mind",
@@ -7443,12 +7307,11 @@ fn derive_repo_frontier_verification_request_for_chain(
     let request = RepoFrontierVerificationRequest {
         request_id,
         route_id: authority.route_id.clone(),
-        model_projection_digest: authority.model_projection_digest.clone(),
-        model_source_documents: authority.model_source_documents.clone(),
-        frontier_item_id: authority.frontier_item_id.clone(),
-        frontier_item_hash: authority.frontier_item_hash.clone(),
+        model_projection_digest: route.model_projection_digest.clone(),
+        model_source_documents: route.model_source_documents.clone(),
+        frontier_item_id: route.frontier_item_id.clone(),
+        frontier_item_hash: route.frontier_item_hash.clone(),
         hands_intent_id: commit.intent_id.clone(),
-        hands_review_id: commit.review_id.clone(),
         hands_patch_receipt_id: patch.receipt_id.clone(),
         hands_command_receipt_id: command.receipt_id.clone(),
         hands_commit_receipt_id: commit.receipt_id.clone(),
@@ -7461,11 +7324,8 @@ fn derive_repo_frontier_verification_request_for_chain(
 fn validate_hands_consequence_grant(
     store_path: &Path,
     intent_id: &str,
-    review_id: &str,
-    runtime_job_id: &str,
     operation: &str,
     changed_paths: &[String],
-    stated_grant_id: Option<&str>,
     stated_command: Option<&str>,
 ) -> Result<()> {
     let mut cache = runtime_spine_cache(store_path)?;
@@ -7474,9 +7334,6 @@ fn validate_hands_consequence_grant(
     let intent = cache
         .get::<HandsActionIntent>(intent_id)?
         .ok_or_else(|| anyhow!("Hands consequence requires its persisted intent"))?;
-    let review = cache
-        .get::<HandsActionReview>(review_id)?
-        .ok_or_else(|| anyhow!("Hands consequence requires its persisted review"))?;
     let grant = cache
         .get::<SubstrateGateRepoAccessGrantReceipt>(&intent.substrate_gate_grant_receipt_id)?
         .ok_or_else(|| anyhow!("Hands consequence requires its persisted Substrate Gate grant"))?;
@@ -7496,8 +7353,8 @@ fn validate_hands_consequence_grant(
         .ok_or_else(|| anyhow!("Hands consequence requires its persisted repo frontier route"))?;
     require_keyed_repo_model_basis(
         &cache,
-        &authority.model_projection_digest,
-        &authority.model_source_documents,
+        &route.model_projection_digest,
+        &route.model_source_documents,
     )?;
     let paths_covered = changed_paths.iter().all(|path| {
         grant.granted_paths.iter().any(|granted| {
@@ -7506,22 +7363,11 @@ fn validate_hands_consequence_grant(
                 || path.starts_with(&format!("{}/", granted.trim_end_matches(['/', '\\'])))
         })
     });
-    if intent.runtime_job_id != runtime_job_id
-        || review.intent_id != intent.intent_id
-        || review.decision != "approved"
-        || !review
-            .allowed_operations
-            .iter()
-            .any(|allowed| allowed == operation)
-        || grant.runtime_job_id != intent.runtime_job_id
-        || grant.binding_id != intent.binding_id
-        || grant.role != intent.role
-        || grant.authority_scope != intent.authority_scope
+    if grant.runtime_job_id != intent.runtime_job_id
         || !grant
             .granted_operations
             .iter()
             .any(|allowed| allowed == operation)
-        || stated_grant_id.is_some_and(|id| id != grant.receipt_id)
         || stated_command.is_some_and(|command| {
             route
                 .adopted_plan
@@ -7529,23 +7375,19 @@ fn validate_hands_consequence_grant(
                 .is_some_and(|plan| command != plan.effective_command())
         })
         || !paths_covered
-        || authority.hands_review_id != review.review_id
         || authority.substrate_grant_receipt_id != grant.receipt_id
-        || authority.requested_paths != intent.requested_paths
         || authority.route_id != route.route_id
-        || authority.model_projection_digest != route.model_projection_digest
-        || authority.model_source_documents != route.model_source_documents
-        || authority.frontier_item_id != route.frontier_item_id
-        || authority.frontier_item_hash != route.frontier_item_hash
+        || authority.hands_intent_id != intent.intent_id
+        || intent.requested_paths != route.authorized_paths
         || !changed_paths.iter().all(|path| {
-            authority.requested_paths.iter().any(|scope| {
+            intent.requested_paths.iter().any(|scope| {
                 path == scope
                     || path.starts_with(&format!("{}/", scope.trim_end_matches(['/', '\\'])))
             })
         })
     {
         return Err(anyhow!(
-            "Hands consequence does not match its approved review and Substrate Gate grant"
+            "Hands consequence does not match its route, intent, and Substrate Gate grant"
         ));
     }
     Ok(())
@@ -7558,12 +7400,6 @@ pub fn put_hands_patch_receipt(
     let store_path = store_path.as_ref();
     validate_non_empty(&receipt.receipt_id, "Hands patch receipt id")?;
     validate_non_empty(&receipt.intent_id, "Hands patch intent")?;
-    validate_non_empty(&receipt.review_id, "Hands patch review")?;
-    validate_non_empty(
-        &receipt.substrate_gate_grant_receipt_id,
-        "Hands patch Substrate Gate grant receipt",
-    )?;
-    validate_non_empty(&receipt.runtime_job_id, "Hands patch runtime job")?;
     validate_non_empty(&receipt.summary, "Hands patch summary")?;
     validate_non_empty(&receipt.emitted_at, "Hands patch timestamp")?;
     if receipt.changed_paths.is_empty() {
@@ -7572,11 +7408,8 @@ pub fn put_hands_patch_receipt(
     validate_hands_consequence_grant(
         store_path.as_ref(),
         &receipt.intent_id,
-        &receipt.review_id,
-        &receipt.runtime_job_id,
         "patch",
         &receipt.changed_paths,
-        Some(&receipt.substrate_gate_grant_receipt_id),
         None,
     )?;
     let mut cache = runtime_spine_cache(store_path)?;
@@ -7603,23 +7436,14 @@ pub fn put_hands_command_receipt(
     let store_path = store_path.as_ref();
     validate_non_empty(&receipt.receipt_id, "Hands command receipt id")?;
     validate_non_empty(&receipt.intent_id, "Hands command intent")?;
-    validate_non_empty(&receipt.review_id, "Hands command review")?;
-    validate_non_empty(
-        &receipt.substrate_gate_grant_receipt_id,
-        "Hands command Substrate Gate grant receipt",
-    )?;
-    validate_non_empty(&receipt.runtime_job_id, "Hands command runtime job")?;
     validate_non_empty(&receipt.command, "Hands command")?;
     validate_non_empty(&receipt.exit_code, "Hands command exit code")?;
     validate_non_empty(&receipt.emitted_at, "Hands command timestamp")?;
     validate_hands_consequence_grant(
         store_path.as_ref(),
         &receipt.intent_id,
-        &receipt.review_id,
-        &receipt.runtime_job_id,
         "command",
         &[],
-        Some(&receipt.substrate_gate_grant_receipt_id),
         Some(&receipt.command),
     )?;
     let mut cache = runtime_spine_cache(store_path)?;
@@ -7646,8 +7470,6 @@ pub fn put_hands_commit_receipt(
     let store_path = store_path.as_ref();
     validate_non_empty(&receipt.receipt_id, "Hands commit receipt id")?;
     validate_non_empty(&receipt.intent_id, "Hands commit intent")?;
-    validate_non_empty(&receipt.review_id, "Hands commit review")?;
-    validate_non_empty(&receipt.runtime_job_id, "Hands commit runtime job")?;
     validate_non_empty(&receipt.commit_sha, "Hands commit sha")?;
     validate_non_empty(&receipt.branch, "Hands commit branch")?;
     validate_non_empty(&receipt.summary, "Hands commit summary")?;
@@ -7658,41 +7480,33 @@ pub fn put_hands_commit_receipt(
     validate_hands_consequence_grant(
         store_path.as_ref(),
         &receipt.intent_id,
-        &receipt.review_id,
-        &receipt.runtime_job_id,
         "commit",
         &receipt.changed_paths,
-        None,
         None,
     )?;
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
-    let patch = cache
+    let patches = cache
         .get_all::<HandsPatchReceipt>()?
         .into_iter()
-        .filter(|patch| {
-            patch.intent_id == receipt.intent_id
-                && patch.review_id == receipt.review_id
-                && patch.runtime_job_id == receipt.runtime_job_id
-                && patch.emitted_at <= receipt.emitted_at
-        })
-        .max_by(|left, right| left.emitted_at.cmp(&right.emitted_at))
-        .ok_or_else(|| anyhow!("Hands commit requires its exact patch receipt"))?;
-    let command = cache
+        .filter(|patch| patch.intent_id == receipt.intent_id)
+        .collect::<Vec<_>>();
+    let [patch] = patches.as_slice() else {
+        return Err(anyhow!("Hands commit requires one exact patch receipt"));
+    };
+    let commands = cache
         .get_all::<HandsCommandReceipt>()?
         .into_iter()
-        .filter(|command| {
-            command.intent_id == receipt.intent_id
-                && command.review_id == receipt.review_id
-                && command.runtime_job_id == receipt.runtime_job_id
-                && command.exit_code == "0"
-                && command.emitted_at <= receipt.emitted_at
-        })
-        .max_by(|left, right| left.emitted_at.cmp(&right.emitted_at))
-        .ok_or_else(|| anyhow!("Hands commit requires its successful command receipt"))?;
+        .filter(|command| command.intent_id == receipt.intent_id && command.exit_code == "0")
+        .collect::<Vec<_>>();
+    let [command] = commands.as_slice() else {
+        return Err(anyhow!(
+            "Hands commit requires one exact successful command receipt"
+        ));
+    };
     let request =
-        derive_repo_frontier_verification_request_for_chain(&cache, &patch, &command, receipt)?;
+        derive_repo_frontier_verification_request_for_chain(&cache, patch, command, receipt)?;
     let context = repo_frontier_verification_context_with_commit(&cache, &request, Some(receipt))?;
     let snapshot = cache.snapshot_envelopes();
     let mut expected = Vec::new();
@@ -7703,7 +7517,6 @@ pub fn put_hands_commit_receipt(
             context.hands_authority.authority_id.as_str(),
         ),
         (HandsActionIntent::TYPE, request.hands_intent_id.as_str()),
-        (HandsActionReview::TYPE, request.hands_review_id.as_str()),
         (
             HandsPatchReceipt::TYPE,
             request.hands_patch_receipt_id.as_str(),

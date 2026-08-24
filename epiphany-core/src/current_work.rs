@@ -1524,10 +1524,6 @@ pub fn launch_current_frontier_verification_work(
             request.hands_intent_id.as_str(),
         ),
         (
-            crate::HandsActionReview::TYPE,
-            request.hands_review_id.as_str(),
-        ),
-        (
             crate::HandsPatchReceipt::TYPE,
             request.hands_patch_receipt_id.as_str(),
         ),
@@ -2025,10 +2021,6 @@ pub fn accept_frontier_verification_result(
         (
             crate::HandsActionIntent::TYPE,
             request.hands_intent_id.as_str(),
-        ),
-        (
-            crate::HandsActionReview::TYPE,
-            request.hands_review_id.as_str(),
         ),
         (
             crate::HandsPatchReceipt::TYPE,
@@ -4377,63 +4369,30 @@ mod tests {
         );
         crate::put_substrate_gate_repo_access_grant_receipt(&store, &grant)?;
         let intent = crate::HandsActionIntent {
-            schema_version: crate::HANDS_ACTION_INTENT_SCHEMA_VERSION.into(),
             intent_id: "hands-intent-verification-fixture".into(),
             runtime_job_id: hands_job_id.into(),
-            binding_id: "implementation-worker".into(),
-            role: "epiphany-hands".into(),
-            authority_scope: "epiphany.role.implementation".into(),
-            requested_action: "continueImplementation".into(),
             requested_paths: route.authorized_paths.clone(),
             substrate_gate_grant_receipt_id: grant.receipt_id.clone(),
-            requested_at: "2026-08-17T00:00:14.200Z".into(),
-            contract: "The exact Hands consequence under Verification.".into(),
-            frontier_route_id: String::new(),
-            plan_candidate_sha256: String::new(),
-            plan_action: String::new(),
         };
         crate::put_hands_action_intent(&store, &intent)?;
-        let mut hands_review = crate::hands_action_review_for_intent(
-            "hands-review-verification-fixture".into(),
-            &intent,
-            "approved".into(),
-            vec!["patch".into(), "command".into(), "commit".into()],
-            vec!["Bounded fixture consequence is authorized.".into()],
-            "2026-08-17T00:00:14.300Z".into(),
-        );
-        hands_review.required_receipts = vec![
-            crate::HANDS_PATCH_RECEIPT_TYPE.into(),
-            crate::HANDS_COMMAND_RECEIPT_TYPE.into(),
-            crate::HANDS_COMMIT_RECEIPT_TYPE.into(),
-        ];
-        crate::put_hands_action_review(&store, &hands_review)?;
         let hands_authority = crate::RepoFrontierHandsAuthority {
             authority_id: "repo-frontier-hands-authority-verification-fixture".into(),
             route_id: route.route_id.clone(),
-            model_projection_digest: route.model_projection_digest.clone(),
-            model_source_documents: route.model_source_documents.clone(),
-            frontier_item_id: route.frontier_item_id.clone(),
-            frontier_item_hash: route.frontier_item_hash.clone(),
             hands_intent_id: intent.intent_id.clone(),
-            hands_review_id: hands_review.review_id.clone(),
             substrate_grant_receipt_id: grant.receipt_id.clone(),
-            requested_paths: route.authorized_paths.clone(),
-            granted_at: hands_review.reviewed_at.clone(),
         };
         crate::put_repo_frontier_hands_authority(&store, &hands_authority)?;
-        let hands_patch = crate::hands_patch_receipt_for_review(
+        let hands_patch = crate::hands_patch_receipt_for_intent(
             "hands-patch-verification-fixture".into(),
             &intent,
-            &hands_review,
             route.authorized_paths.clone(),
             "Applied the exact bounded change.".into(),
             "2026-08-17T00:00:14.400Z".into(),
         );
         crate::put_hands_patch_receipt(&store, &hands_patch)?;
-        let hands_command = crate::hands_command_receipt_for_review(
+        let hands_command = crate::hands_command_receipt_for_intent(
             "hands-command-verification-fixture".into(),
             &intent,
-            &hands_review,
             "cargo test exact-verification-fixture".into(),
             "0".into(),
             "verification.stdout".into(),
@@ -4442,15 +4401,25 @@ mod tests {
             "2026-08-17T00:00:14.500Z".into(),
         );
         crate::put_hands_command_receipt(&store, &hands_command)?;
-        let hands_commit = crate::hands_commit_receipt_for_review(
+        let hands_commit = crate::hands_commit_receipt_for_intent(
             "hands-commit-verification-fixture".into(),
             &intent,
-            &hands_review,
             "0123456789abcdef0123456789abcdef01234567".into(),
             "codex/verification-fixture".into(),
             route.authorized_paths.clone(),
             "Committed the exact bounded consequence.".into(),
             "2026-08-17T00:00:14.600Z".into(),
+        );
+        let ambiguous_hands_store = temp.path().join("ambiguous-hands.cc");
+        std::fs::copy(&store, &ambiguous_hands_store)?;
+        let mut duplicate_patch = hands_patch.clone();
+        duplicate_patch.receipt_id = "hands-patch-verification-fixture-duplicate".into();
+        crate::put_hands_patch_receipt(&ambiguous_hands_store, &duplicate_patch)?;
+        assert!(
+            crate::put_hands_commit_receipt(&ambiguous_hands_store, &hands_commit)
+                .unwrap_err()
+                .to_string()
+                .contains("one exact patch receipt")
         );
         let persona_cultmesh = temp.path().join("persona-concurrency-cultmesh.cc");
         crate::write_epiphany_cultmesh_swarm_brake(
