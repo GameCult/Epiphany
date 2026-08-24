@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `65bf044f`
-Current worktree: documentation/evidence for Hands receipt authority subtraction;
+Latest committed implementation cut: `d9a196a0`
+Current worktree: documentation/evidence for autonomous proposal origin collapse;
 Ox17 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `65bf044f` is the current
+production symlink body and is inactive. Exact `d9a196a0` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,19 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `d9a196a0` makes `RepoFrontierProposalModelingRequest` the sole durable
+owner of autonomous proposal origin. It carries the exact direction-result,
+option-ordinal, and worker-job identities. The separate binding type, schema
+constant, runtime registration, third CAS envelope, replay collision branch,
+and duplicate worker-result/launch hashes are gone. The referenced launch and
+result remain immutable typed documents and promotion strongly reads them when
+atomically inserting the proposal/request pair. Runtime advances to v30. The
+existing full keyed lifecycle passes promotion, concurrent launch, retry
+ancestry, Modeling admission, concurrent Persona/Hands, and Verification
+(1/1); epoch refusal passes (1/1). Package cleanup removes 677.6 MiB. The cut
+removes 53 net maintained lines. Atlas remains untouched and no live
+inter-swarm collaboration has run.
 
 Exact `65bf044f` removes fixed schema-version strings and unread contract prose
 from Hands patch, command, and commit receipts. CultCache already owns their
@@ -968,7 +981,7 @@ coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 ## Immediate next action
 
 The Ox17 deployment lane is paused. Continue the registered-document and test-
-liability audit from exact `65bf044f`; do not compile or deploy through Idunn
+liability audit from exact `d9a196a0`; do not compile or deploy through Idunn
 yet. Delete an abstraction with tests that merely animate it when it has no
 decision-bearing consumer. Preserve keyed Mind, sealed reasoning, direct Body-
 to-Modeling flow, family admission owners, Persona social state, provider

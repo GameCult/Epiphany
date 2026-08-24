@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `65bf044f` on `codex/epiphany-shakedown-live`
-Current worktree cut: documentation/evidence for Hands receipt authority subtraction;
+Latest committed implementation cut: `d9a196a0` on `codex/epiphany-shakedown-live`
+Current worktree cut: documentation/evidence for autonomous proposal origin collapse;
 Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -112,6 +112,17 @@ state refuses. The existing lifecycle proof carries Hands concurrently with a
 Persona admission and creates exact Verification work, while package cleanup
 removes the 678.6 MiB it generated. The cut removes 67 net maintained lines.
 Atlas remains the untouched, unaccepted collaboration slice.
+
+Autonomous proposal origin has one owner. Exact `d9a196a0` folds the direction
+result, option ordinal, and worker job identities into the Proposal-Modeling
+request that already owns selection. The separate binding document, schema,
+registration, third atomic write, collision branch, and copied launch/result
+hashes are deleted. Promotion still strongly reads the immutable direction
+request/result and worker launch/result while inserting one proposal/request
+pair; launch, fulfillment, and archival validate the same request-owned chain.
+Runtime advances to v30. The full keyed lifecycle and old-store refusal pass;
+package cleanup removes 677.6 MiB. The cut removes 53 net maintained lines and
+does not touch the unrun Atlas crossing.
 
 CultMesh contains no JSON-derived operator snapshot, coordinator receipt,
 Hands gate, role-review event, unauthenticated Odin/Eve provider row, or daemon
@@ -1055,7 +1066,7 @@ Accepted through the local `5b799b12` source boundary:
 
 Open before Model Atlas Gate 1 resumes:
 
-1. let Idunn compile, test, and seal exact build-affecting source `65bf044f`;
+1. let Idunn compile, test, and seal exact build-affecting source `d9a196a0`;
 2. use that exact package in private fresh-store Ox17; stop after three
    provider failures total, and prove direct Body Modeling, typed
    refusal-to-retry if exercised, Hands through Verification, exact context
