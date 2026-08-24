@@ -646,7 +646,7 @@ Codex-derived code remains only where an OpenAI provider needs its earned
 authentication or transport. Neither owns Epiphany Mind, scheduler, route, or
 interface authority.
 
-Exact `a6cf9383` makes that boundary physical in the package graph. The pure
+Exact `a6cf9383` first made that boundary physical in the package graph. The pure
 `epiphany-openai-runtime` library opens the exact model execution, derives the
 provider request, normalizes typed provider events, emits governed tool
 intents, and records terminal physiology/audit without depending on a Codex
@@ -654,15 +654,16 @@ crate. One shared source module at the release-bundle edge owns concrete
 Codex/OpenRouter authentication, credential reading, and network calls for the
 model and Persona entrypoints. Persona keeps its three-stage family executor;
 the service owns its concrete runner. Workers have one governed tool-capable
-route, not a tool route plus a parallel no-tools opinion. The remaining broad
-`codex-login` graph is therefore isolated supply-chain liability, not hidden
-runtime-library anatomy.
+route, not a tool route plus a parallel no-tools opinion.
 
 The target boundary is the independent daemon mapped in
 `notes/standalone-codex-transport-migration.md`. Independent
 `GameCult/CodexConnector` exact
-`9da6070faa1c4a29455b2383abfaae44d9a7b229` now owns one typed multi-caller
+`54d8bc2525b7e7fa1b9dd26b95871247ff4c7566` now owns one typed multi-caller
 transport package and one public daemon binary without linking a Codex crate.
+Its default library is only the encrypted contract/client ABI; daemon-only
+auth, raw Responses transport, CultCache replay, and Ureq/Rustls dependencies
+sit behind the `daemon` feature.
 Each consumer internally derives its exact typed provider request. The daemon
 verifies those exact bytes, returns a digest-bound transport receipt plus typed
 events, and uses a private digest-pinned official `codex app-server` child only
@@ -673,10 +674,17 @@ Redb store. `Active` is durable before provider I/O; the exact encrypted
 `Completed` response is durable before socket reply. After restart, completed
 work replays byte-identically and ambiguous active work refuses without
 consuming unrelated live capacity. RAM retains only the current process's live
-execution set. Redacted CultMesh/Odin readiness remains open before the shared
-consumer cuts. Once both consumers pass that contract, Epiphany deletes its
-Codex spine, Codex-home/readiness plumbing, and every compiled Codex dependency;
-Ghostlight deletes its copied wire law and connector deployment path.
+execution set.
+
+Exact Epiphany `ed7357a2` completes its source-side consumer cut. The model and
+Persona entrypoints cross the shared client ABI; the complete embedded Codex
+spine, compiled Codex graph, direct auth/HTTP/SSE path, and Codex-home/readiness
+plumbing are gone. OpenRouter remains a separate direct provider edge. Durable
+model receipts retain Connector caller identity, exact native/provider digests,
+and cached-token usage without requiring a transcript. Redacted CultMesh/Odin
+readiness, the independent Idunn target, Yggdrasil installation, one real
+Epiphany round trip, and Ghostlight's copied wire/deployment deletion remain
+open.
 
 ## Canonical authority map
 
@@ -689,7 +697,7 @@ Ghostlight deletes its copied wire law and connector deployment path.
 | `current_work.rs` | keyed Mind view and exact runtime request/job/result/decision families | pure family scheduling and continuation projections | Events, timestamps, role lanes, and thread provenance cannot create or suppress work. |
 | coordinator policy/status | keyed Mind presence, exact current work, and the accepted continuity decision | one action/reason pair plus operator-readable role lanes | Coordinator presence is derived; no mutable coordinator head, pressure tableau, or duplicate policy wrapper exists. |
 | runtime worker attempt owner | immutable launch, exact process claim, typed result, job result, archival evidence | one terminal attempt authority | Scheduling, process liveness, and semantic admission remain distinct authorities. |
-| model-provider boundary | sealed native model request plus explicit provider configuration | exact internally derived provider request and transport result | OpenRouter remains a release-owned direct boundary. Codex transport is moving to independent CodexConnector, which owns only caller admission, credential refresh, exact transport, and durable replay. Provider selection cannot author a second request truth or admit Mind state. |
+| model-provider boundary | sealed native model request plus explicit provider configuration | exact internally derived provider request and transport result | OpenRouter remains a release-owned direct boundary. Codex crosses the lean CodexConnector client ABI; the daemon owns only caller admission, credential refresh, exact transport, and durable replay. Provider selection cannot author a second request truth or admit Mind state. |
 | OpenAI Responses schema projector | full native typed output schema | one provider-legal strict generation schema | Provider formatting preserves useful supported constraints but never replaces native decoding or Mind admission. |
 | model-pass terminal owner | sealed reasoning basis/context and typed failure class | exact transport closure plus `EpiphanyModelPassFailure` and terminal session/job result in one batch CAS | The caller cannot nominate a job/session; the context-derived binding closes role, reorient, and Persona failures without granting generic transport results decision authority. |
 | Substrate Gate | exact worker/job authority and requested operation | scoped grant or refusal | Access permission does not admit Mind state. |

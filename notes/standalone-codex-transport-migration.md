@@ -14,19 +14,19 @@ and release cadence.
 
 ## Current mechanism
 
-Two mechanisms currently overlap:
+The source and live mechanisms are deliberately distinct during the braked cut:
 
-1. Epiphany compiles `epiphany-openai-codex-spine` into its model and Persona
-   entrypoints. That crate imports vendored `codex-login` and `codex-client`.
-   Epiphany therefore carries Codex credential paths, readiness checks, CLI
-   arguments, HTTP transport, and the complete transitive Codex build graph.
-2. Yggdrasil already runs `epiphany-model-connector.service` for Ghostlight.
+1. Exact Epiphany `ed7357a2` uses the standalone Connector client ABI for Codex
+   requests. Its embedded spine, direct Codex auth/HTTP/SSE path, compiled Codex
+   graph, `CODEX_HOME`, and auth.json readiness are deleted. That source is not
+   deployed; production Epiphany remains inactive on its historical release.
+2. Yggdrasil still runs `epiphany-model-connector.service` for Ghostlight.
    It uses encrypted CultNet/MessagePack on loopback TCP 4103, owns a private
    writable Codex home, serializes refresh through one `AuthManager`, bounds
    payloads and parallelism, rejects replay/substitution, and advertises a
    redacted `model.generate.structured` capability through Odin.
 
-The second path is source-owned by the stale
+The live Ghostlight path is source-owned by the stale
 `codex/epiphany-model-bridge` branch, admits only
 `ghostlight-dungeon-yggdrasil`, and is built/deployed inside Ghostlight's Idunn
 transaction. Ghostlight duplicates its wire documents locally. The live proof
@@ -35,9 +35,10 @@ is useful; the ownership is not.
 ## Current cut status
 
 Independent `GameCult/CodexConnector` exact
-`9da6070faa1c4a29455b2383abfaae44d9a7b229` completes migration steps 1-3
-except redacted CultMesh/Odin publication. It owns one Cargo package, one
-public daemon binary, the v2 multi-caller encrypted MessagePack contract,
+`54d8bc2525b7e7fa1b9dd26b95871247ff4c7566` completes migration steps 1-4 on
+the source side except redacted CultMesh/Odin publication and the Ghostlight
+cut. It owns one Cargo package, one public daemon binary, the v2 multi-caller
+encrypted MessagePack contract and lean default client ABI,
 caller-native and exact provider-request digest binding, typed tool/result
 transport, a private digest-pinned official `codex app-server` credential
 child, raw Responses HTTP/SSE, and durable keyed replay. It links no Codex
@@ -52,9 +53,16 @@ capacity for unrelated identities. Replay records do not disappear merely
 because request admission expiry elapsed. A non-secret connection-key epoch
 detects rotation without persisting a secret-derived verifier.
 
-Focused native acceptance passes 22/22 plus exact library/binary checks and
-Clippy. The disposable target peaked at 625 MiB and was removed. No live
-service, credential, consumer, or deployment authority has moved.
+Default acceptance passes 10/10 and daemon acceptance passes 23/23 plus exact
+library/binary checks and Clippy. All disposable Connector targets were removed.
+
+Exact Epiphany `ed7357a2` consumes the lean client, keeps OpenRouter as a direct
+separate provider edge, and preserves Connector caller/native/provider digest
+evidence in its typed model receipt. Core 150/150, runtime 21/21, adapter 5/5,
+model edge 12/12, Persona 1/1, launch checks, and focused Clippy pass. Its
+maintained non-lock source shrinks by 857 lines and Cargo.lock by 4,830 lines.
+The bounded verification roots were removed; only the exact state inspector
+remains. No live service, credential, or deployment authority moved.
 
 ## Authority map
 
@@ -198,9 +206,9 @@ second opinion about consumer-native cognition.
 
 ## Deletion line
 
-After both consumers pass v2 acceptance:
+The deletion line is tracked per consumer; no dual-read fallback is allowed.
 
-### Epiphany
+### Epiphany — complete at `ed7357a2`
 
 - delete the `epiphany-openai-codex-spine` package;
 - delete all non-vendor compiled dependencies on `codex-login`, `codex-client`,

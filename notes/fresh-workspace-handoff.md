@@ -2,10 +2,11 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany boundary document: `1ff87ab3`
-Current connector source: `9da6070faa1c4a29455b2383abfaae44d9a7b229`
-Current pass: durable standalone Codex transport core landed; redacted
-CultMesh/Odin readiness is next; Ox17 and Atlas Gate 1 remain paused
+Latest committed Epiphany source cut: `ed7357a2`
+Current connector source: `54d8bc2525b7e7fa1b9dd26b95871247ff4c7566`
+Current pass: Codex transport is absent from Epiphany's compiled body; redacted
+Connector readiness and its independent Idunn target are next; Ox17 and Atlas
+Gate 1 remain paused
 
 ## Orientation
 
@@ -16,7 +17,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `a6cf9383` is the current
+production symlink body and is inactive. Exact `ed7357a2` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -50,7 +51,7 @@ authorize the next capstone or Gate 1.
 map for removing Codex transport entirely from Epiphany's process/build body.
 Independent repository `GameCult/CodexConnector` now owns one Cargo package
 with one public daemon binary and no linked Codex crates. Exact
-`9da6070faa1c4a29455b2383abfaae44d9a7b229` admits distinct authenticated
+`54d8bc2525b7e7fa1b9dd26b95871247ff4c7566` admits distinct authenticated
 callers, preserves caller-native and exact provider-request digests, passes
 typed text/tool/usage/failure results, and uses a digest-pinned official
 `codex app-server` child only as the private credential writer. The connector
@@ -63,15 +64,34 @@ I/O and replaces it with the exact encrypted `Completed` response before
 socket reply. Completed retries survive restart byte-for-byte; a restart-era
 active identity returns explicit `Indeterminate` and never re-executes. A
 non-secret connection-key epoch detects rotation without persisting a
-secret-derived verifier. Focused native acceptance passes 22/22 plus exact
-library/binary checks and Clippy. The disposable target peaked at 625 MiB and
-was removed completely.
+secret-derived verifier. Its default feature set is now only the lean encrypted
+client/contract ABI; the daemon, CultCache, Ureq/Rustls, auth child, and replay
+owner are behind the `daemon` feature. Default acceptance passes 10/10 and the
+daemon feature passes 23/23 plus exact library/binary checks and Clippy. Every
+disposable connector target was removed completely.
 
-Redacted CultMesh/Odin publication, Epiphany and Ghostlight shared-client cuts,
-the independent Idunn target, and deletion of the old embedded/copied paths
-remain open. Consumers keep prompts, projections, tools, retries,
-interpretation, decisions, and admission. No live service, credential, or
-deployment authority has moved.
+Exact Epiphany `ed7357a2` consumes that lean client ABI and deletes the entire
+`epiphany-openai-codex-spine` package, every compiled `codex-login` and
+`codex-client` dependency, direct Codex HTTP/SSE, `CODEX_HOME`, auth.json
+readiness, and Codex credential creation/argv. Model and Persona workers now
+pass an explicit loopback connector endpoint, caller runtime identity, and
+caller-key credential file. Connector receipts retain caller identity, native
+and provider request digests, transport identity, and cached-token usage in the
+durable model receipt; runtime/model-receipt epochs advance to v38/v1.
+OpenRouter remains direct through one Ureq/Rustls terminal-tool path and its
+separate credential.
+
+The maintained non-lock source shrinks by 857 lines and `Cargo.lock` shrinks by
+4,830 lines. Core passes 150/150, runtime 21/21, pure adapter 5/5, model edge
+12/12, Persona 1/1, both launch targets compile, and focused adapter/root-edge
+Clippy passes. The test runs generated 6.2 GiB and 4.6 GiB in the bounded target;
+both roots were removed. Only the exact 1,776,640-byte state inspector remains,
+SHA-256 `DD38855C6F092C2C53D2212A938E737643F41130F4681708840BA6075320A04E`.
+
+Redacted CultMesh/Odin publication, the independent Connector Idunn target,
+Yggdrasil installation, a real Epiphany connector round trip, and Ghostlight's
+shared-client/deployment cut remain open. No live service, credential, or
+deployment authority moved in this source pass.
 
 Exact `a6cf9383` quarantines concrete Codex/OpenRouter authentication,
 credential reading, and network transport at the two release entrypoints that
@@ -85,11 +105,10 @@ coordinator switch are gone. Provider strict-shape proofs now live with the
 release-owned lowering edge. The cut removes 176 net source lines without a
 new crate, executable, process, schema, or epoch. Focused runtime, model,
 Persona, and coordinator checks pass. The pure runtime consequence-test root
-falls from 12.713 GiB/19,134 files to 1.869 GiB/2,942 files. The release-edge
-test still reaches 10.473 GiB/16,483 files because `codex-login` imports config,
-app-server protocol, telemetry, Starlark, image, and clipboard anatomy; that is
-the next named provider-edge liability. Cleanup removed 10.5 GiB and restored
-the exact 1,776,640-byte state inspector. Atlas is untouched; no live
+fell from 12.713 GiB/19,134 files to 1.869 GiB/2,942 files. At that intermediate
+boundary the release edge still reached 10.473 GiB/16,483 files through
+`codex-login`; exact `ed7357a2` subsequently deletes that graph. Cleanup
+restored the exact 1,776,640-byte state inspector. Atlas is untouched; no live
 inter-swarm collaboration has run.
 
 Exact `ce6bff12` makes execution bindings identity edges instead of miniature
@@ -1158,13 +1177,17 @@ coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 
 ## Immediate next action
 
-The Ox17 deployment lane is paused. Continue the registered-document and test-
-liability audit from exact `fdefb889`; do not compile or deploy through Idunn
-yet. Delete an abstraction with tests that merely animate it when it has no
-decision-bearing consumer. Preserve keyed Mind, sealed reasoning, direct Body-
-to-Modeling flow, family admission owners, Persona social state, provider
-boundaries, consequence-verifying receipts, and the complete Model Atlas
-vertical slice until its first live inter-swarm collaboration trial.
+The Ox17 deployment lane remains paused. Continue the standalone transport cut
+from Epiphany `ed7357a2` and Connector
+`54d8bc2525b7e7fa1b9dd26b95871247ff4c7566`: add one redacted provider-owned
+CultMesh/Odin readiness projection, audit its dependency cost, then give the
+Connector an independent Idunn target and install the frozen daemon on
+Yggdrasil. Prove one Epiphany round trip with exact digest-bound receipt,
+transcript-free decision audit, and governed tool continuation before asking
+Ghostlight to adopt the same client ABI and delete its copied wire/deployment
+authority. Preserve keyed Mind, direct Body-to-Modeling flow, consequence
+receipts, and the complete Model Atlas vertical slice; no live inter-swarm
+collaboration has run.
 
 Yggdrasil previously exposed 96 GiB of dead native Cargo targets after
 interrupted full-workspace builds; exact cleanup returned the builder target

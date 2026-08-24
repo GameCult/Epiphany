@@ -223,42 +223,39 @@ Delete or demote:
 ## Immediate Next Action
 
 Keep the five-day shakedown, Ox17 deployment, and Model Atlas operational Gate
-1 paused. Continue the source-subtraction and test-authority audit from exact
-`a6cf9383`. The current sequence has deleted the semantic-memory/workspace-coverage
-projection system, its local daemon supervisor, and the surviving generic
-RepoModel profile, impossible lifecycle, producerless receipt/summary, and
-decorative scoring axes. Modeling consumes typed Body and keyed RepoModel state
-directly. Domains are seed-owned; model passes mutate only live keyed operations.
-Persona consumes keyed memory and social state directly. No
-Epiphany-owned Rider or Unity bridge exists: Brokkr owns Unity through typed
-Eve/CultMesh capabilities, and a future Rider daemon will own Rider. Do not
-admit a fresh package until the remaining production surfaces and tests have
-earned their authority under the same audit.
+1 paused. Exact `ed7357a2` completes Epiphany's source-side Codex transport cut:
+the embedded spine, compiled Codex graph, direct auth/HTTP/SSE path, and
+Codex-home readiness are absent. Modeling still consumes typed Body and keyed
+RepoModel state directly; Persona still consumes keyed memory and social state
+directly. No Epiphany-owned Rider or Unity bridge exists: Brokkr owns Unity
+through typed Eve/CultMesh capabilities, and a future Rider daemon owns Rider.
+Do not admit a fresh package until the standalone Connector has redacted signed
+readiness, an independent Idunn target, and a real digest-bound Epiphany round
+trip.
 
-The immediate comparison is now explicit. The release-edge `codex-login`
-dependency still imports configuration, app-server protocol, telemetry,
-Starlark, image, and clipboard anatomy; a pure runtime consequence test still
-costs 1.869 GiB because `epiphany-core` remains broad. Audit those as owned
-behavior, not as cleanup chores. A narrower OpenAI auth/refresh boundary must
-preserve exact provider capability and refresh-token authority; a core split
-must expose an existing semantic owner rather than invent a package taxonomy.
+The immediate comparison is now explicit. The former release-edge
+`codex-login` graph is gone from Epiphany. `epiphany-core` remains broad and
+`runtime_spine.rs` remains its largest mixed owner; audit those as owned
+behavior, not as cleanup chores. A future core split must expose an existing
+semantic owner rather than invent a package taxonomy.
 
 The provider decision is a service extraction specified by
 `notes/standalone-codex-transport-migration.md`. Independent
 `GameCult/CodexConnector` exact
-`9da6070faa1c4a29455b2383abfaae44d9a7b229` owns the v2 multi-caller contract,
+`54d8bc2525b7e7fa1b9dd26b95871247ff4c7566` owns the v2 multi-caller contract,
 exact native/provider digest binding, typed tool and terminal receipts, the
 pinned official Codex credential child, raw Responses transport, and durable
-keyed replay. It links no Codex crate. Active replay identity is written before
-network access; the exact encrypted completion is durable before reply;
-restart ambiguity refuses rather than re-executing. Redacted CultMesh/Odin
-readiness is the remaining daemon source cut before consumer work.
+keyed replay. Its default feature set is the lean encrypted client/contract ABI;
+daemon-only anatomy is feature-gated. It links no Codex crate. Active replay
+identity is written before network access; the exact encrypted completion is
+durable before reply; restart ambiguity refuses rather than re-executing.
+Redacted CultMesh/Odin readiness is the remaining daemon source cut before its
+independent Idunn deployment.
 
-Then Epiphany and Ghostlight must pass their shared-client contracts before the
-old paths are deleted. The completed migration removes Epiphany's Codex spine
-and auth/readiness plumbing, Ghostlight's copied wire types and connector
-deployment authority, and the stale bridge branch as a production source. No
-dual daemon or refresh writer is an acceptable transition state.
+Epiphany now passes the shared client contract and its old path is deleted.
+Ghostlight must adopt the same ABI and remove its copied wire types plus
+connector deployment authority after the standalone service is proven on
+Yggdrasil. No dual daemon or refresh writer is an acceptable transition state.
 
 Model Atlas has component proofs but no live inter-swarm collaboration run.
 Preserve its publication, trust, transport, projection, Soul verification, Self
