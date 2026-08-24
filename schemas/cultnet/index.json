@@ -46,17 +46,6 @@
       "path": "epiphany.runtime.tool-execution-binding.schema.json"
     },
     {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.runtime.archived-session.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.runtime.archived_session.v0",
-      "documentType": "epiphany.runtime.archived_session",
-      "title": "Epiphany Archived Runtime Session",
-      "path": "epiphany.runtime.archived-session.schema.json"
-    },
-    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.runtime.job.schema.json",
       "kind": "document_payload",
       "wireContracts": [
@@ -77,17 +66,6 @@
       "documentType": "epiphany.runtime.job_result",
       "title": "Epiphany Runtime Job Result",
       "path": "epiphany.runtime.job-result.schema.json"
-    },
-    {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.runtime.event.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.runtime_spine.v0",
-      "documentType": "epiphany.runtime.event",
-      "title": "Epiphany Runtime Event",
-      "path": "epiphany.runtime.event.schema.json"
     },
     {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.coordinator-run-receipt.schema.json",
