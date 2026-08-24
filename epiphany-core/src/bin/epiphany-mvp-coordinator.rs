@@ -1578,16 +1578,10 @@ fn accept_reorient(runtime_store: &Path) -> Result<Value> {
         .attempt
         .job_id
         .ok_or_else(|| anyhow!("reorientation review lost its runtime job"))?;
-    let job = epiphany_core::runtime_job(runtime_store, &job_id)?
-        .ok_or_else(|| anyhow!("reorientation review lost its runtime job"))?;
-    let accepted = match job.status {
-        epiphany_core::EpiphanyRuntimeJobStatus::Completed => {
-            epiphany_core::accept_reorientation_result(runtime_store, &job_id, &now())?
-        }
-        epiphany_core::EpiphanyRuntimeJobStatus::Failed => {
-            epiphany_core::record_reorientation_pass_failure(runtime_store, &job_id)?
-        }
-        _ => return Err(anyhow!("reorientation work is not terminally reviewable")),
+    let accepted = if work.terminal_failure {
+        epiphany_core::record_reorientation_pass_failure(runtime_store, &job_id)?
+    } else {
+        epiphany_core::accept_reorientation_result(runtime_store, &job_id, &now())?
     };
     Ok(json!({
         "mindCommitReceipt": accepted,

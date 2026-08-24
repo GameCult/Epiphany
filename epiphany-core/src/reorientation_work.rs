@@ -105,6 +105,7 @@ pub struct EpiphanyReorientationWorkProjection {
     pub request: EpiphanyReorientationRequest,
     #[serde(flatten)]
     pub attempt: crate::EpiphanyAgentPassAttemptProjection,
+    pub terminal_failure: bool,
 }
 
 pub fn request_current_reorientation(
@@ -270,12 +271,14 @@ pub(crate) fn current_reorientation_work(
             return Ok(Some(EpiphanyReorientationWorkProjection {
                 request,
                 attempt: crate::EpiphanyAgentPassAttemptProjection::unattempted(),
+                terminal_failure: false,
             }));
         };
         let job = cache
             .get::<crate::EpiphanyRuntimeJob>(&launch.job_id)?
             .ok_or_else(|| anyhow!("reorientation launch lost its runtime job"))?;
         let result = cache.get::<crate::EpiphanyRuntimeReorientWorkerResult>(&launch.job_id)?;
+        let terminal_failure = job.status == EpiphanyRuntimeJobStatus::Failed;
         let action = match job.status {
             EpiphanyRuntimeJobStatus::Completed if result.is_some() => {
                 EpiphanyAgentPassContinuationAction::Review
@@ -314,6 +317,7 @@ pub(crate) fn current_reorientation_work(
                 action,
                 Some(launch.job_id.clone()),
             ),
+            terminal_failure,
         }));
     }
     Ok(None)
@@ -1010,6 +1014,14 @@ mod tests {
             projected_result.finding.and_then(|finding| finding.mode),
             Some("regather".into())
         );
+        let review_work = crate::project_current_work(&store)?
+            .reorientation
+            .expect("completed Reorientation work");
+        assert_eq!(
+            review_work.attempt.action,
+            EpiphanyAgentPassContinuationAction::Review
+        );
+        assert!(!review_work.terminal_failure);
 
         cache.pull_all_backing_stores()?;
         cache.put(
@@ -1128,13 +1140,14 @@ mod tests {
             "2026-08-18T10:00:14Z",
             &model_failure.failure_id,
         )?;
+        let failed_review = crate::project_current_work(&store)?
+            .reorientation
+            .expect("failed Reorientation work");
         assert_eq!(
-            crate::project_current_work(&store)?
-                .reorientation
-                .as_ref()
-                .map(|work| work.attempt.action),
-            Some(EpiphanyAgentPassContinuationAction::Review)
+            failed_review.attempt.action,
+            EpiphanyAgentPassContinuationAction::Review
         );
+        assert!(failed_review.terminal_failure);
         let failure_receipt = record_reorientation_pass_failure(&store, &failed_job)?;
         assert_eq!(
             record_reorientation_pass_failure(&store, &failed_job)?,
