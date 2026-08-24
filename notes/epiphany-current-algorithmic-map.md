@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `6ccaf937` on `codex/epiphany-shakedown-live`
-Current worktree cut: documentation/evidence for unowned projection deletion;
+Latest committed implementation cut: `f6a2ad7f` on `codex/epiphany-shakedown-live`
+Current worktree cut: documentation/evidence for unconsumed read-helper deletion;
 Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -301,6 +301,14 @@ sorted-list projection. Substrate Gate no longer exposes a generic repo-work
 planning grant that no admission or actuator consumed; exact coordinator and
 worker grant constructors remain with their live authority paths. Nothing is
 inserted between those owners and their consumers.
+
+Exact `f6a2ad7f` deletes two exported readers with no workspace consumer.
+Packaged-release authentication remains exact-ID based; its current-head
+document remains publication state, not a general query API. Idunn
+provider-health admission continues to consume and validate typed trust
+anchors supplied at its boundary; it no longer owns an unused file-loading
+convenience path. The signed admission, continuity, and substitution laws are
+unchanged.
 
 Bifrost owns its private feedback-signing identity. Exact `94098223` deletes
 Epiphany's host-identity executable and the private signer, persisted identity,

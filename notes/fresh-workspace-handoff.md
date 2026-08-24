@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `6ccaf937`
-Current worktree: documentation/evidence for unowned projection deletion;
+Latest committed implementation cut: `f6a2ad7f`
+Current worktree: documentation/evidence for unconsumed read-helper deletion;
 Ox17 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `6ccaf937` is the current
+production symlink body and is inactive. Exact `f6a2ad7f` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,15 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `f6a2ad7f` deletes two exported read helpers with no workspace consumer.
+Packaged-release publication still writes its current-head document atomically,
+and release authentication still loads an exact release by ID; the unused
+standalone head reader is gone. Idunn signed-health admission still validates
+supplied typed trust anchors and preserves all continuity and substitution
+proofs; the unused trust-anchor file reader is gone. Core checks and Idunn
+provider-health 6/6 pass. The cut removes 25 net maintained lines without a
+schema, target, or Atlas change.
 
 Exact `6ccaf937` deletes three public surfaces with no live consumer. The
 repository Body alias merely unwrapped `assemble_mind_view`; its proof now
@@ -110,7 +119,7 @@ the live resident fields. Runtime writable state advances to v20. JSON schemas
 parse; core check, old-epoch refusal, coordinator 5/5, and swarm 4/4 pass. The
 cut removes 59 maintained lines and leaves `runtime_spine.rs` at 9,807 lines.
 
-Continue the public-API/test-liability audit after exact `6ccaf937`. Model Atlas remains protected
+Continue the public-API/test-liability audit after exact `f6a2ad7f`. Model Atlas remains protected
 for its first live inter-swarm collaboration trial.
 
 Exact `3ed1d564` deletes the public
