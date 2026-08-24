@@ -799,8 +799,7 @@ fn body_modeling_launches(
                     return Err(anyhow!("Body Modeling launch used reorientation authority"));
                 }
             };
-            if launch.schema_version != crate::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION
-                || launch.role != crate::EPIPHANY_MODELING_OWNER_ROLE
+            if launch.role != crate::EPIPHANY_MODELING_OWNER_ROLE
                 || launch.binding_id != crate::EPIPHANY_MODELING_ROLE_BINDING_ID
                 || document.thread_id() != launch.job_id
                 || role.role_id != "modeling"
@@ -3871,7 +3870,6 @@ mod tests {
         let context = crate::EpiphanyDecisionContext::new(&reasoning_basis, native, Vec::new())?;
         cache.put(&context.context_id, &context)?;
         let result = crate::EpiphanyRuntimeRoleWorkerResult {
-            schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
             result_id: "body-result".into(),
             job_id: launch.job_id.clone(),
             role_id: "modeling".into(),
@@ -4006,7 +4004,6 @@ mod tests {
             terminal: true,
         };
         let direction_worker_result = crate::EpiphanyRuntimeRoleWorkerResult {
-            schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
             result_id: "direction-worker-result".into(),
             job_id: direction_job_id.clone(),
             role_id: "imagination".into(),
@@ -4267,7 +4264,6 @@ mod tests {
             }],
         )?;
         let proposal_result = crate::EpiphanyRuntimeRoleWorkerResult {
-            schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
             result_id: result_id.into(),
             job_id: proposal_job_id.clone(),
             role_id: "modeling".into(),
@@ -4808,7 +4804,6 @@ mod tests {
             "2026-08-17T00:00:14.900Z",
         )?;
         let verification_result = crate::EpiphanyRuntimeRoleWorkerResult {
-            schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
             result_id: "verification-result".into(),
             job_id: verification_job_id.clone(),
             role_id: "verification".into(),
@@ -5154,7 +5149,6 @@ mod tests {
             }],
         )?;
         let verdict_result = crate::EpiphanyRuntimeRoleWorkerResult {
-            schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
             result_id: verdict_result_id.into(),
             job_id: verdict_job_id.clone(),
             role_id: "modeling".into(),
@@ -5485,7 +5479,6 @@ mod tests {
         };
         candidate.candidate_id = crate::canonical_repo_frontier_plan_candidate_id(&candidate)?;
         let planning_result = crate::EpiphanyRuntimeRoleWorkerResult {
-            schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
             result_id: "planning-result".into(),
             job_id: planning_job.clone(),
             role_id: "imagination".into(),
@@ -5617,7 +5610,6 @@ mod tests {
             decided_at: "2026-08-17T00:00:22.300Z".into(),
         };
         let mind_result = crate::EpiphanyRuntimeRoleWorkerResult {
-            schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
             result_id: "plan-mind-result".into(),
             job_id: mind_job.clone(),
             role_id: "mindAdmissionReview".into(),
@@ -5844,7 +5836,6 @@ mod tests {
             investigation_checkpoint: None,
         };
         let research_result = crate::EpiphanyRuntimeRoleWorkerResult {
-            schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
             result_id: "research-result".into(),
             job_id: research_job.clone(),
             role_id: "research".into(),

@@ -1805,7 +1805,6 @@ pub fn recover_receipt_free_dead_coordinator_session(
         return Ok(None);
     }
     let recovery = crate::EpiphanyCoordinatorDeathRecovery {
-        schema_version: crate::runtime_spine::COORDINATOR_DEATH_RECOVERY_SCHEMA_VERSION.into(),
         recovery_id: format!("coordinator-death-recovery-{session_id}"),
         session_id,
         thread_id: lease.turn_id.clone(),

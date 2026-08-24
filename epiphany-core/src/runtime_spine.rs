@@ -57,24 +57,8 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v33";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v34";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
-pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
-    "epiphany.runtime.model_execution_binding.v0";
-pub const RUNTIME_TOOL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
-    "epiphany.runtime.tool_execution_binding.v0";
-const ARCHIVED_RUNTIME_SESSION_SCHEMA_VERSION: &str = "epiphany.runtime.archived_session.v1";
-pub const RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION: &str =
-    "epiphany.runtime.worker_launch_request.v2";
-pub const RUNTIME_WORKER_PROCESS_CLAIM_SCHEMA_VERSION: &str =
-    "epiphany.runtime.worker_process_claim.v0";
-pub const ARCHIVED_RUNTIME_WORKER_ATTEMPT_SCHEMA_VERSION: &str =
-    "epiphany.runtime.archived_worker_attempt.v2";
-pub const RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION: &str =
-    "epiphany.runtime.role_worker_result.v4";
-pub const RUNTIME_REORIENT_WORKER_RESULT_SCHEMA_VERSION: &str =
-    "epiphany.runtime.reorient_worker_result.v0";
-pub const COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION: &str = "epiphany.coordinator_run_receipt.v1";
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(type = "epiphany.runtime.identity", schema = "EpiphanyRuntimeIdentity")]
 pub struct EpiphanyRuntimeIdentity {
@@ -115,8 +99,6 @@ pub struct EpiphanyRuntimeSwarmBinding {
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(type = "epiphany.runtime.session", schema = "EpiphanyRuntimeSession")]
 pub struct EpiphanyRuntimeSession {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
     #[cultcache(key = 1)]
     pub session_id: String,
     #[cultcache(key = 2)]
@@ -134,8 +116,6 @@ pub struct EpiphanyRuntimeSession {
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(type = "epiphany.runtime.job", schema = "EpiphanyRuntimeJob")]
 pub struct EpiphanyRuntimeJob {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
     #[cultcache(key = 1)]
     pub job_id: String,
     #[cultcache(key = 2)]
@@ -156,8 +136,6 @@ pub struct EpiphanyRuntimeJob {
     schema = "EpiphanyRuntimeModelExecutionBinding"
 )]
 pub struct EpiphanyRuntimeModelExecutionBinding {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
     #[cultcache(key = 1)]
     pub binding_id: String,
     #[cultcache(key = 2)]
@@ -182,8 +160,6 @@ pub struct EpiphanyRuntimeModelExecutionBinding {
     schema = "EpiphanyRuntimeToolExecutionBinding"
 )]
 pub struct EpiphanyRuntimeToolExecutionBinding {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
     #[cultcache(key = 1)]
     pub binding_id: String,
     #[cultcache(key = 2)]
@@ -204,8 +180,6 @@ pub struct EpiphanyRuntimeToolExecutionBinding {
     schema = "EpiphanyArchivedRuntimeSession"
 )]
 struct EpiphanyArchivedRuntimeSession {
-    #[cultcache(key = 0)]
-    schema_version: String,
     #[cultcache(key = 1)]
     session_id: String,
     #[cultcache(key = 2)]
@@ -224,8 +198,6 @@ struct EpiphanyArchivedRuntimeSession {
     schema = "EpiphanyRuntimeWorkerLaunchRequest"
 )]
 pub struct EpiphanyRuntimeWorkerLaunchRequest {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
     #[cultcache(key = 1)]
     pub job_id: String,
     #[cultcache(key = 2)]
@@ -268,8 +240,6 @@ pub struct EpiphanyRuntimeWorkerLaunchRequest {
     schema = "EpiphanyRuntimeWorkerProcessClaim"
 )]
 pub struct EpiphanyRuntimeWorkerProcessClaim {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
     #[cultcache(key = 1)]
     pub claim_id: String,
     #[cultcache(key = 2)]
@@ -300,8 +270,6 @@ pub struct EpiphanyRuntimeWorkerProcessClaim {
     schema = "EpiphanyArchivedRuntimeWorkerAttempt"
 )]
 pub struct EpiphanyArchivedRuntimeWorkerAttempt {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
     #[cultcache(key = 1)]
     pub job_id: String,
     #[cultcache(key = 2)]
@@ -422,8 +390,6 @@ impl EpiphanyRuntimeWorkerLaunchRequest {
     schema = "EpiphanyRuntimeRoleWorkerResult"
 )]
 pub struct EpiphanyRuntimeRoleWorkerResult {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
     #[cultcache(key = 1)]
     pub result_id: String,
     #[cultcache(key = 2)]
@@ -552,8 +518,6 @@ impl EpiphanyRuntimeRoleWorkerResult {
     schema = "EpiphanyRuntimeReorientWorkerResult"
 )]
 pub struct EpiphanyRuntimeReorientWorkerResult {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
     #[cultcache(key = 1)]
     pub result_id: String,
     #[cultcache(key = 2)]
@@ -592,8 +556,6 @@ pub struct EpiphanyRuntimeReorientWorkerResult {
     schema = "EpiphanyRuntimeJobResult"
 )]
 pub struct EpiphanyRuntimeJobResult {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
     #[cultcache(key = 1)]
     pub result_id: String,
     #[cultcache(key = 2)]
@@ -626,8 +588,6 @@ pub struct EpiphanyRuntimeJobResult {
     schema = "EpiphanyCoordinatorRunReceipt"
 )]
 pub struct EpiphanyCoordinatorRunReceipt {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
     #[cultcache(key = 1)]
     pub receipt_id: String,
     #[cultcache(key = 2)]
@@ -1027,7 +987,6 @@ pub fn create_runtime_session(
         ));
     }
     let session = EpiphanyRuntimeSession {
-        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
         session_id: options.session_id.clone(),
         objective: options.objective,
         status: EpiphanyRuntimeSessionStatus::Active,
@@ -1224,7 +1183,6 @@ pub fn terminalize_model_pass_failure_session(
         model_job.status = EpiphanyRuntimeJobStatus::Failed;
         model_job.updated_at = options.failed_at.clone();
         let model_result = EpiphanyRuntimeJobResult {
-            schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
             result_id: format!("result-model-pass-failure-{}", failure.failure_id),
             job_id: binding.job_id.clone(),
             session_id: binding.session_id.clone(),
@@ -1319,7 +1277,6 @@ pub fn create_runtime_job(
         return Err(anyhow!("runtime job {:?} already exists", options.job_id));
     }
     let job = EpiphanyRuntimeJob {
-        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
         job_id: options.job_id.clone(),
         session_id: options.session_id.clone(),
         role: options.role,
@@ -1426,7 +1383,6 @@ pub fn open_runtime_model_execution(
     let session = existing_session
         .clone()
         .unwrap_or_else(|| EpiphanyRuntimeSession {
-            schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
             session_id: session_options.session_id.clone(),
             objective: session_options.objective.clone(),
             status: EpiphanyRuntimeSessionStatus::Active,
@@ -1453,7 +1409,6 @@ pub fn open_runtime_model_execution(
         ));
     }
     let job = EpiphanyRuntimeJob {
-        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
         job_id: job_options.job_id.clone(),
         session_id: session.session_id.clone(),
         role: job_options.role,
@@ -1478,7 +1433,6 @@ pub fn open_runtime_model_execution(
         ));
     }
     let binding = EpiphanyRuntimeModelExecutionBinding {
-        schema_version: RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION.to_string(),
         binding_id: binding_id.clone(),
         request_id: model_request.request_id.clone(),
         session_id: session.session_id.clone(),
@@ -1656,7 +1610,6 @@ pub fn put_runtime_tool_execution_intent(
         }
     }
     let binding = EpiphanyRuntimeToolExecutionBinding {
-        schema_version: RUNTIME_TOOL_EXECUTION_BINDING_SCHEMA_VERSION.to_string(),
         binding_id: intent.intent_id.clone(),
         intent_id: intent.intent_id.clone(),
         session_id: session_id.to_string(),
@@ -1700,8 +1653,7 @@ pub(crate) fn validate_runtime_model_execution_binding(
     let job = cache
         .get::<EpiphanyRuntimeJob>(&binding.job_id)?
         .ok_or_else(|| anyhow!("model execution binding {request_id:?} lost its job"))?;
-    if binding.schema_version != RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION
-        || binding.binding_id != request_id
+    if binding.binding_id != request_id
         || binding.request_id != request_id
         || binding.provider != native.provider
         || binding.source_worker_job_id != native.source_worker_job_id
@@ -1760,8 +1712,7 @@ pub(crate) fn validate_runtime_tool_execution_binding(
     let binding = cache
         .get::<EpiphanyRuntimeToolExecutionBinding>(intent_id)?
         .ok_or_else(|| anyhow!("tool execution intent {intent_id:?} is unbound"))?;
-    if binding.schema_version != RUNTIME_TOOL_EXECUTION_BINDING_SCHEMA_VERSION
-        || binding.binding_id != intent_id
+    if binding.binding_id != intent_id
         || binding.intent_id != intent_id
         || chrono::DateTime::parse_from_rfc3339(&binding.bound_at).is_err()
     {
@@ -1864,8 +1815,7 @@ pub(crate) fn validate_terminal_tool_execution_family(
     intent: &EpiphanyToolInvocationIntent,
     receipt: &EpiphanyToolInvocationReceipt,
 ) -> Result<()> {
-    if binding.schema_version != RUNTIME_TOOL_EXECUTION_BINDING_SCHEMA_VERSION
-        || binding.binding_id != intent.intent_id
+    if binding.binding_id != intent.intent_id
         || binding.intent_id != intent.intent_id
         || binding.model_request_id != intent.model_request_id
         || intent.schema_id != TOOL_ADAPTER_INVOCATION_INTENT_SCHEMA_ID
@@ -1935,8 +1885,7 @@ fn archive_completed_model_session(
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
     if let Some(existing) = cache.get::<EpiphanyArchivedRuntimeSession>(session_id)? {
-        if existing.schema_version != ARCHIVED_RUNTIME_SESSION_SCHEMA_VERSION
-            || existing.session_id != session_id
+        if existing.session_id != session_id
             || !existing.retired_chain_digest.starts_with("sha256:")
         {
             return Err(anyhow!("archived runtime session tombstone is invalid"));
@@ -2275,7 +2224,6 @@ fn archive_completed_model_session(
         }
     }
     let archive = EpiphanyArchivedRuntimeSession {
-        schema_version: ARCHIVED_RUNTIME_SESSION_SCHEMA_VERSION.to_string(),
         session_id: session_id.to_string(),
         job_ids: job_ids.into_iter().collect(),
         model_request_ids: model_request_ids.into_iter().collect(),
@@ -2386,7 +2334,6 @@ pub fn prepare_runtime_spine_heartbeat_job(
         }
         Some(existing) => existing,
         None => EpiphanyRuntimeSession {
-            schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
             session_id: options.session_id.clone(),
             objective: options.objective,
             status: EpiphanyRuntimeSessionStatus::Active,
@@ -2408,7 +2355,6 @@ pub fn prepare_runtime_spine_heartbeat_job(
         ));
     }
     let job = EpiphanyRuntimeJob {
-        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
         job_id: options.job_id.clone(),
         session_id: options.session_id.clone(),
         role: options.role.clone(),
@@ -2417,7 +2363,6 @@ pub fn prepare_runtime_spine_heartbeat_job(
         updated_at: options.created_at.clone(),
     };
     let request = EpiphanyRuntimeWorkerLaunchRequest {
-        schema_version: RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.to_string(),
         job_id: options.job_id.clone(),
         binding_id: options.binding_id,
         role: options.role,
@@ -3449,7 +3394,6 @@ pub fn claim_runtime_worker_process(
     }
     let claim_id = worker_process_claim_id(job_id);
     let claim = EpiphanyRuntimeWorkerProcessClaim {
-        schema_version: RUNTIME_WORKER_PROCESS_CLAIM_SCHEMA_VERSION.into(),
         claim_id: claim_id.clone(),
         job_id: job_id.into(),
         process_id: process.process_id,
@@ -3772,7 +3716,6 @@ fn commit_runtime_worker_process_death(
     job.status = EpiphanyRuntimeJobStatus::Failed;
     job.updated_at = terminal_at.to_string();
     let result = EpiphanyRuntimeJobResult {
-        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
         result_id: format!("result-worker-death-{job_id}"),
         job_id: job_id.to_string(),
         session_id: job.session_id.clone(),
@@ -3906,9 +3849,6 @@ pub fn put_runtime_role_worker_result(
         &result.decision_context_id,
         "role worker result decision context id",
     )?;
-    if result.schema_version != RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION {
-        return Err(anyhow!("role worker result schema version mismatch"));
-    }
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_worker_decision_context(&cache, &result.decision_context_id, &result.job_id)?;
@@ -4133,8 +4073,7 @@ pub fn put_runtime_role_worker_result(
             &request.request_id,
             &result.job_id,
         )?;
-        if worker_launch.schema_version != RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION
-            || worker_launch.job_id != result.job_id
+        if worker_launch.job_id != result.job_id
             || worker_launch.role != EPIPHANY_IMAGINATION_OWNER_ROLE
             || worker_launch.binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
             || worker_launch.frontier_planning_request_id.as_deref()
@@ -4279,8 +4218,7 @@ pub fn put_runtime_role_worker_result(
             EpiphanyWorkerLaunchDocument::Reorient(_) => None,
         };
         crate::current_work::consideration_attempt_ordinal(request_id, &result.job_id)?;
-        if worker.schema_version != RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION
-            || worker.job_id != result.job_id
+        if worker.job_id != result.job_id
             || worker.role != EPIPHANY_IMAGINATION_OWNER_ROLE
             || worker.binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
             || worker.imagination_consideration_request_id.as_deref() != Some(request_id)
@@ -4354,8 +4292,7 @@ pub fn put_runtime_role_worker_result(
             &request.request_id,
             &result.job_id,
         )?;
-        if launch.schema_version != RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION
-            || launch.job_id != result.job_id
+        if launch.job_id != result.job_id
             || launch.role != EPIPHANY_MIND_OWNER_ROLE
             || launch.binding_id != EPIPHANY_MIND_ROLE_BINDING_ID
             || launch.frontier_plan_mind_request_id.as_deref() != Some(request.request_id.as_str())
@@ -4604,10 +4541,6 @@ fn validated_proposal_modeling_worker_fulfillment(
             proposal.payload_sha256 != proposal_payload_sha256,
         ),
         ("request.runtime", request.runtime_id != identity.runtime_id),
-        (
-            "launch.schema",
-            launch.schema_version != RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION,
-        ),
         ("launch.job", launch.job_id != result.job_id),
         (
             "launch.binding",
@@ -4734,8 +4667,7 @@ pub(crate) fn runtime_typed_request_fulfillment(
         ));
     }
     if let Some(attempt) = archived_matches.first() {
-        if attempt.schema_version != ARCHIVED_RUNTIME_WORKER_ATTEMPT_SCHEMA_VERSION
-            || attempt.request_kind != request.kind()
+        if attempt.request_kind != request.kind()
             || !crate::WorkerProcessStatus::parse(&attempt.terminal_process_status)?
                 .is_fulfilled_terminal()
             || !attempt.retired_chain_digest.starts_with("sha256:")
@@ -7787,8 +7719,7 @@ pub(crate) fn derive_repo_frontier_modeling_request(
         "needs-review" | "needs-evidence" | "fail" => RepoFrontierVerdictDisposition::Blocked,
         _ => return Err(anyhow!("Soul verdict has no allowed frontier disposition")),
     };
-    if result.schema_version != RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION
-        || !result.role_id.eq_ignore_ascii_case("verification")
+    if !result.role_id.eq_ignore_ascii_case("verification")
         || result.item_error.is_some()
         || result.result_id != verdict.source_result_id
         || result.job_id != verdict.source_job_id
@@ -8275,9 +8206,7 @@ fn validate_archivable_typed_worker_launch(
     request_kind: &str,
     request_id: &str,
 ) -> Result<()> {
-    if launch.schema_version != RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION
-        || launch.job_id.trim().is_empty()
-    {
+    if launch.job_id.trim().is_empty() {
         return Err(anyhow!(
             "worker attempt archive found invalid immutable launch"
         ));
@@ -8466,10 +8395,7 @@ fn archive_runtime_worker_attempt(
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
     if let Some(existing) = cache.get::<EpiphanyArchivedRuntimeWorkerAttempt>(job_id)? {
-        if existing.schema_version != ARCHIVED_RUNTIME_WORKER_ATTEMPT_SCHEMA_VERSION
-            || existing.job_id != job_id
-            || !existing.retired_chain_digest.starts_with("sha256:")
-        {
+        if existing.job_id != job_id || !existing.retired_chain_digest.starts_with("sha256:") {
             return Err(anyhow!("archived worker attempt tombstone is invalid"));
         }
         existing.validate_decision_record(fulfilled)?;
@@ -8664,7 +8590,6 @@ fn archive_runtime_worker_attempt(
         }
     }
     let tombstone = EpiphanyArchivedRuntimeWorkerAttempt {
-        schema_version: ARCHIVED_RUNTIME_WORKER_ATTEMPT_SCHEMA_VERSION.into(),
         job_id: job_id.into(),
         request_kind: request_kind.into(),
         request_id: request_id.into(),
@@ -8827,17 +8752,12 @@ fn coordinator_completion_summary(receipt: &EpiphanyCoordinatorRunReceipt) -> St
     )
 }
 
-pub const COORDINATOR_DEATH_RECOVERY_SCHEMA_VERSION: &str =
-    "epiphany.coordinator_death_recovery.v0";
-
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
     type = "epiphany.coordinator_death_recovery.v0",
     schema = "EpiphanyCoordinatorDeathRecovery"
 )]
 pub struct EpiphanyCoordinatorDeathRecovery {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
     #[cultcache(key = 1)]
     pub recovery_id: String,
     #[cultcache(key = 2)]
@@ -8933,7 +8853,6 @@ pub fn open_coordinator_run(
         ));
     }
     let session = EpiphanyRuntimeSession {
-        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
         session_id: session_id.to_string(),
         objective: objective.to_string(),
         status: EpiphanyRuntimeSessionStatus::Active,
@@ -8998,8 +8917,7 @@ pub(crate) fn recover_coordinator_run_after_exact_process_death(
     expected_objective: &str,
 ) -> Result<EpiphanyRuntimeSession> {
     validate_non_empty(expected_objective, "recovered coordinator objective")?;
-    if recovery.schema_version != COORDINATOR_DEATH_RECOVERY_SCHEMA_VERSION
-        || recovery.recovery_id != format!("coordinator-death-recovery-{}", recovery.session_id)
+    if recovery.recovery_id != format!("coordinator-death-recovery-{}", recovery.session_id)
         || recovery.session_id
             != coordinator_run_session_id(
                 &recovery.thread_id,
@@ -9226,7 +9144,6 @@ pub fn complete_runtime_job(
     job.status = terminal_status;
     job.updated_at = options.completed_at.clone();
     let result = EpiphanyRuntimeJobResult {
-        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
         result_id: options.result_id.clone(),
         job_id: options.job_id.clone(),
         session_id: job.session_id.clone(),

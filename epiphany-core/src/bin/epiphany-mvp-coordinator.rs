@@ -2,7 +2,6 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
 use chrono::SecondsFormat;
-use epiphany_core::COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION;
 use epiphany_core::COORDINATOR_RUN_RECEIPT_TYPE;
 use epiphany_core::EpiphanyCoordinatorRunReceipt;
 use epiphany_core::HANDS_ACTION_INTENT_SCHEMA_VERSION;
@@ -1327,7 +1326,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         ];
         let receipt_created_at = now();
         let coordinator_run_receipt = EpiphanyCoordinatorRunReceipt {
-            schema_version: COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.to_string(),
             receipt_id: format!(
                 "coordinator-run-{}-{}",
                 sanitize_id(&thread_id),
@@ -1431,7 +1429,6 @@ fn failed_coordinator_run_receipt(
 ) -> EpiphanyCoordinatorRunReceipt {
     let created_at = now();
     EpiphanyCoordinatorRunReceipt {
-        schema_version: COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.to_string(),
         receipt_id: format!(
             "coordinator-run-{}-failed-{}",
             sanitize_id(thread_id),

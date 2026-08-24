@@ -1943,7 +1943,6 @@ mod tests {
     fn role_launch() -> Result<EpiphanyRuntimeWorkerLaunchRequest> {
         let document = EpiphanyWorkerLaunchDocument::Role(role_document());
         Ok(EpiphanyRuntimeWorkerLaunchRequest {
-            schema_version: crate::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
             job_id: "pass-1".into(),
             binding_id: crate::EPIPHANY_IMAGINATION_ROLE_BINDING_ID.into(),
             role: "Imagination".into(),
@@ -2446,7 +2445,6 @@ mod tests {
 
         let failure_summary = "Provider refused before assistant output.".to_string();
         let failure_role_result = crate::EpiphanyRuntimeRoleWorkerResult {
-            schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.to_string(),
             result_id: format!("result-worker-{}", reasoning_basis.pass_id),
             job_id: reasoning_basis.pass_id.clone(),
             role_id: role_terminal_semantic_role(&reasoning_basis)?.expect("role pass"),
@@ -2483,7 +2481,6 @@ mod tests {
             decision_context_id: context.context_id.clone(),
         };
         let failure_runtime_result = crate::EpiphanyRuntimeJobResult {
-            schema_version: crate::RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
             result_id: format!("result-runtime-{}", reasoning_basis.pass_id),
             job_id: reasoning_basis.pass_id.clone(),
             session_id: "failed-pass-session".into(),
@@ -2690,7 +2687,6 @@ mod tests {
         assert!(audit_decision_context(&store, &context.context_id).is_err());
         assert_eq!(backing.pull_all()?, before_unterminal_audit);
         let terminal_result = crate::EpiphanyRuntimeJobResult {
-            schema_version: crate::RUNTIME_SPINE_SCHEMA_VERSION.into(),
             result_id: "worker-result-1".into(),
             job_id: "pass-1".into(),
             session_id: "session-1".into(),
@@ -2724,7 +2720,6 @@ mod tests {
             archive_cache.delete::<crate::EpiphanyRuntimeJobResult>(&terminal_result.result_id)?
         );
         let archived = crate::EpiphanyArchivedRuntimeWorkerAttempt {
-            schema_version: crate::ARCHIVED_RUNTIME_WORKER_ATTEMPT_SCHEMA_VERSION.into(),
             job_id: "pass-1".into(),
             request_kind: "proposal-modeling".into(),
             request_id: "proposal-request-1".into(),

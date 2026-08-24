@@ -206,8 +206,7 @@ fn reorientation_launch_document(
             return Err(anyhow!("reorientation owner carried a role launch"));
         }
     };
-    if launch.schema_version != crate::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION
-        || launch.role != crate::EPIPHANY_REORIENT_OWNER_ROLE
+    if launch.role != crate::EPIPHANY_REORIENT_OWNER_ROLE
         || launch.binding_id != crate::EPIPHANY_REORIENT_LAUNCH_BINDING_ID
         || document.schema_version != "epiphany.reorientation_launch_projection.v1"
         || document.request_id.trim().is_empty()
@@ -1026,7 +1025,6 @@ mod tests {
             "2026-08-18T10:00:05Z",
         )?;
         let result = crate::EpiphanyRuntimeReorientWorkerResult {
-            schema_version: crate::RUNTIME_REORIENT_WORKER_RESULT_SCHEMA_VERSION.into(),
             result_id: "reorientation-result".into(),
             job_id: job_id.clone(),
             mode: "resume".into(),

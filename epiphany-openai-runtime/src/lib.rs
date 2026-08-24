@@ -2001,7 +2001,6 @@ fn role_worker_result_from_ingress(
         (None, None)
     };
     EpiphanyRuntimeRoleWorkerResult {
-        schema_version: epiphany_core::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.to_string(),
         repository_body_observation_basis: role_id
             .eq_ignore_ascii_case("modeling")
             .then(|| repository_body_observation_basis.cloned())
@@ -2094,7 +2093,6 @@ pub fn failed_frontier_planning_role_result(
     };
     let summary = failure_summary.trim().to_string();
     Ok(Some(EpiphanyRuntimeRoleWorkerResult {
-        schema_version: epiphany_core::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.to_string(),
         result_id: format!("result-worker-{}", launch_request.job_id),
         job_id: launch_request.job_id.clone(),
         role_id: document.role_id,
@@ -2141,7 +2139,6 @@ fn reorient_worker_result_from_ingress(
     artifact_refs: Vec<String>,
 ) -> EpiphanyRuntimeReorientWorkerResult {
     EpiphanyRuntimeReorientWorkerResult {
-        schema_version: epiphany_core::RUNTIME_REORIENT_WORKER_RESULT_SCHEMA_VERSION.to_string(),
         result_id: result_id.to_string(),
         job_id: launch_request.job_id.clone(),
         mode: clean_optional_string(result.mode.as_deref())
@@ -2558,7 +2555,6 @@ mod tests {
     #[test]
     fn proposal_modeling_ingress_composes_runtime_owned_patch_and_identity() -> Result<()> {
         let launch = EpiphanyRuntimeWorkerLaunchRequest {
-            schema_version: epiphany_core::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
             job_id: "proposal-job-1".into(),
             binding_id: epiphany_core::EPIPHANY_MODELING_ROLE_BINDING_ID.into(),
             role: epiphany_core::EPIPHANY_MODELING_OWNER_ROLE.into(),
@@ -2692,7 +2688,6 @@ mod tests {
             scan_finished_at: "2026-08-14T00:00:01Z".into(),
         };
         let launch = EpiphanyRuntimeWorkerLaunchRequest {
-            schema_version: epiphany_core::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
             job_id: "atlas-modeling-job".into(),
             binding_id: epiphany_core::EPIPHANY_MODELING_ROLE_BINDING_ID.into(),
             role: epiphany_core::EPIPHANY_MODELING_OWNER_ROLE.into(),
@@ -2831,7 +2826,6 @@ mod tests {
                 admitted_model_direction_consideration_context: None,
             });
         let launch = EpiphanyRuntimeWorkerLaunchRequest {
-            schema_version: epiphany_core::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
             job_id: "proposal-job-1".into(),
             binding_id: epiphany_core::EPIPHANY_MODELING_ROLE_BINDING_ID.into(),
             role: epiphany_core::EPIPHANY_MODELING_OWNER_ROLE.into(),
@@ -2909,7 +2903,6 @@ mod tests {
             }"#,
         )?;
         let launch = EpiphanyRuntimeWorkerLaunchRequest {
-            schema_version: epiphany_core::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.to_string(),
             job_id: "planning-job-1".into(),
             binding_id: epiphany_core::EPIPHANY_IMAGINATION_ROLE_BINDING_ID.into(),
             role: epiphany_core::EPIPHANY_IMAGINATION_OWNER_ROLE.into(),
@@ -3068,7 +3061,6 @@ mod tests {
             },
         };
         let launch = EpiphanyRuntimeWorkerLaunchRequest {
-            schema_version: epiphany_core::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
             job_id: "consideration-job-1".into(),
             binding_id: epiphany_core::EPIPHANY_IMAGINATION_ROLE_BINDING_ID.into(),
             role: epiphany_core::EPIPHANY_IMAGINATION_OWNER_ROLE.into(),
@@ -3159,7 +3151,6 @@ mod tests {
                 admitted_model_direction_consideration_context: None,
             });
         let launch = EpiphanyRuntimeWorkerLaunchRequest {
-            schema_version: epiphany_core::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
             job_id: "planning-job-failed".into(),
             binding_id: epiphany_core::EPIPHANY_IMAGINATION_ROLE_BINDING_ID.into(),
             role: epiphany_core::EPIPHANY_IMAGINATION_OWNER_ROLE.into(),
@@ -3205,7 +3196,6 @@ mod tests {
             r#"{"roleId":"mindAdmissionReview","verdict":"adopt","summary":"bounded","nextSafeMove":"admit","filesInspected":[],"frontierPlanMindDecision":{"decision":"adopt","rationale":"Exact candidate is bounded and falsifiable."}}"#,
         )?;
         let launch = EpiphanyRuntimeWorkerLaunchRequest {
-            schema_version: epiphany_core::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
             job_id: "mind-job-1".into(),
             binding_id: epiphany_core::EPIPHANY_MIND_ROLE_BINDING_ID.into(),
             role: epiphany_core::EPIPHANY_MIND_OWNER_ROLE.into(),
