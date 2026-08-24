@@ -12,7 +12,7 @@ pub const REORIENTATION_REQUEST_SCHEMA_VERSION: &str = "epiphany.self.reorientat
 pub const MIND_REORIENTATION_DECISION_SCHEMA_VERSION: &str =
     "epiphany.mind.reorientation_decision.v1";
 pub const MIND_REORIENTATION_PASS_FAILURE_SCHEMA_VERSION: &str =
-    "epiphany.mind.reorientation_pass_failure.v1";
+    "epiphany.mind.reorientation_pass_failure.v2";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EpiphanyReorientationStateProjection {
@@ -78,7 +78,7 @@ pub struct EpiphanyMindReorientationDecisionDocument {
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
-    type = "epiphany.mind.reorientation_pass_failure.v1",
+    type = "epiphany.mind.reorientation_pass_failure.v2",
     schema = "EpiphanyMindReorientationPassFailureDocument"
 )]
 pub struct EpiphanyMindReorientationPassFailureDocument {
@@ -91,14 +91,12 @@ pub struct EpiphanyMindReorientationPassFailureDocument {
     #[cultcache(key = 3)]
     pub job_id: String,
     #[cultcache(key = 4)]
-    pub runtime_result_id: String,
+    pub model_pass_failure_id: String,
     #[cultcache(key = 5)]
     pub decision_context_id: String,
     #[cultcache(key = 6)]
-    pub verdict: String,
-    #[cultcache(key = 7)]
     pub summary: String,
-    #[cultcache(key = 8)]
+    #[cultcache(key = 7)]
     pub failed_at: String,
 }
 
@@ -283,20 +281,29 @@ pub(crate) fn current_reorientation_work(
                 EpiphanyAgentPassContinuationAction::Review
             }
             EpiphanyRuntimeJobStatus::Failed => {
-                let terminal = exact_runtime_job_result(cache, &launch.job_id)?;
-                match terminal.decision_context_id.as_deref() {
-                    Some(context_id)
+                let model_failures = cache
+                    .get_all::<crate::EpiphanyModelPassFailure>()?
+                    .into_iter()
+                    .filter(|failure| failure.pass_id == launch.job_id)
+                    .collect::<Vec<_>>();
+                match model_failures.as_slice() {
+                    [] => EpiphanyAgentPassContinuationAction::Launch,
+                    [model_failure]
                         if failures.iter().any(|failure| {
                             failure.request_id == request.request_id
                                 && failure.job_id == launch.job_id
-                                && failure.runtime_result_id == terminal.result_id
-                                && failure.decision_context_id == context_id
+                                && failure.model_pass_failure_id == model_failure.failure_id
+                                && failure.decision_context_id == model_failure.decision_context_id
                         }) =>
                     {
                         EpiphanyAgentPassContinuationAction::Launch
                     }
-                    Some(_) => EpiphanyAgentPassContinuationAction::Review,
-                    None => EpiphanyAgentPassContinuationAction::Launch,
+                    [_] => EpiphanyAgentPassContinuationAction::Review,
+                    _ => {
+                        return Err(anyhow!(
+                            "reorientation pass has multiple model-failure authorities"
+                        ));
+                    }
                 }
             }
             _ => EpiphanyAgentPassContinuationAction::Wait,
@@ -333,21 +340,24 @@ pub fn record_reorientation_pass_failure(
     if job.status != EpiphanyRuntimeJobStatus::Failed {
         return Err(anyhow!("reorientation pass is not a failed model pass"));
     }
-    let terminal = exact_runtime_job_result(&cache, job_id)?;
-    let decision_context_id = terminal
-        .decision_context_id
-        .as_deref()
-        .ok_or_else(|| anyhow!("model-backed reorientation failure has no decision context"))?;
+    let model_failures = cache
+        .get_all::<crate::EpiphanyModelPassFailure>()?
+        .into_iter()
+        .filter(|failure| failure.pass_id == job_id)
+        .collect::<Vec<_>>();
+    let [model_failure] = model_failures.as_slice() else {
+        return Err(anyhow!(
+            "reorientation failure requires one exact model-pass failure"
+        ));
+    };
     let context = cache
-        .get::<crate::EpiphanyDecisionContext>(decision_context_id)?
+        .get::<crate::EpiphanyDecisionContext>(&model_failure.decision_context_id)?
         .ok_or_else(|| anyhow!("reorientation failure lost its decision context"))?;
     let basis = cache
         .get::<crate::EpiphanyReasoningBasis>(&context.basis_id)?
         .ok_or_else(|| anyhow!("reorientation failure lost its reasoning basis"))?;
     context.validate(&basis)?;
-    let model_failure =
-        crate::model_pass_failure_for_request(store_path, &context.terminal_request_id)?
-            .ok_or_else(|| anyhow!("reorientation failure has no exact model-pass failure"))?;
+    model_failure.validate(&basis, &context)?;
     if model_failure.decision_context_id != context.context_id {
         return Err(anyhow!(
             "reorientation failure crossed its model-pass failure context"
@@ -360,14 +370,13 @@ pub fn record_reorientation_pass_failure(
     }
     let failure = EpiphanyMindReorientationPassFailureDocument {
         schema_version: MIND_REORIENTATION_PASS_FAILURE_SCHEMA_VERSION.into(),
-        failure_id: format!("reorientation-pass-failure-{}", terminal.result_id),
+        failure_id: format!("reorientation-pass-failure-{}", model_failure.failure_id),
         request_id: request.request_id.clone(),
         job_id: job_id.into(),
-        runtime_result_id: terminal.result_id.clone(),
-        decision_context_id: decision_context_id.into(),
-        verdict: terminal.verdict.clone(),
-        summary: terminal.summary.clone(),
-        failed_at: terminal.completed_at.clone(),
+        model_pass_failure_id: model_failure.failure_id.clone(),
+        decision_context_id: context.context_id.clone(),
+        summary: model_failure.summary.clone(),
+        failed_at: model_failure.failed_at.clone(),
     };
     if let Some(existing) =
         cache.get::<EpiphanyMindReorientationPassFailureDocument>(&failure.failure_id)?
@@ -375,7 +384,7 @@ pub fn record_reorientation_pass_failure(
         if existing != failure {
             return Err(anyhow!("reorientation failure replay was substituted"));
         }
-        return mind_receipt_for_failure_context(&cache, decision_context_id);
+        return mind_receipt_for_failure_context(&cache, &context.context_id);
     }
     let snapshot = cache.snapshot_envelopes();
     let mut strong_reads = Vec::new();
@@ -387,10 +396,9 @@ pub fn record_reorientation_pass_failure(
         (crate::EpiphanyRuntimeWorkerLaunchRequest::TYPE, job_id),
         (crate::EpiphanyRuntimeJob::TYPE, job_id),
         (
-            crate::EpiphanyRuntimeJobResult::TYPE,
-            terminal.result_id.as_str(),
+            crate::EpiphanyDecisionContext::TYPE,
+            context.context_id.as_str(),
         ),
-        (crate::EpiphanyDecisionContext::TYPE, decision_context_id),
         (
             crate::EpiphanyModelPassFailure::TYPE,
             model_failure.failure_id.as_str(),
@@ -408,11 +416,11 @@ pub fn record_reorientation_pass_failure(
         crate::mind_documents::prepare_mind_document(&cache, &failure.failure_id, &failure)?;
     match crate::reasoning_context::commit_mind_mutation(
         store_path,
-        decision_context_id,
+        &context.context_id,
         "Continuity.reorientation_failure",
         strong_reads,
         vec![write],
-        &terminal.completed_at,
+        &model_failure.failed_at,
     )? {
         crate::EpiphanyMindCommitOutcome::Committed(receipt) => Ok(receipt),
         crate::EpiphanyMindCommitOutcome::Conflict {
@@ -503,9 +511,11 @@ pub fn launch_current_reorientation_work(
             );
             expected.push(
                 cache
-                    .get_envelope::<crate::EpiphanyRuntimeJobResult>(&failure.runtime_result_id)?
+                    .get_envelope::<crate::EpiphanyModelPassFailure>(
+                        &failure.model_pass_failure_id,
+                    )?
                     .ok_or_else(|| {
-                        anyhow!("reorientation retry lost its terminal result envelope")
+                        anyhow!("reorientation retry lost its model-failure envelope")
                     })?,
             );
         }
@@ -856,26 +866,6 @@ fn mind_receipt_for_failure_context(
     }
 }
 
-fn exact_runtime_job_result(
-    cache: &CultCache,
-    job_id: &str,
-) -> Result<crate::EpiphanyRuntimeJobResult> {
-    let mut results = cache
-        .get_all::<crate::EpiphanyRuntimeJobResult>()?
-        .into_iter()
-        .filter(|result| result.job_id == job_id)
-        .collect::<Vec<_>>();
-    match results.len() {
-        1 => Ok(results.remove(0)),
-        0 => Err(anyhow!(
-            "reorientation attempt lost its terminal runtime result"
-        )),
-        _ => Err(anyhow!(
-            "reorientation attempt has multiple terminal runtime results"
-        )),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1011,24 +1001,11 @@ mod tests {
             decision_context_id: context.context_id.clone(),
         };
         crate::put_runtime_reorient_worker_result(&store, &result)?;
-        crate::complete_runtime_job(
-            &store,
-            crate::RuntimeSpineJobResultOptions {
-                result_id: format!("runtime-result-{job_id}"),
-                job_id: job_id.clone(),
-                completed_at: "2026-08-18T10:00:06Z".into(),
-                verdict: "resume".into(),
-                summary: result.summary.clone(),
-                next_safe_move: result.next_safe_move.clone(),
-                decision_context_id: Some(context.context_id.clone()),
-            },
-        )?;
-        assert!(
-            crate::runtime_job_snapshot(&store, &job_id)?
-                .expect("reorientation job snapshot")
-                .result
-                .is_none(),
-            "typed reorientation decisions must not persist a generic result mirror"
+        assert_eq!(
+            crate::runtime_job(&store, &job_id)?
+                .expect("reorientation runtime job")
+                .status,
+            EpiphanyRuntimeJobStatus::Completed
         );
 
         cache.pull_all_backing_stores()?;
@@ -1131,17 +1108,12 @@ mod tests {
             failed_activation,
             "2026-08-18T10:00:12Z",
         )?;
-        crate::complete_runtime_job(
+        crate::terminalize_runtime_job(
             &store,
-            crate::RuntimeSpineJobResultOptions {
-                result_id: format!("runtime-result-{failed_job}"),
-                job_id: failed_job.clone(),
-                completed_at: "2026-08-18T10:00:14Z".into(),
-                verdict: "failed".into(),
-                summary: "Provider failed after the terminal request was sealed.".into(),
-                next_safe_move: "Review the typed failure, then retry.".into(),
-                decision_context_id: Some(failed_context.context_id.clone()),
-            },
+            &failed_job,
+            EpiphanyRuntimeJobStatus::Failed,
+            "2026-08-18T10:00:14Z",
+            &model_failure.failure_id,
         )?;
         assert_eq!(
             crate::project_current_work(&store)?

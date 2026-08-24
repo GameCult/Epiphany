@@ -55,7 +55,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v44";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v45";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(type = "epiphany.runtime.identity", schema = "EpiphanyRuntimeIdentity")]
@@ -287,9 +287,9 @@ impl EpiphanyArchivedRuntimeWorkerAttempt {
         )?;
         match &decision.role_result {
             Some(result)
-                if fulfilled
-                    && result.job_id == self.job_id
-                    && result.decision_context_id == decision.decision_context_id =>
+                if result.job_id == self.job_id
+                    && result.decision_context_id == decision.decision_context_id
+                    && (fulfilled == result.item_error.is_none()) =>
             {
                 Ok(())
             }
@@ -303,6 +303,36 @@ impl EpiphanyArchivedRuntimeWorkerAttempt {
 
 fn worker_process_claim_id(job_id: &str) -> String {
     format!("runtime-worker-process-{job_id}")
+}
+
+fn worker_outcome_status(
+    item_error: Option<&str>,
+) -> Result<(EpiphanyRuntimeJobStatus, WorkerProcessStatus)> {
+    match item_error {
+        Some(error) if error.trim().is_empty() => {
+            Err(anyhow!("typed worker failure requires a nonempty error"))
+        }
+        Some(_) => Ok((
+            EpiphanyRuntimeJobStatus::Failed,
+            WorkerProcessStatus::TerminalFailure,
+        )),
+        None => Ok((
+            EpiphanyRuntimeJobStatus::Completed,
+            WorkerProcessStatus::TerminalResult,
+        )),
+    }
+}
+
+fn process_status_for_terminal_job(
+    status: &EpiphanyRuntimeJobStatus,
+) -> Result<WorkerProcessStatus> {
+    match status {
+        EpiphanyRuntimeJobStatus::Completed => Ok(WorkerProcessStatus::TerminalResult),
+        EpiphanyRuntimeJobStatus::Failed => Ok(WorkerProcessStatus::TerminalFailure),
+        EpiphanyRuntimeJobStatus::Queued => {
+            Err(anyhow!("runtime job terminal status cannot be queued"))
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -502,28 +532,6 @@ pub struct EpiphanyRuntimeReorientWorkerResult {
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(
-    type = "epiphany.runtime.job_result",
-    schema = "EpiphanyRuntimeJobResult"
-)]
-pub struct EpiphanyRuntimeJobResult {
-    #[cultcache(key = 1)]
-    pub result_id: String,
-    #[cultcache(key = 2)]
-    pub job_id: String,
-    #[cultcache(key = 3)]
-    pub verdict: String,
-    #[cultcache(key = 4)]
-    pub summary: String,
-    #[cultcache(key = 5)]
-    pub completed_at: String,
-    #[cultcache(key = 6, default)]
-    pub next_safe_move: String,
-    #[cultcache(key = 7, default)]
-    pub decision_context_id: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
-#[cultcache(
     type = "epiphany.coordinator_run_receipt.v1",
     schema = "EpiphanyCoordinatorRunReceipt"
 )]
@@ -623,17 +631,6 @@ pub struct RuntimeSpineJobOptions {
     pub session_id: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RuntimeSpineJobResultOptions {
-    pub result_id: String,
-    pub job_id: String,
-    pub completed_at: String,
-    pub verdict: String,
-    pub summary: String,
-    pub next_safe_move: String,
-    pub decision_context_id: Option<String>,
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct RuntimeSpineHeartbeatJobOptions {
     pub runtime_id: String,
@@ -645,12 +642,6 @@ pub struct RuntimeSpineHeartbeatJobOptions {
     pub launch_document: EpiphanyWorkerLaunchDocument,
     pub output_contract_id: String,
     pub created_at: String,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct EpiphanyRuntimeJobSnapshot {
-    pub job: EpiphanyRuntimeJob,
-    pub result: Option<EpiphanyRuntimeJobResult>,
 }
 
 pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
@@ -706,7 +697,6 @@ fn runtime_spine_schema_cache() -> Result<CultCache> {
     cache.register_entry_type::<crate::EpiphanyMindReorientationPassFailureDocument>()?;
     cache.register_entry_type::<RepoFrontierVerificationRequest>()?;
     cache.register_entry_type::<EpiphanyRuntimeReorientWorkerResult>()?;
-    cache.register_entry_type::<EpiphanyRuntimeJobResult>()?;
     cache.register_entry_type::<EpiphanyCoordinatorRunReceipt>()?;
     cache.register_entry_type::<EpiphanyCoordinatorDeathRecovery>()?;
     cache.register_entry_type::<SubstrateGateRepoAccessGrantReceipt>()?;
@@ -1009,21 +999,6 @@ pub fn terminalize_model_pass_failure_session(
         .get::<EpiphanyRuntimeJob>(&binding.job_id)?
         .ok_or_else(|| anyhow!("model pass failure runtime job is absent"))?;
     let model_job_is_live = matches!(model_job.status, EpiphanyRuntimeJobStatus::Queued);
-    let model_job_results = cache
-        .get_all::<EpiphanyRuntimeJobResult>()?
-        .into_iter()
-        .filter(|result| result.job_id == binding.job_id)
-        .collect::<Vec<_>>();
-    if model_job_is_live && !model_job_results.is_empty() {
-        return Err(anyhow!("live model pass job already has a terminal result"));
-    }
-    if !model_job_is_live
-        && (model_job_results.len() != 1 || model_job_results[0].decision_context_id.is_some())
-    {
-        return Err(anyhow!(
-            "terminal model transport job lost its non-authoritative result"
-        ));
-    }
     let session_job_ids = cache
         .get_all::<EpiphanyRuntimeModelExecutionBinding>()?
         .into_iter()
@@ -1054,24 +1029,8 @@ pub fn terminalize_model_pass_failure_session(
     ];
     if model_job_is_live {
         model_job.status = EpiphanyRuntimeJobStatus::Failed;
-        let model_result = EpiphanyRuntimeJobResult {
-            result_id: format!("result-model-pass-failure-{}", failure.failure_id),
-            job_id: binding.job_id.clone(),
-            verdict: "failed".to_string(),
-            summary: options.summary.clone(),
-            completed_at: options.failed_at.clone(),
-            next_safe_move:
-                "Inspect the sealed decision context and typed model-pass failure before retrying."
-                    .to_string(),
-            decision_context_id: None,
-        };
         expected.push(model_job_envelope);
         replacements.push(cache.prepare_entry(&model_job.job_id, &model_job)?.0);
-        replacements.push(
-            cache
-                .prepare_entry(&model_result.result_id, &model_result)?
-                .0,
-        );
     }
     if !runtime_spine_backing_store(store_path)?.compare_and_swap_batch(&expected, replacements)? {
         return terminalize_model_pass_failure_session(store_path, options);
@@ -1698,26 +1657,6 @@ fn archive_completed_model_session(
         .iter()
         .map(|job| job.job_id.clone())
         .collect::<BTreeSet<_>>();
-    let mut job_results = cache
-        .get_all::<EpiphanyRuntimeJobResult>()?
-        .into_iter()
-        .filter(|result| job_ids.contains(&result.job_id))
-        .collect::<Vec<_>>();
-    job_results.sort_by(|left, right| left.result_id.cmp(&right.result_id));
-    if jobs.iter().any(|job| {
-        job_results
-            .iter()
-            .filter(|result| result.job_id == job.job_id)
-            .count()
-            != 1
-    }) || job_results
-        .iter()
-        .any(|result| !job_ids.contains(&result.job_id))
-    {
-        return Err(anyhow!(
-            "runtime session archive requires exactly one terminal result per job"
-        ));
-    }
     if cache
         .get_all::<EpiphanyRuntimeWorkerLaunchRequest>()?
         .iter()
@@ -1921,12 +1860,6 @@ fn archive_completed_model_session(
     ));
     for job in &jobs {
         retired_identities.insert((EpiphanyRuntimeJob::TYPE.to_string(), job.job_id.clone()));
-    }
-    for result in &job_results {
-        retired_identities.insert((
-            EpiphanyRuntimeJobResult::TYPE.to_string(),
-            result.result_id.clone(),
-        ));
     }
     for binding in &model_bindings {
         retired_identities.insert((
@@ -2427,10 +2360,10 @@ fn validate_admitted_model_direction_launch_carrier(
     Ok(())
 }
 
-pub fn runtime_job_snapshot(
+pub fn runtime_job(
     store_path: impl AsRef<Path>,
     job_id: &str,
-) -> Result<Option<EpiphanyRuntimeJobSnapshot>> {
+) -> Result<Option<EpiphanyRuntimeJob>> {
     validate_non_empty(job_id, "job id")?;
     let store_path = store_path.as_ref();
     if !store_path.exists() {
@@ -2438,19 +2371,7 @@ pub fn runtime_job_snapshot(
     }
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
-    let Some(job) = cache.get::<EpiphanyRuntimeJob>(job_id)? else {
-        return Ok(None);
-    };
-    let mut results = cache
-        .get_all::<EpiphanyRuntimeJobResult>()?
-        .into_iter()
-        .filter(|result| result.job_id == job_id)
-        .collect::<Vec<_>>();
-    if results.len() > 1 {
-        return Err(anyhow!("runtime job has multiple terminal results"));
-    }
-    let result = results.pop();
-    Ok(Some(EpiphanyRuntimeJobSnapshot { job, result }))
+    cache.get::<EpiphanyRuntimeJob>(job_id)
 }
 
 pub fn runtime_worker_launch_request(
@@ -3288,56 +3209,13 @@ fn terminal_worker_request_id(cache: &CultCache, worker_job_id: &str) -> Result<
     }
 }
 
-fn complete_persisted_worker_outcome(
-    store_path: &Path,
-    job_id: &str,
-    completed_at: &str,
-) -> Result<Option<EpiphanyRuntimeJobResult>> {
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    let role = cache.get::<EpiphanyRuntimeRoleWorkerResult>(job_id)?;
-    let reorient = cache.get::<EpiphanyRuntimeReorientWorkerResult>(job_id)?;
-    match (role, reorient) {
-        (Some(_), Some(_)) => Err(anyhow!(
-            "worker attempt has both role and reorientation terminal outcomes"
-        )),
-        (Some(result), None) => complete_runtime_job(
-            store_path,
-            RuntimeSpineJobResultOptions {
-                result_id: result.result_id,
-                job_id: job_id.to_string(),
-                completed_at: completed_at.to_string(),
-                verdict: result.verdict,
-                summary: result.summary,
-                next_safe_move: result.next_safe_move,
-                decision_context_id: Some(result.decision_context_id),
-            },
-        )
-        .map(Some),
-        (None, Some(result)) => complete_runtime_job(
-            store_path,
-            RuntimeSpineJobResultOptions {
-                result_id: result.result_id,
-                job_id: job_id.to_string(),
-                completed_at: completed_at.to_string(),
-                verdict: result.mode,
-                summary: result.summary,
-                next_safe_move: result.next_safe_move,
-                decision_context_id: Some(result.decision_context_id),
-            },
-        )
-        .map(Some),
-        (None, None) => Ok(None),
-    }
-}
-
 fn commit_runtime_worker_process_death(
     store_path: impl AsRef<Path>,
     job_id: &str,
     terminal_authority_id: &str,
     terminal_at: &str,
     decision_context_id: Option<&str>,
-) -> Result<EpiphanyRuntimeJobResult> {
+) -> Result<EpiphanyRuntimeJob> {
     let store_path = store_path.as_ref();
     validate_non_empty(terminal_authority_id, "worker death terminal authority")?;
     chrono::DateTime::parse_from_rfc3339(terminal_at)
@@ -3352,22 +3230,15 @@ fn commit_runtime_worker_process_death(
     if status == WorkerProcessStatus::TerminalDeath
         && current.terminal_authority_id.as_deref() == Some(terminal_authority_id)
     {
-        let result_id = format!("result-worker-death-{job_id}");
-        let result = cache
-            .get::<EpiphanyRuntimeJobResult>(&result_id)?
-            .ok_or_else(|| anyhow!("worker death claim lost its terminal job result"))?;
         let job = cache
             .get::<EpiphanyRuntimeJob>(job_id)?
             .ok_or_else(|| anyhow!("worker death claim lost its runtime job"))?;
-        if job.status != EpiphanyRuntimeJobStatus::Failed
-            || result.job_id != job_id
-            || result.decision_context_id.as_deref() != decision_context_id
-        {
+        if job.status != EpiphanyRuntimeJobStatus::Failed {
             return Err(anyhow!(
                 "worker death replay found split terminal authority"
             ));
         }
-        return Ok(result);
+        return Ok(job);
     }
     if !status.is_live() {
         return Err(anyhow!(
@@ -3391,14 +3262,6 @@ fn commit_runtime_worker_process_death(
             "worker death recovery found a terminal runtime job"
         ));
     }
-    let existing_results = cache
-        .get_all::<EpiphanyRuntimeJobResult>()?
-        .into_iter()
-        .filter(|result| result.job_id == job_id)
-        .collect::<Vec<_>>();
-    if !existing_results.is_empty() {
-        return Err(anyhow!("live worker death recovery found a job result"));
-    }
     let job_envelope = cache
         .get_envelope::<EpiphanyRuntimeJob>(job_id)?
         .ok_or_else(|| anyhow!("worker death recovery lost its job envelope"))?;
@@ -3409,23 +3272,7 @@ fn commit_runtime_worker_process_death(
     next.status = WorkerProcessStatus::TerminalDeath.as_str().into();
     next.terminal_at = Some(terminal_at.into());
     next.terminal_authority_id = Some(terminal_authority_id.into());
-    let summary = "Runtime Continuity proved the exact worker process terminal before a structured outcome was admitted.".to_string();
     job.status = EpiphanyRuntimeJobStatus::Failed;
-    let result = EpiphanyRuntimeJobResult {
-        result_id: format!("result-worker-death-{job_id}"),
-        job_id: job_id.to_string(),
-        verdict: "failed".to_string(),
-        summary: summary.clone(),
-        completed_at: terminal_at.to_string(),
-        next_safe_move: "Derive a fresh attempt from current typed work; never rebase the abandoned model output.".to_string(),
-        decision_context_id: decision_context_id.map(str::to_string),
-    };
-    if cache
-        .get::<EpiphanyRuntimeJobResult>(&result.result_id)?
-        .is_some()
-    {
-        return Err(anyhow!("worker death terminal identities already exist"));
-    }
     let mut expected = vec![current_envelope, job_envelope];
     let mut unchanged_strong_reads = Vec::new();
     if let Some(context_id) = decision_context_id {
@@ -3469,7 +3316,6 @@ fn commit_runtime_worker_process_death(
     let mut writes = vec![
         cache.prepare_entry(&claim_id, &next)?.0,
         cache.prepare_entry(job_id, &job)?.0,
-        cache.prepare_entry(&result.result_id, &result)?.0,
     ];
     writes.extend(unchanged_strong_reads);
     if !SingleFileMessagePackBackingStore::new(store_path)
@@ -3483,7 +3329,7 @@ fn commit_runtime_worker_process_death(
             decision_context_id,
         );
     }
-    Ok(result)
+    Ok(job)
 }
 
 pub(crate) fn terminalize_dead_runtime_worker_attempt(
@@ -3491,13 +3337,44 @@ pub(crate) fn terminalize_dead_runtime_worker_attempt(
     job_id: &str,
     terminal_authority_id: &str,
     terminal_at: &str,
-) -> Result<EpiphanyRuntimeJobResult> {
+) -> Result<EpiphanyRuntimeJob> {
     let store_path = store_path.as_ref();
-    if let Some(result) = complete_persisted_worker_outcome(store_path, job_id, terminal_at)? {
-        return Ok(result);
-    }
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
+    let role = cache.get::<EpiphanyRuntimeRoleWorkerResult>(job_id)?;
+    let reorient = cache.get::<EpiphanyRuntimeReorientWorkerResult>(job_id)?;
+    if role.is_some() && reorient.is_some() {
+        return Err(anyhow!(
+            "worker attempt has both role and reorientation terminal outcomes"
+        ));
+    }
+    if role.is_some() || reorient.is_some() {
+        let job = cache
+            .get::<EpiphanyRuntimeJob>(job_id)?
+            .ok_or_else(|| anyhow!("structured worker outcome lost its runtime job"))?;
+        let claim = cache
+            .get::<EpiphanyRuntimeWorkerProcessClaim>(&worker_process_claim_id(job_id))?
+            .ok_or_else(|| anyhow!("structured worker outcome lost its process claim"))?;
+        let result = role
+            .as_ref()
+            .map(|result| (&result.result_id, result.item_error.as_deref()))
+            .or_else(|| {
+                reorient
+                    .as_ref()
+                    .map(|result| (&result.result_id, result.item_error.as_deref()))
+            })
+            .expect("one structured outcome checked above");
+        let (expected_job_status, expected_process_status) = worker_outcome_status(result.1)?;
+        if job.status != expected_job_status
+            || WorkerProcessStatus::parse(&claim.status)? != expected_process_status
+            || claim.terminal_authority_id.as_deref() != Some(result.0.as_str())
+        {
+            return Err(anyhow!(
+                "structured worker outcome did not atomically terminalize its physiology"
+            ));
+        }
+        return Ok(job);
+    }
     let terminal_request_id = terminal_worker_request_id(&cache, job_id)?;
     drop(cache);
     let decision_context_id = if let Some(request_id) = terminal_request_id {
@@ -3557,15 +3434,9 @@ pub fn put_runtime_role_worker_result(
             "role worker result cannot substitute its sealed launch role"
         ));
     }
-    let is_failure = match result.item_error.as_deref() {
-        Some(error) if error.trim().is_empty() => {
-            return Err(anyhow!(
-                "typed role worker failure requires a nonempty error"
-            ));
-        }
-        Some(_) => true,
-        None => false,
-    };
+    let (terminal_job_status, terminal_process_status) =
+        worker_outcome_status(result.item_error.as_deref())?;
+    let is_failure = terminal_job_status == EpiphanyRuntimeJobStatus::Failed;
     let carries_semantic_success = result.research_decision_msgpack.is_some()
         || result.repo_model_mutation_proposal_msgpack.is_some()
         || result.frontier_plan_candidate_msgpack.is_some()
@@ -3907,14 +3778,22 @@ pub fn put_runtime_role_worker_result(
     }
     let process_claim_id = worker_process_claim_id(&result.job_id);
     let process_claim = cache.get::<EpiphanyRuntimeWorkerProcessClaim>(&process_claim_id)?;
+    let mut job = cache
+        .get::<EpiphanyRuntimeJob>(&result.job_id)?
+        .ok_or_else(|| anyhow!("role worker result requires its runtime job"))?;
     if let Some(existing) = cache.get::<EpiphanyRuntimeRoleWorkerResult>(&result.job_id)? {
         if existing != *result {
             return Err(anyhow!(
                 "role worker result is immutable for its runtime job"
             ));
         }
+        if job.status != terminal_job_status {
+            return Err(anyhow!(
+                "role worker result is not terminal authority for its runtime job"
+            ));
+        }
         if let Some(claim) = process_claim.as_ref()
-            && (!crate::WorkerProcessStatus::parse(&claim.status)?.is_fulfilled_terminal()
+            && (crate::WorkerProcessStatus::parse(&claim.status)? != terminal_process_status
                 || claim.terminal_authority_id.as_deref() != Some(result.result_id.as_str()))
         {
             return Err(anyhow!(
@@ -3945,9 +3824,18 @@ pub fn put_runtime_role_worker_result(
         }
         return Ok(());
     }
+    if job.status != EpiphanyRuntimeJobStatus::Queued {
+        return Err(anyhow!(
+            "role worker result requires its queued runtime job"
+        ));
+    }
+    let job_envelope = cache
+        .get_envelope::<EpiphanyRuntimeJob>(&result.job_id)?
+        .ok_or_else(|| anyhow!("role worker result lost its job envelope"))?;
+    job.status = terminal_job_status.clone();
     let (envelope, _) = cache.prepare_entry(&result.job_id, result)?;
-    let mut writes = vec![envelope];
-    let mut expected = Vec::new();
+    let mut writes = vec![envelope, cache.prepare_entry(&result.job_id, &job)?.0];
+    let mut expected = vec![job_envelope];
     if let Some(claim) = process_claim.as_ref() {
         if crate::WorkerProcessStatus::parse(&claim.status)? != crate::WorkerProcessStatus::Active {
             return Err(anyhow!(
@@ -3958,7 +3846,7 @@ pub fn put_runtime_role_worker_result(
             .get_envelope::<EpiphanyRuntimeWorkerProcessClaim>(&process_claim_id)?
             .ok_or_else(|| anyhow!("role worker result lost its process claim envelope"))?;
         let mut terminal_claim = claim.clone();
-        terminal_claim.status = crate::WorkerProcessStatus::TerminalResult.as_str().into();
+        terminal_claim.status = terminal_process_status.as_str().into();
         terminal_claim.terminal_at = Some(chrono::Utc::now().to_rfc3339());
         terminal_claim.terminal_authority_id = Some(result.result_id.clone());
         expected.push(current_envelope);
@@ -4014,12 +3902,16 @@ pub fn put_runtime_role_worker_result(
             .get::<EpiphanyRuntimeWorkerProcessClaim>(&process_claim_id)?
             .is_some_and(|claim| {
                 crate::WorkerProcessStatus::parse(&claim.status)
-                    .is_ok_and(|status| status.is_fulfilled_terminal())
+                    .is_ok_and(|status| status == terminal_process_status)
                     && claim.terminal_authority_id.as_deref() == Some(result.result_id.as_str())
             }),
         None => true,
     };
+    let job_matches = reloaded
+        .get::<EpiphanyRuntimeJob>(&result.job_id)?
+        .is_some_and(|job| job.status == terminal_job_status);
     if worker_matches
+        && job_matches
         && model_direction_companion_matches
         && imagination_candidate_companion_matches
         && claim_matches
@@ -6067,7 +5959,6 @@ pub(crate) fn runtime_repo_frontier_research_lifecycle(
     require_identity(&cache)?;
     let launches = cache.get_all::<EpiphanyRuntimeWorkerLaunchRequest>()?;
     let jobs = cache.get_all::<EpiphanyRuntimeJob>()?;
-    let job_results = cache.get_all::<EpiphanyRuntimeJobResult>()?;
     let role_results = cache.get_all::<EpiphanyRuntimeRoleWorkerResult>()?;
     let (view, _basis) = current_keyed_repo_model(&cache)?;
     let model = view.memory_context_projection();
@@ -6165,13 +6056,23 @@ pub(crate) fn runtime_repo_frontier_research_lifecycle(
                 }
             }
             EpiphanyRuntimeJobStatus::Failed => {
-                let terminal = job_results
-                    .iter()
-                    .filter(|result| result.job_id == job.job_id)
-                    .count();
-                if terminal != 1 {
+                let claim = cache
+                    .get::<EpiphanyRuntimeWorkerProcessClaim>(&worker_process_claim_id(
+                        &job.job_id,
+                    ))?
+                    .ok_or_else(|| {
+                        anyhow!("failed frontier Research attempt lost its process claim")
+                    })?;
+                let claim_status = WorkerProcessStatus::parse(&claim.status)?;
+                if !matches!(
+                    claim_status,
+                    WorkerProcessStatus::TerminalResult
+                        | WorkerProcessStatus::TerminalFailure
+                        | WorkerProcessStatus::TerminalDeath
+                ) || claim.terminal_authority_id.is_none()
+                {
                     return Err(anyhow!(
-                        "failed frontier Research attempt lost its exact terminal result"
+                        "failed frontier Research attempt lost its exact terminal authority"
                     ));
                 }
             }
@@ -6733,6 +6634,7 @@ pub fn put_runtime_reorient_worker_result(
     store_path: impl AsRef<Path>,
     result: &EpiphanyRuntimeReorientWorkerResult,
 ) -> Result<()> {
+    let store_path = store_path.as_ref();
     validate_non_empty(&result.job_id, "reorient worker result job id")?;
     validate_non_empty(&result.result_id, "reorient worker result id")?;
     validate_non_empty(&result.mode, "reorient worker result mode")?;
@@ -6743,8 +6645,91 @@ pub fn put_runtime_reorient_worker_result(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_worker_decision_context(&cache, &result.decision_context_id, &result.job_id)?;
-    cache.put(&result.job_id, result)?;
-    Ok(())
+    let launch = cache
+        .get::<EpiphanyRuntimeWorkerLaunchRequest>(&result.job_id)?
+        .ok_or_else(|| anyhow!("reorientation result requires its immutable launch"))?;
+    if !matches!(
+        launch.launch_document()?,
+        EpiphanyWorkerLaunchDocument::Reorient(_)
+    ) {
+        return Err(anyhow!("reorientation result crossed a role launch"));
+    }
+    let (terminal_job_status, terminal_process_status) =
+        worker_outcome_status(result.item_error.as_deref())?;
+    let mut job = cache
+        .get::<EpiphanyRuntimeJob>(&result.job_id)?
+        .ok_or_else(|| anyhow!("reorientation result requires its runtime job"))?;
+    let claim_id = worker_process_claim_id(&result.job_id);
+    let claim = cache.get::<EpiphanyRuntimeWorkerProcessClaim>(&claim_id)?;
+    if let Some(existing) = cache.get::<EpiphanyRuntimeReorientWorkerResult>(&result.job_id)? {
+        if existing != *result
+            || job.status != terminal_job_status
+            || claim.as_ref().is_some_and(|claim| {
+                WorkerProcessStatus::parse(&claim.status).ok() != Some(terminal_process_status)
+                    || claim.terminal_authority_id.as_deref() != Some(result.result_id.as_str())
+            })
+        {
+            return Err(anyhow!("reorientation result replay was substituted"));
+        }
+        return Ok(());
+    }
+    if job.status != EpiphanyRuntimeJobStatus::Queued {
+        return Err(anyhow!(
+            "reorientation result requires its queued runtime job"
+        ));
+    }
+    let job_envelope = cache
+        .get_envelope::<EpiphanyRuntimeJob>(&result.job_id)?
+        .ok_or_else(|| anyhow!("reorientation result lost its job envelope"))?;
+    job.status = terminal_job_status.clone();
+    let mut expected = vec![job_envelope];
+    let mut writes = vec![
+        cache.prepare_entry(&result.job_id, result)?.0,
+        cache.prepare_entry(&result.job_id, &job)?.0,
+    ];
+    if let Some(claim) = claim {
+        if WorkerProcessStatus::parse(&claim.status)? != WorkerProcessStatus::Active {
+            return Err(anyhow!(
+                "reorientation result requires its active process claim"
+            ));
+        }
+        let claim_envelope = cache
+            .get_envelope::<EpiphanyRuntimeWorkerProcessClaim>(&claim_id)?
+            .ok_or_else(|| anyhow!("reorientation result lost its claim envelope"))?;
+        let mut terminal = claim;
+        terminal.status = terminal_process_status.as_str().into();
+        terminal.terminal_at = Some(chrono::Utc::now().to_rfc3339());
+        terminal.terminal_authority_id = Some(result.result_id.clone());
+        expected.push(claim_envelope);
+        writes.push(cache.prepare_entry(&claim_id, &terminal)?.0);
+    }
+    if SingleFileMessagePackBackingStore::new(store_path)
+        .compare_and_swap_batch(&expected, writes)?
+    {
+        return Ok(());
+    }
+    let mut reloaded = runtime_spine_cache(store_path)?;
+    reloaded.pull_all_backing_stores()?;
+    if reloaded
+        .get::<EpiphanyRuntimeReorientWorkerResult>(&result.job_id)?
+        .is_some_and(|existing| existing == *result)
+        && reloaded
+            .get::<EpiphanyRuntimeJob>(&result.job_id)?
+            .is_some_and(|job| job.status == terminal_job_status)
+        && reloaded
+            .get::<EpiphanyRuntimeWorkerProcessClaim>(&claim_id)?
+            .is_none_or(|claim| {
+                WorkerProcessStatus::parse(&claim.status)
+                    .is_ok_and(|status| status == terminal_process_status)
+                    && claim.terminal_authority_id.as_deref() == Some(result.result_id.as_str())
+            })
+    {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "reorientation result lost immutable insertion to a different outcome"
+        ))
+    }
 }
 
 fn require_worker_decision_context(
@@ -6767,7 +6752,7 @@ fn require_worker_decision_context(
     Ok(())
 }
 
-pub(crate) fn runtime_reorient_worker_result(
+pub fn runtime_reorient_worker_result(
     store_path: impl AsRef<Path>,
     job_id: &str,
 ) -> Result<Option<EpiphanyRuntimeReorientWorkerResult>> {
@@ -8089,9 +8074,17 @@ fn archive_runtime_worker_attempt(
         ));
     }
     let role_result = cache.get::<EpiphanyRuntimeRoleWorkerResult>(job_id)?;
-    if fulfilled != role_result.is_some() {
+    if fulfilled && role_result.is_none() {
         return Err(anyhow!(
             "worker attempt archive terminal result shape disagrees with requested archive kind"
+        ));
+    }
+    if role_result
+        .as_ref()
+        .is_some_and(|result| fulfilled == result.item_error.is_some())
+    {
+        return Err(anyhow!(
+            "worker attempt archive structured result disagrees with process terminality"
         ));
     }
     let claim_id = worker_process_claim_id(job_id);
@@ -8167,21 +8160,14 @@ fn archive_runtime_worker_attempt(
         }
     }
     let snapshot = cache.snapshot_envelopes();
-    let worker_job_results = cache
-        .get_all::<EpiphanyRuntimeJobResult>()?
-        .into_iter()
-        .filter(|item| item.job_id == job_id)
-        .collect::<Vec<_>>();
-    let job_results = worker_job_results
-        .iter()
-        .map(|item| item.result_id.clone())
-        .collect::<BTreeSet<_>>();
     let role_decision_context_id = role_result
         .as_ref()
         .map(|result| result.decision_context_id.clone());
-    let mut decision_context_ids = worker_job_results
+    let mut decision_context_ids = cache
+        .get_all::<crate::EpiphanyModelPassFailure>()?
         .iter()
-        .filter_map(|result| result.decision_context_id.clone())
+        .filter(|failure| failure.pass_id == job_id)
+        .map(|failure| failure.decision_context_id.clone())
         .chain(role_decision_context_id)
         .collect::<BTreeSet<_>>();
     if decision_context_ids.len() > 1 {
@@ -8208,12 +8194,8 @@ fn archive_runtime_worker_attempt(
             (entry.r#type == EpiphanyRuntimeWorkerLaunchRequest::TYPE && entry.key == job_id)
                 || (entry.r#type == EpiphanyRuntimeWorkerProcessClaim::TYPE
                     && entry.key == claim_id)
-                || (entry.r#type == EpiphanyRuntimeRoleWorkerResult::TYPE
-                    && fulfilled
-                    && entry.key == job_id)
+                || (entry.r#type == EpiphanyRuntimeRoleWorkerResult::TYPE && entry.key == job_id)
                 || (entry.r#type == EpiphanyRuntimeJob::TYPE && entry.key == job_id)
-                || (entry.r#type == EpiphanyRuntimeJobResult::TYPE
-                    && job_results.contains(&entry.key))
         })
         .cloned()
         .collect::<Vec<_>>();
@@ -8689,135 +8671,86 @@ pub fn coordinator_run_receipts(
     cache.get_all::<EpiphanyCoordinatorRunReceipt>()
 }
 
-pub fn complete_runtime_job(
+pub fn terminalize_runtime_job(
     store_path: impl AsRef<Path>,
-    options: RuntimeSpineJobResultOptions,
-) -> Result<EpiphanyRuntimeJobResult> {
-    validate_non_empty(&options.result_id, "result id")?;
-    validate_non_empty(&options.job_id, "job id")?;
-    validate_non_empty(&options.completed_at, "completed at")?;
-    validate_non_empty(&options.verdict, "verdict")?;
-    validate_non_empty(&options.summary, "summary")?;
-    let mut cache = runtime_spine_cache(store_path.as_ref())?;
+    job_id: &str,
+    status: EpiphanyRuntimeJobStatus,
+    terminal_at: &str,
+    terminal_authority_id: &str,
+) -> Result<EpiphanyRuntimeJob> {
+    validate_non_empty(job_id, "job id")?;
+    validate_non_empty(terminal_authority_id, "terminal authority id")?;
+    chrono::DateTime::parse_from_rfc3339(terminal_at)
+        .map_err(|error| anyhow!("runtime job terminal time is invalid: {error}"))?;
+    if status == EpiphanyRuntimeJobStatus::Queued {
+        return Err(anyhow!("runtime job terminal status cannot be queued"));
+    }
+    let store_path = store_path.as_ref();
+    let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
-    let mut job = cache
-        .get::<EpiphanyRuntimeJob>(&options.job_id)?
-        .ok_or_else(|| anyhow!("runtime job {:?} does not exist", options.job_id))?;
-    if matches!(
-        job.status,
-        EpiphanyRuntimeJobStatus::Completed | EpiphanyRuntimeJobStatus::Failed
-    ) {
-        return Err(anyhow!(
-            "runtime job {:?} is already terminal",
-            options.job_id
-        ));
-    }
     if cache
-        .get::<EpiphanyRuntimeJobResult>(&options.result_id)?
+        .get::<EpiphanyRuntimeRoleWorkerResult>(job_id)?
         .is_some()
+        || cache
+            .get::<EpiphanyRuntimeReorientWorkerResult>(job_id)?
+            .is_some()
     {
         return Err(anyhow!(
-            "runtime job result {:?} already exists",
-            options.result_id
+            "structured worker outcomes terminalize their own runtime job"
         ));
     }
-    let snapshot = cache.snapshot_envelopes();
-    let job_envelope = snapshot
-        .iter()
-        .find(|entry| entry.r#type == EpiphanyRuntimeJob::TYPE && entry.key == options.job_id)
-        .cloned()
+    let mut job = cache
+        .get::<EpiphanyRuntimeJob>(job_id)?
+        .ok_or_else(|| anyhow!("runtime job {job_id:?} does not exist"))?;
+    let claim_id = worker_process_claim_id(job_id);
+    let claim = cache.get::<EpiphanyRuntimeWorkerProcessClaim>(&claim_id)?;
+    if job.status != EpiphanyRuntimeJobStatus::Queued {
+        if job.status != status {
+            return Err(anyhow!("runtime job terminal status was substituted"));
+        }
+        if let Some(claim) = claim {
+            let expected_claim_status = process_status_for_terminal_job(&status)?;
+            if WorkerProcessStatus::parse(&claim.status)? != expected_claim_status
+                || claim.terminal_authority_id.as_deref() != Some(terminal_authority_id)
+            {
+                return Err(anyhow!("runtime job replay crossed its process authority"));
+            }
+        }
+        return Ok(job);
+    }
+    let job_envelope = cache
+        .get_envelope::<EpiphanyRuntimeJob>(job_id)?
         .ok_or_else(|| anyhow!("runtime job lost its exact envelope"))?;
-    let terminal_status = terminal_status_for_verdict(&options.verdict);
-    job.status = terminal_status;
-    let result = EpiphanyRuntimeJobResult {
-        result_id: options.result_id.clone(),
-        job_id: options.job_id.clone(),
-        verdict: options.verdict,
-        summary: options.summary,
-        completed_at: options.completed_at.clone(),
-        next_safe_move: options.next_safe_move,
-        decision_context_id: options.decision_context_id,
-    };
-    let role = cache.get::<EpiphanyRuntimeRoleWorkerResult>(&result.job_id)?;
-    let reorient = cache.get::<EpiphanyRuntimeReorientWorkerResult>(&result.job_id)?;
-    let (structured_result_id, structured_result_envelope) = match (&role, &reorient) {
-        (Some(_), Some(_)) => {
+    job.status = status.clone();
+    let mut expected = vec![job_envelope];
+    let mut writes = vec![cache.prepare_entry(job_id, &job)?.0];
+    if let Some(claim) = claim {
+        if WorkerProcessStatus::parse(&claim.status)? != WorkerProcessStatus::Active {
             return Err(anyhow!(
-                "runtime worker job has both role and reorientation terminal outcomes"
+                "runtime worker job cannot terminalize without its active process claim"
             ));
         }
-        (Some(result), None) => (
-            Some(result.result_id.clone()),
-            Some(
-                cache
-                    .get_envelope::<EpiphanyRuntimeRoleWorkerResult>(&result.job_id)?
-                    .ok_or_else(|| anyhow!("runtime worker completion lost its role result"))?,
-            ),
-        ),
-        (None, Some(result)) => (
-            Some(result.result_id.clone()),
-            Some(
-                cache
-                    .get_envelope::<EpiphanyRuntimeReorientWorkerResult>(&result.job_id)?
-                    .ok_or_else(|| anyhow!("runtime worker completion lost its reorient result"))?,
-            ),
-        ),
-        (None, None) => (None, None),
-    };
-    let mut expected = vec![job_envelope];
-    let mut writes = vec![cache.prepare_entry(&job.job_id, &job)?.0];
-    if let Some(envelope) = structured_result_envelope {
-        expected.push(envelope.clone());
-        writes.push(envelope);
+        let claim_envelope = cache
+            .get_envelope::<EpiphanyRuntimeWorkerProcessClaim>(&claim_id)?
+            .ok_or_else(|| anyhow!("runtime worker terminality lost its claim envelope"))?;
+        let mut terminal = claim;
+        terminal.status = process_status_for_terminal_job(&status)?.as_str().into();
+        terminal.terminal_at = Some(terminal_at.to_string());
+        terminal.terminal_authority_id = Some(terminal_authority_id.to_string());
+        expected.push(claim_envelope);
+        writes.push(cache.prepare_entry(&claim_id, &terminal)?.0);
     }
-    if structured_result_id.is_none() {
-        writes.push(cache.prepare_entry(&result.result_id, &result)?.0);
+    if runtime_spine_backing_store(store_path)?.compare_and_swap_batch(&expected, writes)? {
+        return Ok(job);
     }
-    let claim_id = worker_process_claim_id(&result.job_id);
-    if let Some(claim) = cache.get::<EpiphanyRuntimeWorkerProcessClaim>(&claim_id)? {
-        match crate::WorkerProcessStatus::parse(&claim.status)? {
-            crate::WorkerProcessStatus::Active => {
-                let claim_envelope = snapshot
-                    .iter()
-                    .find(|entry| {
-                        entry.r#type == EpiphanyRuntimeWorkerProcessClaim::TYPE
-                            && entry.key == claim_id
-                    })
-                    .cloned()
-                    .ok_or_else(|| anyhow!("runtime worker completion lost its claim envelope"))?;
-                let mut terminal = claim;
-                if let Some(terminal_result_id) = structured_result_id {
-                    terminal.status = crate::WorkerProcessStatus::TerminalResult.as_str().into();
-                    terminal.terminal_authority_id = Some(terminal_result_id);
-                } else {
-                    terminal.status = crate::WorkerProcessStatus::TerminalFailure.as_str().into();
-                    terminal.terminal_authority_id = Some(result.result_id.clone());
-                }
-                terminal.terminal_at = Some(result.completed_at.clone());
-                expected.push(claim_envelope);
-                writes.push(cache.prepare_entry(&claim_id, &terminal)?.0);
-            }
-            crate::WorkerProcessStatus::TerminalResult => {}
-            crate::WorkerProcessStatus::Claimed => {
-                return Err(anyhow!(
-                    "runtime worker job cannot complete before activation"
-                ));
-            }
-            status => {
-                return Err(anyhow!(
-                    "runtime worker job completion found process status {:?}",
-                    status.as_str()
-                ));
-            }
-        }
-    }
-    if !runtime_spine_backing_store(store_path.as_ref())?
-        .compare_and_swap_batch(&expected, writes)?
-    {
-        return Err(anyhow!("runtime job completion lost its exact snapshot"));
-    }
-    Ok(result)
+    terminalize_runtime_job(
+        store_path,
+        job_id,
+        status,
+        terminal_at,
+        terminal_authority_id,
+    )
 }
 
 pub fn runtime_identity(store_path: impl AsRef<Path>) -> Result<Option<EpiphanyRuntimeIdentity>> {
@@ -8891,17 +8824,6 @@ where
         .transpose()
 }
 
-fn terminal_status_for_verdict(verdict: &str) -> EpiphanyRuntimeJobStatus {
-    if matches!(
-        verdict,
-        "failed" | "fail" | "error" | "blocked" | "cancelled" | "canceled"
-    ) {
-        EpiphanyRuntimeJobStatus::Failed
-    } else {
-        EpiphanyRuntimeJobStatus::Completed
-    }
-}
-
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -8934,6 +8856,26 @@ pub(crate) mod tests {
         }
         let body_store = store.with_extension(format!("{workspace_id}.body.cc"));
         crate::bind_repository_body(&repo, &body_store, store, workspace_id)?;
+        Ok(())
+    }
+
+    #[test]
+    fn structured_worker_failure_cannot_claim_fulfillment() -> Result<()> {
+        assert_eq!(
+            worker_outcome_status(None)?,
+            (
+                EpiphanyRuntimeJobStatus::Completed,
+                WorkerProcessStatus::TerminalResult,
+            )
+        );
+        assert_eq!(
+            worker_outcome_status(Some("provider refused"))?,
+            (
+                EpiphanyRuntimeJobStatus::Failed,
+                WorkerProcessStatus::TerminalFailure,
+            )
+        );
+        assert!(worker_outcome_status(Some(" ")).is_err());
         Ok(())
     }
 

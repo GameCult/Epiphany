@@ -603,17 +603,12 @@ mod tests {
                 "interpreter" => r#"{"schemaVersion":"epiphany.persona_interpreter_effect_set.v0","effects":[{"kind":"say","channel_id":"aquarium","reply_to_message_id":"m1","content":"The native conversational nerve is being connected, and I can show the receipts.","speech_act":"status","register":"concise","target_audience":"the addressed Discord room","safety_notes":[]}]}"#.to_string(),
                 _ => unreachable!(),
                 };
-                epiphany_core::complete_runtime_job(
+                epiphany_core::terminalize_runtime_job(
                     store_path,
-                    epiphany_core::RuntimeSpineJobResultOptions {
-                        result_id: format!("persona-{stage}-{turn_id}-transport-result"),
-                        job_id: format!("persona-{stage}-{turn_id}"),
-                        completed_at: "2026-08-14T00:00:01Z".into(),
-                        verdict: "completed".into(),
-                        summary: format!("Persona {stage} test transport completed"),
-                        next_safe_move: "Seal the stage decision context".into(),
-                        decision_context_id: None,
-                    },
+                    &format!("persona-{stage}-{turn_id}"),
+                    epiphany_core::EpiphanyRuntimeJobStatus::Completed,
+                    "2026-08-14T00:00:01Z",
+                    &request.request_id,
                 )?;
                 Ok(output)
             })

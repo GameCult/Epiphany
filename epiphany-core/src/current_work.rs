@@ -3689,14 +3689,15 @@ mod tests {
         );
         let mut death_cache = crate::runtime_spine_cache(&store)?;
         death_cache.pull_all_backing_stores()?;
-        let death = death_cache
-            .get::<crate::EpiphanyRuntimeJobResult>(&format!("result-worker-death-{scheduled}"))?
-            .expect("worker death emits its terminal runtime result");
-        assert_eq!(death.verdict, "failed");
-        let death_context = death
-            .decision_context_id
-            .as_deref()
-            .expect("model-backed death preserves its decision context");
+        let death_failures = death_cache
+            .get_all::<crate::EpiphanyModelPassFailure>()?
+            .into_iter()
+            .filter(|failure| failure.pass_id == scheduled)
+            .collect::<Vec<_>>();
+        let [death_failure] = death_failures.as_slice() else {
+            panic!("worker death emits one typed model-pass failure")
+        };
+        let death_context = death_failure.decision_context_id.as_str();
         assert!(crate::audit_decision_context(&store, death_context).is_ok());
         assert_eq!(
             crate::runtime_worker_process_claim(&store, &failed_launch.job_id)?
@@ -3924,18 +3925,6 @@ mod tests {
             decision_context_id: direction_context.context_id.clone(),
         };
         crate::put_runtime_role_worker_result(&store, &direction_worker_result)?;
-        crate::complete_runtime_job(
-            &store,
-            crate::RuntimeSpineJobResultOptions {
-                result_id: "direction-runtime-result".into(),
-                job_id: direction_job_id,
-                completed_at: "2026-08-17T00:00:05.500Z".into(),
-                verdict: "suggest".into(),
-                summary: direction_result.summary,
-                next_safe_move: "Promote through the exact proposal owner.".into(),
-                decision_context_id: Some(direction_context.context_id),
-            },
-        )?;
         let mut promoted = crate::promote_autonomous_direction_options_for_modeling(
             &store,
             "GameCult/Epiphany",
@@ -4014,17 +4003,12 @@ mod tests {
             )
             .is_err()
         );
-        crate::complete_runtime_job(
+        crate::terminalize_runtime_job(
             &store,
-            crate::RuntimeSpineJobResultOptions {
-                result_id: format!("runtime-result-failed-{proposal_job_id}"),
-                job_id: proposal_job_id.clone(),
-                completed_at: "2026-08-17T00:00:09.100Z".into(),
-                verdict: "failed".into(),
-                summary: "provider returned no terminal decision".into(),
-                next_safe_move: "retry from the same exact obligation".into(),
-                decision_context_id: None,
-            },
+            &proposal_job_id,
+            crate::EpiphanyRuntimeJobStatus::Failed,
+            "2026-08-17T00:00:09.100Z",
+            &format!("worker-runtime-failure-{proposal_job_id}"),
         )?;
         let proposal_retry_projection = project_current_work(&store)?;
         assert_eq!(
@@ -4190,18 +4174,6 @@ mod tests {
             "2026-08-17T00:00:11Z",
         )?;
         crate::put_runtime_role_worker_result(&store, &proposal_result)?;
-        crate::complete_runtime_job(
-            &store,
-            crate::RuntimeSpineJobResultOptions {
-                result_id: format!("runtime-result-{proposal_job_id}"),
-                job_id: proposal_job_id.clone(),
-                completed_at: "2026-08-17T00:00:12Z".into(),
-                verdict: proposal_result.verdict.clone(),
-                summary: proposal_result.summary.clone(),
-                next_safe_move: proposal_result.next_safe_move.clone(),
-                decision_context_id: Some(proposal_context.context_id.clone()),
-            },
-        )?;
         assert_eq!(
             crate::runtime_worker_process_claim(&store, &proposal_job_id)?
                 .expect("structured Modeling result terminalizes its process claim")
@@ -4341,18 +4313,6 @@ mod tests {
             "2026-08-17T00:00:13.300Z",
         )?;
         crate::put_runtime_role_worker_result(&store, &proposal_result)?;
-        crate::complete_runtime_job(
-            &store,
-            crate::RuntimeSpineJobResultOptions {
-                result_id: format!("runtime-result-{proposal_job_id}"),
-                job_id: proposal_job_id.clone(),
-                completed_at: "2026-08-17T00:00:13.400Z".into(),
-                verdict: proposal_result.verdict.clone(),
-                summary: proposal_result.summary.clone(),
-                next_safe_move: proposal_result.next_safe_move.clone(),
-                decision_context_id: Some(retry_context.context_id),
-            },
-        )?;
         assert_eq!(
             project_current_work(&store)?
                 .proposal_modeling
@@ -4680,18 +4640,6 @@ mod tests {
             decision_context_id: verification_context.context_id.clone(),
         };
         crate::put_runtime_role_worker_result(&store, &verification_result)?;
-        crate::complete_runtime_job(
-            &store,
-            crate::RuntimeSpineJobResultOptions {
-                result_id: format!("runtime-result-{verification_job_id}"),
-                job_id: verification_job_id.clone(),
-                completed_at: "2026-08-17T00:00:15Z".into(),
-                verdict: verification_result.verdict.clone(),
-                summary: verification_result.summary.clone(),
-                next_safe_move: verification_result.next_safe_move.clone(),
-                decision_context_id: Some(verification_context.context_id.clone()),
-            },
-        )?;
         assert_eq!(
             project_current_work(&store)?
                 .verification
@@ -5034,18 +4982,6 @@ mod tests {
             "2026-08-17T00:00:19Z",
         )?;
         crate::put_runtime_role_worker_result(&store, &verdict_result)?;
-        crate::complete_runtime_job(
-            &store,
-            crate::RuntimeSpineJobResultOptions {
-                result_id: format!("runtime-result-{verdict_job_id}"),
-                job_id: verdict_job_id.clone(),
-                completed_at: "2026-08-17T00:00:20Z".into(),
-                verdict: verdict_result.verdict.clone(),
-                summary: verdict_result.summary.clone(),
-                next_safe_move: verdict_result.next_safe_move.clone(),
-                decision_context_id: Some(verdict_context.context_id.clone()),
-            },
-        )?;
         assert_eq!(
             project_current_work(&store)?
                 .frontier_verdict_modeling
@@ -5351,18 +5287,6 @@ mod tests {
             "2026-08-17T00:00:21.950Z",
         )?;
         crate::put_runtime_role_worker_result(&store, &planning_result)?;
-        crate::complete_runtime_job(
-            &store,
-            crate::RuntimeSpineJobResultOptions {
-                result_id: format!("runtime-result-{planning_job}"),
-                job_id: planning_job.clone(),
-                completed_at: "2026-08-17T00:00:22Z".into(),
-                verdict: planning_result.verdict.clone(),
-                summary: planning_result.summary.clone(),
-                next_safe_move: planning_result.next_safe_move.clone(),
-                decision_context_id: Some(planning_context.context_id.clone()),
-            },
-        )?;
         let mind_request = crate::commit_repo_frontier_plan_mind_request(
             &store,
             &planning_result.result_id,
@@ -5469,18 +5393,6 @@ mod tests {
             "2026-08-17T00:00:22.450Z",
         )?;
         crate::put_runtime_role_worker_result(&store, &mind_result)?;
-        crate::complete_runtime_job(
-            &store,
-            crate::RuntimeSpineJobResultOptions {
-                result_id: format!("runtime-result-{mind_job}"),
-                job_id: mind_job.clone(),
-                completed_at: "2026-08-17T00:00:22.500Z".into(),
-                verdict: mind_result.verdict.clone(),
-                summary: mind_result.summary.clone(),
-                next_safe_move: mind_result.next_safe_move.clone(),
-                decision_context_id: Some(mind_context.context_id.clone()),
-            },
-        )?;
         let plan_decision =
             crate::commit_repo_frontier_plan_decision(&store, &mind_result.result_id)?;
         assert_eq!(
@@ -5681,18 +5593,6 @@ mod tests {
             "2026-08-17T00:00:25Z",
         )?;
         crate::put_runtime_role_worker_result(&store, &research_result)?;
-        crate::complete_runtime_job(
-            &store,
-            crate::RuntimeSpineJobResultOptions {
-                result_id: format!("runtime-result-{research_job}"),
-                job_id: research_job.clone(),
-                completed_at: "2026-08-17T00:00:26Z".into(),
-                verdict: research_result.verdict.clone(),
-                summary: research_result.summary.clone(),
-                next_safe_move: research_result.next_safe_move.clone(),
-                decision_context_id: Some(research_context.context_id.clone()),
-            },
-        )?;
         assert_eq!(
             project_current_work(&store)?.research.continuation_action(),
             Some(RepoFrontierResearchContinuationAction::ReviewResearchResult)
@@ -5791,18 +5691,6 @@ mod tests {
             "2026-08-17T00:00:27.100Z",
         )?;
         crate::put_runtime_role_worker_result(&stale_research_store, &research_result)?;
-        crate::complete_runtime_job(
-            &stale_research_store,
-            crate::RuntimeSpineJobResultOptions {
-                result_id: format!("runtime-result-{research_job}"),
-                job_id: research_job.clone(),
-                completed_at: "2026-08-17T00:00:27.200Z".into(),
-                verdict: research_result.verdict.clone(),
-                summary: research_result.summary.clone(),
-                next_safe_move: research_result.next_safe_move.clone(),
-                decision_context_id: Some(research_context.context_id.clone()),
-            },
-        )?;
         assert_eq!(
             crate::runtime_role_worker_result(&stale_research_store, &research_job)?
                 .expect("stale output remains a durable decision")

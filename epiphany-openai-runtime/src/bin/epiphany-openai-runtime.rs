@@ -139,22 +139,19 @@ async fn main() -> Result<()> {
                     )?,
                     Err(_) => {
                         let summary = format!("Worker runtime timed out after {seconds} seconds.");
-                        let result = fail_worker_and_openai_jobs(
+                        fail_worker_and_openai_jobs(
                             &timeout_store,
                             &timeout_job_id,
                             "runtime_timeout",
                             summary.clone(),
-                            "Inspect provider/tool transport before relaunching the worker."
-                                .to_string(),
                             pass_progress.terminal_request_id().as_deref(),
                         )?;
                         json!({
                             "status": "timeout",
                             "jobId": timeout_job_id,
-                            "workerResultId": result.result_id,
-                            "verdict": result.verdict,
+                            "verdict": "failed",
                             "summary": summary,
-                            "nextSafeMove": result.next_safe_move,
+                            "nextSafeMove": "Inspect provider/tool transport before relaunching the worker.",
                         })
                     }
                 }
@@ -301,13 +298,7 @@ fn claim_and_wait_for_worker_activation(options: &RunWorkerCliOptions) -> Result
                     &process,
                     &chrono::Utc::now().to_rfc3339(),
                 )?;
-                fail_worker_job(
-                    &options.store_path,
-                    &options.job_id,
-                    "Worker activation expired before provider/tool work.".into(),
-                    "Runtime Continuity may supersede only from the terminal unactivated process claim."
-                        .into(),
-                )?;
+                fail_worker_job(&options.store_path, &options.job_id)?;
                 return Err(anyhow!(
                     "worker activation gate expired before model/tool work"
                 ));
@@ -368,7 +359,6 @@ fn start_run_worker_timeout_watchdog(
             &job_id,
             "runtime_timeout",
             summary.clone(),
-            "Inspect provider/tool transport before relaunching the worker.".to_string(),
             pass_progress.terminal_request_id().as_deref(),
         );
         process::exit(124);
@@ -381,24 +371,16 @@ fn fail_worker_and_openai_jobs(
     job_id: &str,
     failure_kind: &str,
     summary: String,
-    next_safe_move: String,
     terminal_request_id: Option<&str>,
-) -> Result<epiphany_core::EpiphanyRuntimeJobResult> {
-    let result = if let Some(request_id) = terminal_request_id
+) -> Result<()> {
+    if let Some(request_id) = terminal_request_id
         && persisted_model_request_exists(store_path, request_id)?
     {
-        fail_model_backed_worker_job(
-            store_path,
-            job_id,
-            request_id,
-            failure_kind,
-            summary.clone(),
-            next_safe_move,
-        )?
+        fail_model_backed_worker_job(store_path, job_id, request_id, failure_kind, summary)?;
     } else {
-        fail_worker_job(store_path, job_id, summary.clone(), next_safe_move)?
-    };
-    Ok(result)
+        fail_worker_job(store_path, job_id)?;
+    }
+    Ok(())
 }
 
 fn persisted_model_request_exists(store_path: &Path, request_id: &str) -> Result<bool> {
@@ -414,22 +396,19 @@ fn fail_worker_for_runtime_error(
     terminal_request_id: Option<&str>,
 ) -> Result<serde_json::Value> {
     let summary = format!("Worker runtime failed before producing usable output: {error}");
-    let result = fail_worker_and_openai_jobs(
+    fail_worker_and_openai_jobs(
         store_path,
         job_id,
         "worker_runtime_error",
         summary.clone(),
-        "Inspect provider/tool transport and runtime adapter errors before relaunching the worker."
-            .to_string(),
         terminal_request_id,
     )?;
     Ok(json!({
         "status": "runtime-error",
         "jobId": job_id,
-        "workerResultId": result.result_id,
-        "verdict": result.verdict,
+        "verdict": "failed",
         "summary": summary,
-        "nextSafeMove": result.next_safe_move,
+        "nextSafeMove": "Inspect provider/tool transport and runtime adapter errors before relaunching the worker.",
     }))
 }
 
@@ -580,13 +559,42 @@ async fn run_worker_launch(
 
     let assistant_text =
         assistant_text_from_model_events(&options.store_path, &current_request_id)?;
-    let worker_result = complete_worker_job_from_assistant_text(
+    complete_worker_job_from_assistant_text(
         &options.store_path,
         &launch_request,
         &current_request_id,
         &openai_summary,
         &assistant_text,
     )?;
+    let (worker_result_id, verdict, summary, next_safe_move) =
+        match launch_request.launch_document()? {
+            epiphany_core::EpiphanyWorkerLaunchDocument::Role(_) => {
+                let result = epiphany_core::runtime_role_worker_result(
+                    &options.store_path,
+                    &launch_request.job_id,
+                )?
+                .ok_or_else(|| anyhow!("worker completion lost its typed role result"))?;
+                (
+                    result.result_id,
+                    result.verdict,
+                    result.summary,
+                    result.next_safe_move,
+                )
+            }
+            epiphany_core::EpiphanyWorkerLaunchDocument::Reorient(_) => {
+                let result = epiphany_core::runtime_reorient_worker_result(
+                    &options.store_path,
+                    &launch_request.job_id,
+                )?
+                .ok_or_else(|| anyhow!("worker completion lost its typed reorientation result"))?;
+                (
+                    result.result_id,
+                    result.mode,
+                    result.summary,
+                    result.next_safe_move,
+                )
+            }
+        };
     epiphany_core::close_runtime_session(
         &options.store_path,
         epiphany_core::RuntimeSpineSessionClosureOptions {
@@ -600,13 +608,12 @@ async fn run_worker_launch(
         "bindingId": launch_request.binding_id,
         "role": launch_request.role,
         "requestId": current_request_id,
-        "openaiResultId": openai_summary.result_id,
         "openaiVerdict": openai_summary.verdict,
         "openaiSummary": openai_summary.summary,
-        "workerResultId": worker_result.result_id,
-        "verdict": worker_result.verdict,
-        "summary": worker_result.summary,
-        "nextSafeMove": worker_result.next_safe_move,
+        "workerResultId": worker_result_id,
+        "verdict": verdict,
+        "summary": summary,
+        "nextSafeMove": next_safe_move,
         "requestedPublicSourceRuns": requested_public_source_runs,
         "toolRounds": tool_rounds,
     }))
@@ -661,14 +668,12 @@ fn fail_worker_for_tool_round_limit(
         &openai_summary.tool_intent_ids,
         "worker tool round limit closed this intent before execution",
     )?;
-    let result = fail_model_backed_worker_job(
+    let failure = fail_model_backed_worker_job(
         store_path,
         &launch_request.job_id,
         current_request_id,
         "tool_round_limit",
         summary.clone(),
-        "Inspect the worker request, tool receipts, and model/tool loop before relaunching."
-            .to_string(),
     )?;
     Ok(json!({
         "status": "tool-round-limit",
@@ -677,13 +682,12 @@ fn fail_worker_for_tool_round_limit(
         "bindingId": launch_request.binding_id,
         "role": launch_request.role,
         "requestId": current_request_id,
-        "openaiResultId": openai_summary.result_id,
         "openaiVerdict": openai_summary.verdict,
         "openaiSummary": openai_summary.summary,
-        "workerResultId": result.result_id,
-        "verdict": result.verdict,
+        "modelPassFailureId": failure.failure_id,
+        "verdict": "failed",
         "summary": summary,
-        "nextSafeMove": result.next_safe_move,
+        "nextSafeMove": "Inspect the worker request, tool receipts, and model/tool loop before relaunching.",
         "pendingToolIntentIds": openai_summary.tool_intent_ids,
         "toolRounds": tool_rounds,
     }))
@@ -707,14 +711,12 @@ fn fail_worker_for_repeated_tool_loop(
         &openai_summary.tool_intent_ids,
         "worker repeated an identical tool round; intent closed before execution",
     )?;
-    let result = fail_model_backed_worker_job(
+    let failure = fail_model_backed_worker_job(
         store_path,
         &launch_request.job_id,
         current_request_id,
         "repeated_tool_loop",
         summary.clone(),
-        "Inspect the repeated tool fingerprints and decide whether the worker needs a narrower evidence bundle, a repaired tool, or a higher explicit limit."
-            .to_string(),
     )?;
     Ok(json!({
         "status": "tool-loop-stalled",
@@ -723,13 +725,12 @@ fn fail_worker_for_repeated_tool_loop(
         "bindingId": launch_request.binding_id,
         "role": launch_request.role,
         "requestId": current_request_id,
-        "openaiResultId": openai_summary.result_id,
         "openaiVerdict": openai_summary.verdict,
         "openaiSummary": openai_summary.summary,
-        "workerResultId": result.result_id,
-        "verdict": result.verdict,
+        "modelPassFailureId": failure.failure_id,
+        "verdict": "failed",
         "summary": summary,
-        "nextSafeMove": result.next_safe_move,
+        "nextSafeMove": "Inspect the repeated tool fingerprints and decide whether the worker needs a narrower evidence bundle, a repaired tool, or a higher explicit limit.",
         "pendingToolIntentIds": openai_summary.tool_intent_ids,
         "pendingToolFingerprints": tool_fingerprints,
         "toolRounds": tool_rounds,
@@ -805,7 +806,7 @@ mod tests {
     use epiphany_core::EpiphanyRuntimeJobStatus;
     use epiphany_core::EpiphanyWorkerLaunchDocument;
     use epiphany_core::RuntimeSpineHeartbeatJobOptions;
-    use epiphany_core::runtime_job_snapshot;
+    use epiphany_core::runtime_job;
     use epiphany_core::runtime_worker_launch_request;
     use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
     use tempfile::tempdir;
@@ -836,29 +837,13 @@ mod tests {
             .expect("typed model-pass failure");
         assert_eq!(failure.failure_kind, failure_kind);
         assert_eq!(failure.model_request_id, request_id);
-        let outer = runtime_job_snapshot(store, outer_job_id)?.expect("outer worker snapshot");
-        assert_eq!(
-            outer
-                .result
-                .expect("outer worker result")
-                .decision_context_id
-                .as_deref(),
-            Some(failure.decision_context_id.as_str())
-        );
-        let transport = runtime_job_snapshot(store, &failure.runtime_job_id)?
-            .expect("model transport snapshot");
+        let outer = runtime_job(store, outer_job_id)?.expect("outer worker job");
+        assert_eq!(outer.status, EpiphanyRuntimeJobStatus::Failed);
+        let transport = runtime_job(store, &failure.runtime_job_id)?.expect("model transport job");
         assert!(matches!(
-            transport.job.status,
+            transport.status,
             EpiphanyRuntimeJobStatus::Completed | EpiphanyRuntimeJobStatus::Failed
         ));
-        assert!(
-            transport
-                .result
-                .expect("model transport result")
-                .decision_context_id
-                .is_none(),
-            "generic model transport cannot own decision authority"
-        );
         let mut cache = epiphany_core::runtime_spine_cache(store)?;
         cache.pull_all_backing_stores()?;
         assert_eq!(
@@ -1285,9 +1270,8 @@ mod tests {
         )?;
 
         assert_eq!(status["status"], "tool-loop-stalled");
-        let snapshot = runtime_job_snapshot(&store, "worker-job-loop")?.expect("worker snapshot");
-        assert_eq!(snapshot.job.status, EpiphanyRuntimeJobStatus::Failed);
-        assert_eq!(snapshot.result.expect("worker result").verdict, "failed");
+        let job = runtime_job(&store, "worker-job-loop")?.expect("worker job");
+        assert_eq!(job.status, EpiphanyRuntimeJobStatus::Failed);
         let mut cache = epiphany_core::runtime_spine_cache(&store)?;
         cache.pull_all_backing_stores()?;
         assert_eq!(
@@ -1390,14 +1374,12 @@ mod tests {
                 .as_str()
                 .is_some_and(|summary| summary.contains("tool adapter exploded"))
         );
-        let snapshot =
-            runtime_job_snapshot(&store, "worker-job-runtime-error")?.expect("worker snapshot");
-        assert_eq!(snapshot.job.status, EpiphanyRuntimeJobStatus::Failed);
-        let result = snapshot.result.expect("worker result");
-        assert_eq!(result.verdict, "failed");
-        let context_id = result
-            .decision_context_id
-            .expect("model-backed runtime failure must retain its context");
+        let job = runtime_job(&store, "worker-job-runtime-error")?.expect("worker job");
+        assert_eq!(job.status, EpiphanyRuntimeJobStatus::Failed);
+        let failure =
+            epiphany_core::model_pass_failure_for_request(&store, "request-runtime-error")?
+                .expect("model-backed runtime failure must retain its typed owner");
+        let context_id = failure.decision_context_id;
         let mut cache = epiphany_core::runtime_spine_cache(&store)?;
         cache.pull_all_backing_stores()?;
         assert_eq!(
@@ -1478,10 +1460,8 @@ mod tests {
         assert_eq!(status["status"], "tool-round-limit");
         assert_eq!(status["pendingToolIntentIds"][0], pending_intent_id);
         assert_ne!(status["status"], "tool-loop-stalled");
-        let snapshot =
-            runtime_job_snapshot(&store, "worker-job-round-limit")?.expect("worker snapshot");
-        assert_eq!(snapshot.job.status, EpiphanyRuntimeJobStatus::Failed);
-        assert_eq!(snapshot.result.expect("worker result").verdict, "failed");
+        let job = runtime_job(&store, "worker-job-round-limit")?.expect("worker job");
+        assert_eq!(job.status, EpiphanyRuntimeJobStatus::Failed);
         let mut cache = epiphany_core::runtime_spine_cache(&store)?;
         cache.pull_all_backing_stores()?;
         assert_eq!(

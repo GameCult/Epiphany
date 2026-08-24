@@ -1636,9 +1636,9 @@ fn accept_reorient(runtime_store: &Path) -> Result<Value> {
         .attempt
         .job_id
         .ok_or_else(|| anyhow!("reorientation review lost its runtime job"))?;
-    let snapshot = epiphany_core::runtime_job_snapshot(runtime_store, &job_id)?
+    let job = epiphany_core::runtime_job(runtime_store, &job_id)?
         .ok_or_else(|| anyhow!("reorientation review lost its runtime job"))?;
-    let accepted = match snapshot.job.status {
+    let accepted = match job.status {
         epiphany_core::EpiphanyRuntimeJobStatus::Completed => {
             epiphany_core::accept_reorientation_result(runtime_store, &job_id, &now())?
         }

@@ -7,7 +7,6 @@ pub struct EpiphanyCoordinatorReorientResultSnapshot {
     pub finding: Option<EpiphanyReorientFindingInterpretation>,
     pub note: String,
 }
-
 pub fn read_runtime_reorient_result(
     runtime_store_path: Option<&Path>,
     job_id: &str,
@@ -21,8 +20,8 @@ pub fn read_runtime_reorient_result(
             ),
         );
     };
-    let snapshot = match runtime_job_snapshot(runtime_store_path, job_id) {
-        Ok(Some(snapshot)) => snapshot,
+    let job = match runtime_job(runtime_store_path, job_id) {
+        Ok(Some(job)) => job,
         Ok(None) => {
             return reorient_snapshot(
                 EpiphanyCrrcResultStatus::Pending,
@@ -42,7 +41,7 @@ pub fn read_runtime_reorient_result(
             );
         }
     };
-    let status = reorient_result_status(&snapshot.job.status);
+    let status = reorient_result_status(&job.status);
     let finding = match status {
         EpiphanyCrrcResultStatus::Completed => {
             match runtime_reorient_worker_result(runtime_store_path, job_id) {
@@ -67,10 +66,14 @@ pub fn read_runtime_reorient_result(
                 }
             }
         }
-        EpiphanyCrrcResultStatus::Failed | EpiphanyCrrcResultStatus::Cancelled => snapshot
-            .result
-            .as_ref()
-            .map(interpret_reorient_lifecycle_failure),
+        EpiphanyCrrcResultStatus::Failed | EpiphanyCrrcResultStatus::Cancelled => {
+            match runtime_reorient_worker_result(runtime_store_path, job_id) {
+                Ok(result) => result
+                    .as_ref()
+                    .map(interpret_runtime_reorient_worker_result),
+                Err(_) => None,
+            }
+        }
         _ => None,
     };
     reorient_snapshot(status, finding, None)
@@ -94,25 +97,6 @@ fn reorient_snapshot(
         status,
         finding,
         note,
-    }
-}
-
-fn interpret_reorient_lifecycle_failure(
-    result: &EpiphanyRuntimeJobResult,
-) -> EpiphanyReorientFindingInterpretation {
-    EpiphanyReorientFindingInterpretation {
-        mode: None,
-        summary: Some(result.summary.clone()),
-        next_safe_move: nonempty(&result.next_safe_move),
-        checkpoint_still_valid: None,
-        files_inspected: Vec::new(),
-        frontier_node_ids: Vec::new(),
-        evidence_ids: Vec::new(),
-        artifact_refs: Vec::new(),
-        runtime_result_id: Some(result.result_id.clone()),
-        runtime_job_id: Some(result.job_id.clone()),
-        job_error: Some(result.summary.clone()),
-        item_error: None,
     }
 }
 
@@ -162,8 +146,4 @@ fn render_reorient_result_note(
             "The bound runtime backend job or item is missing.".to_string()
         }
     }
-}
-
-fn nonempty(value: &str) -> Option<String> {
-    (!value.trim().is_empty()).then(|| value.to_string())
 }

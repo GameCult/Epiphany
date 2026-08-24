@@ -668,7 +668,6 @@ pub struct EpiphanyDecisionAuditIndexEntry {
 pub struct EpiphanyDecisionTerminalRecords {
     pub role_worker_results: Vec<crate::EpiphanyRuntimeRoleWorkerResult>,
     pub reorient_worker_results: Vec<crate::EpiphanyRuntimeReorientWorkerResult>,
-    pub runtime_job_results: Vec<crate::EpiphanyRuntimeJobResult>,
     pub model_pass_failures: Vec<EpiphanyModelPassFailure>,
     pub archived_worker_attempts: Vec<crate::EpiphanyArchivedRuntimeWorkerAttempt>,
     pub persona_stage_receipts: Vec<crate::PersonaModelStageReceipt>,
@@ -683,7 +682,6 @@ impl EpiphanyDecisionTerminalRecords {
     fn len(&self) -> usize {
         self.role_worker_results.len()
             + self.reorient_worker_results.len()
-            + self.runtime_job_results.len()
             + self.model_pass_failures.len()
             + self.archived_worker_attempts.len()
             + self.persona_stage_receipts.len()
@@ -698,8 +696,6 @@ impl EpiphanyDecisionTerminalRecords {
         self.role_worker_results
             .sort_by(|left, right| left.result_id.cmp(&right.result_id));
         self.reorient_worker_results
-            .sort_by(|left, right| left.result_id.cmp(&right.result_id));
-        self.runtime_job_results
             .sort_by(|left, right| left.result_id.cmp(&right.result_id));
         self.model_pass_failures
             .sort_by(|left, right| left.failure_id.cmp(&right.failure_id));
@@ -791,11 +787,6 @@ fn audit_decision_context_from_cache(
             .get_all::<crate::EpiphanyRuntimeReorientWorkerResult>()?
             .into_iter()
             .filter(|record| record.decision_context_id == context_id)
-            .collect(),
-        runtime_job_results: cache
-            .get_all::<crate::EpiphanyRuntimeJobResult>()?
-            .into_iter()
-            .filter(|record| record.decision_context_id.as_deref() == Some(context_id))
             .collect(),
         model_pass_failures: cache
             .get_all::<EpiphanyModelPassFailure>()?
@@ -895,10 +886,6 @@ fn validate_decision_terminal_records(
         .reorient_worker_results
         .iter()
         .any(|record| record.job_id != basis.pass_id)
-        || records
-            .runtime_job_results
-            .iter()
-            .any(|record| record.job_id != basis.pass_id)
         || records
             .archived_worker_attempts
             .iter()
@@ -1005,12 +992,6 @@ fn validate_model_failure_companions(records: &EpiphanyDecisionTerminalRecords) 
                 .admitted_model_direction_consideration_result_msgpack
                 .is_none()
     };
-    let runtime_result_is_failure_projection = |record: &crate::EpiphanyRuntimeJobResult| {
-        matches!(
-            record.verdict.as_str(),
-            "failed" | "fail" | "runtime-error" | "error" | "blocked" | "cancelled" | "canceled"
-        )
-    };
     let archived_attempt_is_failure = |record: &crate::EpiphanyArchivedRuntimeWorkerAttempt| {
         crate::WorkerProcessStatus::parse(&record.terminal_process_status)
             .map(|status| !status.is_fulfilled_terminal())
@@ -1021,10 +1002,6 @@ fn validate_model_failure_companions(records: &EpiphanyDecisionTerminalRecords) 
         .role_worker_results
         .iter()
         .any(|record| !role_result_is_failure_projection(record))
-        || records
-            .runtime_job_results
-            .iter()
-            .any(|record| !runtime_result_is_failure_projection(record))
         || records
             .archived_worker_attempts
             .iter()
@@ -2374,19 +2351,8 @@ mod tests {
             Some(failure.clone())
         );
         let model_job =
-            crate::runtime_job_snapshot(&store, "failed-model-job")?.expect("model job snapshot");
-        assert_eq!(
-            model_job.job.status,
-            crate::EpiphanyRuntimeJobStatus::Failed
-        );
-        assert!(
-            model_job
-                .result
-                .expect("model transport failure result")
-                .decision_context_id
-                .is_none(),
-            "generic model transport must not own decision authority"
-        );
+            crate::runtime_job(&store, "failed-model-job")?.expect("failed model runtime job");
+        assert_eq!(model_job.status, crate::EpiphanyRuntimeJobStatus::Failed);
         let audit = audit_decision_context(&store, &context.context_id)?;
         assert_eq!(
             audit.terminal_records.model_pass_failures,
@@ -2429,25 +2395,14 @@ mod tests {
             admitted_model_direction_consideration_result_msgpack: None,
             decision_context_id: context.context_id.clone(),
         };
-        let failure_runtime_result = crate::EpiphanyRuntimeJobResult {
-            result_id: format!("result-runtime-{}", reasoning_basis.pass_id),
-            job_id: reasoning_basis.pass_id.clone(),
-            verdict: "failed".into(),
-            summary: failure_summary,
-            completed_at: "2026-08-18T00:00:03Z".into(),
-            next_safe_move: "Create a fresh work obligation and reasoning pass.".into(),
-            decision_context_id: Some(context.context_id.clone()),
-        };
         let mut cache = runtime_spine_cache(&store)?;
         cache.put(&failure_role_result.job_id, &failure_role_result)?;
-        cache.put(&failure_runtime_result.result_id, &failure_runtime_result)?;
         let audit = audit_decision_context(&store, &context.context_id)?;
         assert_eq!(audit.terminal_records.role_worker_results.len(), 1);
-        assert_eq!(audit.terminal_records.runtime_job_results.len(), 1);
         assert_eq!(audit.terminal_records.model_pass_failures.len(), 1);
         assert_eq!(
             list_auditable_decision_contexts(&store)?.decisions[0].terminal_record_count,
-            3
+            2
         );
         let mut false_success = failure_role_result.clone();
         false_success.verdict = "completed".into();
@@ -2621,16 +2576,33 @@ mod tests {
         let before_unterminal_audit = backing.pull_all()?;
         assert!(audit_decision_context(&store, &context.context_id).is_err());
         assert_eq!(backing.pull_all()?, before_unterminal_audit);
-        let terminal_result = crate::EpiphanyRuntimeJobResult {
+        let terminal_result = crate::EpiphanyRuntimeRoleWorkerResult {
             result_id: "worker-result-1".into(),
             job_id: "pass-1".into(),
+            role_id: role_terminal_semantic_role(&basis)?.expect("role pass"),
             verdict: "completed".into(),
             summary: "Structured Imagination decision".into(),
-            completed_at: "2026-08-14T00:00:03Z".into(),
             next_safe_move: "Inspect the durable decision context".into(),
-            decision_context_id: Some(context.context_id.clone()),
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: Vec::new(),
+            frontier_node_ids: Vec::new(),
+            evidence_ids: Vec::new(),
+            artifact_refs: Vec::new(),
+            open_questions: Vec::new(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            research_decision_msgpack: None,
+            item_error: None,
+            metadata: Default::default(),
+            repo_model_mutation_proposal_msgpack: None,
+            frontier_plan_candidate_msgpack: None,
+            frontier_plan_mind_decision_msgpack: None,
+            imagination_consideration_candidate_msgpack: None,
+            admitted_model_direction_consideration_result_msgpack: None,
+            decision_context_id: context.context_id.clone(),
         };
-        runtime_spine_cache(&store)?.put(&terminal_result.result_id, &terminal_result)?;
+        runtime_spine_cache(&store)?.put(&terminal_result.job_id, &terminal_result)?;
         let before_audit = backing.pull_all()?;
         let audit = audit_decision_context(&store, &context.context_id)?;
         assert_eq!(audit.context_id, context.context_id);
@@ -2638,7 +2610,7 @@ mod tests {
         assert_eq!(audit.terminal_native_request.request_id, "request-1");
         assert_eq!(audit.terminal_provider_request.request_id, "request-1");
         assert_eq!(
-            audit.terminal_records.runtime_job_results,
+            audit.terminal_records.role_worker_results,
             vec![terminal_result.clone()]
         );
         assert_eq!(audit.mind_commit_receipts.len(), 2);
@@ -2647,7 +2619,8 @@ mod tests {
         let mut archive_cache = runtime_spine_cache(&store)?;
         archive_cache.pull_all_backing_stores()?;
         assert!(
-            archive_cache.delete::<crate::EpiphanyRuntimeJobResult>(&terminal_result.result_id)?
+            archive_cache
+                .delete::<crate::EpiphanyRuntimeRoleWorkerResult>(&terminal_result.job_id)?
         );
         let archived = crate::EpiphanyArchivedRuntimeWorkerAttempt {
             job_id: "pass-1".into(),
@@ -2666,7 +2639,7 @@ mod tests {
         assert!(
             archived_audit
                 .terminal_records
-                .runtime_job_results
+                .role_worker_results
                 .is_empty()
         );
         assert_eq!(

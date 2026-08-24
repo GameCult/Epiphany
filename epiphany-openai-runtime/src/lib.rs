@@ -8,14 +8,13 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
 use chrono::SecondsFormat;
+use epiphany_core::EpiphanyRuntimeJobStatus;
 use epiphany_core::EpiphanyRuntimeReorientWorkerResult;
 use epiphany_core::EpiphanyRuntimeRoleWorkerResult;
 use epiphany_core::EpiphanyRuntimeWorkerLaunchRequest;
 use epiphany_core::EpiphanyWorkerLaunchDocument;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::RuntimeSpineJobOptions;
-use epiphany_core::RuntimeSpineJobResultOptions;
-use epiphany_core::complete_runtime_job;
 use epiphany_core::initialize_runtime_spine;
 use epiphany_core::open_runtime_model_execution;
 use epiphany_core::put_runtime_reorient_worker_result;
@@ -23,6 +22,7 @@ use epiphany_core::put_runtime_role_worker_result;
 use epiphany_core::put_runtime_tool_execution_intent;
 use epiphany_core::runtime_identity;
 use epiphany_core::runtime_spine_cache;
+use epiphany_core::terminalize_runtime_job;
 use epiphany_model_adapter::EpiphanyModelInputItem;
 use epiphany_model_adapter::EpiphanyModelReceipt;
 use epiphany_model_adapter::EpiphanyModelRequest;
@@ -93,7 +93,6 @@ pub struct EpiphanyOpenAiRuntimeRunSummary {
     pub event_count: usize,
     pub verdict: String,
     pub summary: String,
-    pub result_id: String,
     pub receipt_id: Option<String>,
     pub tool_intent_ids: Vec<String>,
 }
@@ -192,19 +191,16 @@ pub fn record_model_turn_events(
             provider_request.request_id
         )
     };
-    let result_id = format!("result-openai-{}", options.job_id);
-    complete_runtime_job(
+    terminalize_runtime_job(
         store_path,
-        RuntimeSpineJobResultOptions {
-            result_id: result_id.clone(),
-            job_id: options.job_id.clone(),
-            completed_at: now(),
-            verdict: verdict.to_string(),
-            summary: summary.clone(),
-            next_safe_move: "Review typed OpenAI receipt before accepting downstream state."
-                .to_string(),
-            decision_context_id: None,
+        &options.job_id,
+        if verdict == "pass" {
+            EpiphanyRuntimeJobStatus::Completed
+        } else {
+            EpiphanyRuntimeJobStatus::Failed
         },
+        &now(),
+        &provider_request.request_id,
     )?;
 
     Ok(EpiphanyOpenAiRuntimeRunSummary {
@@ -215,7 +211,6 @@ pub fn record_model_turn_events(
         event_count: events.len(),
         verdict: verdict.to_string(),
         summary,
-        result_id,
         receipt_id: receipt.map(|item| item.request_id),
         tool_intent_ids: tool_intents
             .into_iter()
@@ -388,7 +383,7 @@ pub fn complete_worker_job_from_assistant_text(
     openai_request_id: &str,
     openai_summary: &EpiphanyOpenAiRuntimeRunSummary,
     assistant_text: &str,
-) -> Result<epiphany_core::EpiphanyRuntimeJobResult> {
+) -> Result<()> {
     let decision_context =
         epiphany_core::seal_model_decision_context(store_path.as_ref(), openai_request_id)?;
     let launch_document = launch_request.launch_document()?;
@@ -414,14 +409,7 @@ pub fn complete_worker_job_from_assistant_text(
                     .unwrap_or("structured output was absent")
             )
         };
-        let next_safe_move = if contract_failed {
-            "Repair the worker prompt/output-schema boundary before relaunching; no typed role result was admitted."
-                .to_string()
-        } else {
-            "Inspect provider/tool transport and the sealed model-pass failure before relaunching."
-                .to_string()
-        };
-        return fail_model_backed_worker_job(
+        fail_model_backed_worker_job(
             store_path,
             &launch_request.job_id,
             openai_request_id,
@@ -431,51 +419,18 @@ pub fn complete_worker_job_from_assistant_text(
                 "output_contract_failure"
             },
             summary,
-            next_safe_move,
-        );
+        )?;
+        return Ok(());
     }
-    let verdict = if openai_failed || contract_failed {
-        "failed".to_string()
-    } else {
-        parsed
-            .as_ref()
-            .and_then(WorkerResultIngress::verdict)
-            .unwrap_or_else(|| "completed".to_string())
-    };
-    let summary = if openai_failed {
-        format!("Worker model request {openai_request_id} failed before producing usable output.")
-    } else if let Some(error) = parse_error.as_deref() {
-        format!(
-            "Worker model response failed declared output contract {}: {error}",
-            launch_request.output_contract_id
-        )
-    } else {
-        parsed
-            .as_ref()
-            .and_then(WorkerResultIngress::summary)
-            .unwrap_or_else(|| "Worker completed without a structured summary.".to_string())
-    };
-    let next_safe_move = if contract_failed {
-        "Repair the worker prompt/output-schema boundary before relaunching; no typed role result was admitted."
-            .to_string()
-    } else {
-        parsed
-            .as_ref()
-            .and_then(WorkerResultIngress::next_safe_move)
-            .unwrap_or_else(|| {
-                "Review the typed worker runtime result before accepting state.".to_string()
-            })
-    };
     let mut evidence_refs = parsed
         .as_ref()
         .map(WorkerResultIngress::evidence_ids)
         .unwrap_or_default();
     evidence_refs.push(format!("openai-request:{openai_request_id}"));
-    let mut artifact_refs = parsed
+    let artifact_refs = parsed
         .as_ref()
         .map(WorkerResultIngress::artifact_refs)
         .unwrap_or_default();
-    artifact_refs.push(format!("openai-result:{}", openai_summary.result_id));
     let result_id = format!("result-worker-{}", launch_request.job_id);
     let completed_at = now();
     if let Some(parsed) = parsed.as_ref() {
@@ -519,37 +474,19 @@ pub fn complete_worker_job_from_assistant_text(
             }
         }
     }
-    complete_runtime_job(
-        store_path,
-        RuntimeSpineJobResultOptions {
-            result_id,
-            job_id: launch_request.job_id.clone(),
-            completed_at,
-            verdict,
-            summary,
-            next_safe_move,
-            decision_context_id: Some(decision_context.context_id),
-        },
-    )
+    Ok(())
 }
 
 pub fn fail_worker_job(
     store_path: impl AsRef<Path>,
     job_id: &str,
-    summary: String,
-    next_safe_move: String,
-) -> Result<epiphany_core::EpiphanyRuntimeJobResult> {
-    complete_runtime_job(
+) -> Result<epiphany_core::EpiphanyRuntimeJob> {
+    terminalize_runtime_job(
         store_path,
-        RuntimeSpineJobResultOptions {
-            result_id: format!("result-worker-{job_id}"),
-            job_id: job_id.to_string(),
-            completed_at: now(),
-            verdict: "failed".to_string(),
-            summary,
-            next_safe_move,
-            decision_context_id: None,
-        },
+        job_id,
+        EpiphanyRuntimeJobStatus::Failed,
+        &now(),
+        &format!("worker-runtime-failure-{job_id}"),
     )
 }
 
@@ -559,8 +496,7 @@ pub fn fail_model_backed_worker_job(
     terminal_request_id: &str,
     failure_kind: &str,
     summary: String,
-    next_safe_move: String,
-) -> Result<epiphany_core::EpiphanyRuntimeJobResult> {
+) -> Result<epiphany_core::EpiphanyModelPassFailure> {
     let context =
         epiphany_core::seal_model_decision_context(store_path.as_ref(), terminal_request_id)?;
     let failure = epiphany_core::terminalize_model_pass_failure_session(
@@ -573,24 +509,30 @@ pub fn fail_model_backed_worker_job(
         },
     )?;
     let launch = load_worker_launch_request(store_path.as_ref(), job_id)?;
-    if epiphany_core::runtime_role_worker_result(store_path.as_ref(), job_id)?.is_none()
+    let role_result = epiphany_core::runtime_role_worker_result(store_path.as_ref(), job_id)?;
+    if role_result.is_none()
         && let Some(role_failure) =
             failed_frontier_planning_role_result(&launch, &summary, &context.context_id)?
     {
         epiphany_core::put_runtime_role_worker_result(store_path.as_ref(), &role_failure)?;
+        return Ok(failure);
     }
-    complete_runtime_job(
-        store_path,
-        RuntimeSpineJobResultOptions {
-            result_id: format!("result-worker-{job_id}"),
-            job_id: job_id.to_string(),
-            completed_at: now(),
-            verdict: "failed".to_string(),
-            summary,
-            next_safe_move,
-            decision_context_id: Some(failure.decision_context_id),
-        },
-    )
+    if role_result.is_none() {
+        terminalize_runtime_job(
+            store_path.as_ref(),
+            job_id,
+            EpiphanyRuntimeJobStatus::Failed,
+            &failure.failed_at,
+            &failure.failure_id,
+        )?;
+    } else if epiphany_core::runtime_job(store_path.as_ref(), job_id)?
+        .is_none_or(|job| job.status != EpiphanyRuntimeJobStatus::Failed)
+    {
+        return Err(anyhow!(
+            "model-backed worker failure lost typed result terminality"
+        ));
+    }
+    Ok(failure)
 }
 
 pub fn ensure_openai_runtime_ready(options: &EpiphanyOpenAiRuntimeOptions) -> Result<()> {
@@ -1293,33 +1235,6 @@ enum WorkerResultIngress {
 }
 
 impl WorkerResultIngress {
-    fn verdict(&self) -> Option<String> {
-        match self {
-            WorkerResultIngress::Role(result) => clean_optional_string(result.verdict.as_deref()),
-            WorkerResultIngress::Reorient(result) => clean_optional_string(result.mode.as_deref()),
-        }
-    }
-
-    fn summary(&self) -> Option<String> {
-        match self {
-            WorkerResultIngress::Role(result) => clean_optional_string(result.summary.as_deref()),
-            WorkerResultIngress::Reorient(result) => {
-                clean_optional_string(result.summary.as_deref())
-            }
-        }
-    }
-
-    fn next_safe_move(&self) -> Option<String> {
-        match self {
-            WorkerResultIngress::Role(result) => {
-                clean_optional_string(result.next_safe_move.as_deref())
-            }
-            WorkerResultIngress::Reorient(result) => {
-                clean_optional_string(result.next_safe_move.as_deref())
-            }
-        }
-    }
-
     fn evidence_ids(&self) -> Vec<String> {
         match self {
             WorkerResultIngress::Role(result) => clean_string_vec(&result.evidence_ids),
@@ -2039,7 +1954,7 @@ mod tests {
     use super::*;
     use epiphany_core::EpiphanyWorkerLaunchDocument;
     use epiphany_core::RuntimeSpineHeartbeatJobOptions;
-    use epiphany_core::runtime_job_snapshot;
+    use epiphany_core::runtime_job;
     use epiphany_openai_adapter::EpiphanyOpenAiModelReceipt;
     use sha2::{Digest, Sha256};
     use tempfile::tempdir;
@@ -2981,9 +2896,8 @@ mod tests {
         assert!(cache.get::<EpiphanyModelReceipt>("req-1")?.is_some());
         assert!(cache.get::<EpiphanyOpenAiModelRequest>("req-1")?.is_some());
         assert_eq!(
-            runtime_job_snapshot(&store, &options.job_id)?
+            runtime_job(&store, &options.job_id)?
                 .expect("snapshot")
-                .job
                 .status,
             epiphany_core::EpiphanyRuntimeJobStatus::Completed
         );
@@ -3146,18 +3060,22 @@ mod tests {
             event_count: 1,
             verdict: "failed".to_string(),
             summary: "Provider refused the model pass.".to_string(),
-            result_id: "result-openai-worker-worker-job-1".to_string(),
             receipt_id: None,
             tool_intent_ids: Vec::new(),
         };
-        let provider_failure = complete_worker_job_from_assistant_text(
+        complete_worker_job_from_assistant_text(
             &provider_failure_store,
             &launch_request,
             &model_request.request_id,
             &provider_failure_summary,
             "",
         )?;
-        assert_eq!(provider_failure.verdict, "failed");
+        assert_eq!(
+            runtime_job(&provider_failure_store, &worker_job_id)?
+                .expect("provider failure worker job")
+                .status,
+            EpiphanyRuntimeJobStatus::Failed
+        );
         assert_eq!(
             epiphany_core::model_pass_failure_for_request(
                 &provider_failure_store,
@@ -3180,14 +3098,19 @@ mod tests {
             receipt_id: Some(model_request.request_id.clone()),
             ..provider_failure_summary.clone()
         };
-        let contract_failure = complete_worker_job_from_assistant_text(
+        complete_worker_job_from_assistant_text(
             &contract_failure_store,
             &launch_request,
             &model_request.request_id,
             &contract_failure_summary,
             "not the declared structured contract",
         )?;
-        assert_eq!(contract_failure.verdict, "failed");
+        assert_eq!(
+            runtime_job(&contract_failure_store, &worker_job_id)?
+                .expect("contract failure worker job")
+                .status,
+            EpiphanyRuntimeJobStatus::Failed
+        );
         assert_eq!(
             epiphany_core::model_pass_failure_for_request(
                 &contract_failure_store,
@@ -3210,7 +3133,6 @@ mod tests {
             event_count: 2,
             verdict: "pass".to_string(),
             summary: "OpenAI model request completed.".to_string(),
-            result_id: "result-openai-worker-worker-job-1".to_string(),
             receipt_id: Some(model_request.request_id.clone()),
             tool_intent_ids: Vec::new(),
         };
@@ -3226,7 +3148,7 @@ mod tests {
             "repoModelOperations": []
         })
         .to_string();
-        let result = complete_worker_job_from_assistant_text(
+        complete_worker_job_from_assistant_text(
             &store,
             &launch_request,
             &model_request.request_id,
@@ -3234,13 +3156,6 @@ mod tests {
             &assistant_text,
         )?;
 
-        assert_eq!(result.job_id, worker_job_id);
-        assert_eq!(result.verdict, "checkpoint-ready");
-        assert_eq!(result.summary, "Mapped.");
-        assert_eq!(
-            result.next_safe_move,
-            "Review the runtime-owned Body model."
-        );
         let runtime_evidence_id = format!("openai-request:{}", model_request.request_id);
         let typed_result = epiphany_core::runtime_role_worker_result(&store, &worker_job_id)?
             .expect("typed role worker result");
@@ -3252,18 +3167,15 @@ mod tests {
         );
         assert_eq!(
             typed_result.artifact_refs,
-            vec![
-                "artifact:model".to_string(),
-                format!("openai-result:{}", openai_summary.result_id)
-            ]
+            vec!["artifact:model".to_string()]
         );
         assert!(typed_result.repo_model_mutation_proposal()?.is_none());
         assert!(
-            runtime_job_snapshot(&store, &worker_job_id)?
+            runtime_job(&store, &worker_job_id)?
                 .expect("snapshot")
-                .result
-                .is_none(),
-            "structured worker decisions must not persist a generic result mirror"
+                .status
+                == EpiphanyRuntimeJobStatus::Completed,
+            "typed worker admission must atomically terminalize its runtime job"
         );
         Ok(())
     }
