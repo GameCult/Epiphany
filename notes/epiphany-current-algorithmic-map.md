@@ -54,15 +54,15 @@ the receipt consequence. Mind/runtime writable epochs were v10/v26 at that
 cut, and old stores refuse rather than inheriting the retired shapes.
 
 Routing identity lives at the owner, not in every payload. Exact `ffd91c20`
-deletes the fixed Research role from Eyes evidence packets because their typed
-family plus request and decision-context identities already own provenance. It
-deletes the fixed Epiphany Persona agent label from each social mention because
+first deleted the fixed Research role from the then-live Eyes evidence packets
+because their request and decision-context identities already owned provenance.
+It deletes the fixed Epiphany Persona agent label from each social mention because
 the Persona-only queue and immutable turn request own routing. Resident Self
 retention keeps cumulative lifecycle/envelope counts and its exact chained
 deletion digest; it no longer accepts a clock merely to persist an unread
-timestamp outside that chain. The live shapes are Eyes evidence packet v2,
-Persona social mention v2, Resident Self state v3/retention head v1, and
-Mind/runtime v10/v27. Model Atlas is unchanged and remains unaccepted until a
+timestamp outside that chain. Persona social mention v2 and Resident Self state
+v3/retention head v1 remain; exact `83611f9b` later deletes the Eyes packet
+family entirely. Model Atlas is unchanged and remains unaccepted until a
 live inter-swarm exchange exercises publication, transport, verification,
 admission, wake, and withdrawal end to end.
 
@@ -597,11 +597,12 @@ rows that had no typed documents or runtime path. The keyed repo-frontier
 verification request owns the live obligation, and `SoulVerdictReceipt` owns the
 persisted audit result consumed by Modeling/Mind.
 
-Eyes publishes only concrete observation evidence. Exact `201fa192` removes
-generic evidence-request, review, and refusal rows that had no typed documents
-or runtime path. Authenticated source lookup receipts prove what was inspected;
-the typed research decision becomes the exact persisted evidence packet consumed
-by current work and Modeling.
+Eyes owns one concrete admission path. Exact `201fa192` removes generic
+evidence-request, review, and refusal rows that had no typed documents or
+runtime path. Exact `83611f9b` then removes the never-persisted source-lookup
+DTO and the duplicate evidence packet. The real grant/tool receipt chain is
+authenticated in place; the structured Research decision becomes keyed Mind
+evidence/observation writes under one atomic `Eyes.frontier_research` commit.
 
 Idunn deployment truth is not mirrored into invented Epiphany-local envelopes.
 Odin/Idunn owns `gamecult.idunn.deployment_manifest.v3` and signed daemon-health
@@ -661,7 +662,7 @@ interface authority.
 | OpenAI Responses schema projector | full native typed output schema | one provider-legal strict generation schema | Provider formatting preserves useful supported constraints but never replaces native decoding or Mind admission. |
 | model-pass terminal owner | sealed reasoning basis/context and typed failure class | exact transport closure plus `EpiphanyModelPassFailure` and terminal session/job result in one batch CAS | The caller cannot nominate a job/session; the context-derived binding closes role, reorient, and Persona failures without granting generic transport results decision authority. |
 | Substrate Gate | exact worker/job authority and requested operation | scoped grant or refusal | Access permission does not admit Mind state. |
-| Eyes | explicit external-evidence obligation plus governed source receipts | typed evidence packet and Mind observations | Eyes gathers outside evidence; it does not gate Modeling over the Body. |
+| Eyes | explicit external-evidence obligation plus governed grant/tool receipts | keyed Mind evidence/observations plus exact commit receipt | Eyes gathers outside evidence; it does not gate Modeling over the Body. |
 | Modeling | Body basis, keyed RepoModel view, verified consequences, and explicit proposals | typed graph/frontier mutations | Modeling processes the Body directly and owns no external-source permission. |
 | Hands | adopted route/plan plus exact capability receipts | typed consequences | A claimed intention is not a consequence. |
 | Soul | exact consequence and invariant/evidence obligations | verification audit or refusal | Work is not true merely because it ran. |

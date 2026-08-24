@@ -42,7 +42,7 @@ must be projected with awareness of the whole organism:
   Imagination models the future shape.
 - Mind admits state only after it can see which organ produced the thought and
   which other organs shaped the proposal.
-- Eyes supplies source-grounded evidence packets after Substrate Gate grants access, so
+- Eyes supplies keyed source-grounded Mind evidence after Substrate Gate grants access, so
   the other organs do not mistake raw retrieval for inspected truth.
 
 ## Projector Ownership

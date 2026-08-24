@@ -7,7 +7,7 @@ polish from impersonating truth.
 ## Authority Map
 
 - Owner: Soul owns verification verdicts.
-- Inputs: verification requests, Eyes evidence packets, Hands action receipts,
+- Inputs: verification requests, keyed Eyes evidence/observations, Hands action receipts,
   Body substrate receipts, expected invariants, test commands, review criteria,
   and current risk context.
 - Outputs: invariant checks, verdict receipts, regression receipts, review

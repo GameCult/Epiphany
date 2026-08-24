@@ -392,11 +392,13 @@ Cut in this order:
    and an always-empty raw-result reference. Mind/runtime epochs are v10/v26;
    old writable stores refuse without migration.
    Exact `ffd91c20` deletes three more derived fields: the fixed Research role
-   from Eyes packets, the fixed Epiphany Persona agent from queued mentions,
+   from the then-live Eyes packets, the fixed Epiphany Persona agent from queued
+   mentions,
    and the unread Resident Self retention timestamp. Their owning request/
    context, Persona queue/turn request, and chained retention digest remain.
-   Eyes packet v2, Persona mention v2, Resident Self state v3/retention head v1,
-   and runtime v27 form the hard cut. Model Atlas remains intact for its first
+   Persona mention v2, Resident Self state v3/retention head v1, and runtime v27
+   formed that hard cut; exact `83611f9b` later deletes the Eyes packet family.
+   Model Atlas remains intact for its first
    live inter-swarm collaboration run; component proofs are not acceptance.
    Exact `fe118e13` makes provider events and receipts transient transport
    values and deletes their duplicate CultCache/CultNet authority. One native
@@ -444,7 +446,7 @@ Cut in this order:
 8. **Frontier Research landed at `c7412998`:** the v3 request seals the exact
    frontier/dependency document closure, while the full RepoModel projection is
    audit cargo only. One deterministic attempt, terminal decision context,
-   request-bound Eyes packet, and `Eyes.frontier_research` Mind mutation own
+   structured Research result and `Eyes.frontier_research` Mind mutation own
    Launch/Wait/Review/admission. Stale terminal decisions remain durable, exact
    strong-state changes refuse admission byte-identically, and disjoint keyed
    writes merge. Accepted Eyes, role lanes, timestamps, generic regather, and

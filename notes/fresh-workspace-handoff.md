@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `3b991e40`
-Current pass: model-runtime diagnostic wrappers collapsed; Ox17
+Latest committed implementation cut: `83611f9b`
+Current pass: Eyes acceptance collapsed into exact Mind commits; Ox17
 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `3b991e40` is the current
+production symlink body and is inactive. Exact `83611f9b` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,21 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `83611f9b` makes the atomic `Eyes.frontier_research` Mind commit the sole
+Research acceptance authority. The never-persisted source-lookup DTO and the
+duplicate evidence packet are gone. Eyes still authenticates the exact
+Substrate Gate grant, tool intent/receipt, immutable source identity, and
+content digest before admission; the structured decision then becomes keyed
+Mind evidence/observation/checkpoint documents. Initial acceptance and archived
+re-entry use the same validated commit predicate. Runtime advances to v35. The
+core library check, full keyed Research lifecycle including conflict/replay and
+read-only re-entry, and old-epoch refusal pass. The cut removes 205 net
+maintained lines; `runtime_spine.rs` is 9,418 physical lines with 52 public
+functions and 25 public structs. Verification generated 2.0 GiB across 2,950
+files; cleanup restored the shared target to the single 1.78 MB state inspector.
+Atlas and every inter-swarm contract remain untouched and operationally
+unaccepted.
 
 Exact `e60b924f` deletes the callerless model-runtime `preflight` JSON
 self-certificate and its public registered-type catalog accessor. The command
@@ -188,14 +203,14 @@ Runtime advances to v28 and the public catalog has 18 schemas. The cut removes
 1/1, and release construction 15/15 pass. Model Atlas is untouched; its live
 inter-swarm collaboration trial remains open.
 
-Exact `ffd91c20` removes three fixed or non-causal fields outside Model Atlas.
-The Eyes evidence packet no longer repeats `source_role_id = research`; its
-request and decision-context identities own provenance. A Persona mention no
+Exact `ffd91c20` removed three fixed or non-causal fields outside Model Atlas.
+The then-live Eyes evidence packet stopped repeating `source_role_id = research`;
+exact `83611f9b` later removed that packet family entirely. A Persona mention no
 longer repeats `target_agent_id = epiphany.Persona`; the Persona-owned queue and
 turn request own routing. Resident Self retention no longer accepts a clock
 only to store an unread `retained_at_millis`; counts plus the chained deletion
-digest remain the retention consequence. Eyes packet v2, Persona social mention
-v2, Resident Self state v3/retention head v1, and runtime v27 form a hard cut.
+digest remain the retention consequence. Persona social mention v2, Resident
+Self state v3/retention head v1, and runtime v27 formed that hard cut.
 Core and the swarm, model-runtime, and Persona-service entrypoints compile;
 Persona admission 7/7, Persona decision/retention 5/5, keyed Modeling/Research
 1/1, and both writable-epoch refusals 1/1 pass. The maintained source delta is
@@ -1054,7 +1069,7 @@ coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 ## Immediate next action
 
 The Ox17 deployment lane is paused. Continue the registered-document and test-
-liability audit from exact `3b991e40`; do not compile or deploy through Idunn
+liability audit from exact `83611f9b`; do not compile or deploy through Idunn
 yet. Delete an abstraction with tests that merely animate it when it has no
 decision-bearing consumer. Preserve keyed Mind, sealed reasoning, direct Body-
 to-Modeling flow, family admission owners, Persona social state, provider
@@ -1414,12 +1429,13 @@ schemas, stores, writers, readers, or tests. The keyed repo-frontier verificatio
 request and persisted `SoulVerdictReceipt` remain the real request/result path.
 Core/release checks pass; focused verification tests pass 3/3.
 
-Exact `201fa192` deletes three prose-only Eyes families: generic evidence
+Exact `201fa192` deleted three prose-only Eyes families: generic evidence
 request, evidence review, and evidence refusal. They had constants, exports, and
 mutation-table prose but no typed documents, schemas, stores, writers, readers,
-or tests. Authenticated source lookup receipts and the exact research decision's
-persisted evidence packet remain the real Eyes path. Core/release checks and
-focused Research 2/2 pass.
+or tests. Exact `83611f9b` later deletes the never-persisted lookup DTO and the
+duplicate evidence packet as well. The live Eyes path authenticates the real
+grant/tool chain and atomically admits keyed Mind evidence/observations with
+one exact commit receipt.
 
 Next continue the test-authority audit after exact `ffcf036f`, beginning with remaining direct schema,
 prompt-rendering, CLI-parser, and CultMesh projection tests. Audit every claimed
