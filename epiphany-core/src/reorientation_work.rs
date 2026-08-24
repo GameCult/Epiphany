@@ -418,13 +418,12 @@ pub fn record_reorientation_pass_failure(
     }
     let write =
         crate::mind_documents::prepare_mind_document(&cache, &failure.failure_id, &failure)?;
-    match crate::reasoning_context::commit_mind_mutation_with_derived_companions(
+    match crate::reasoning_context::commit_mind_mutation(
         store_path,
         decision_context_id,
         "Continuity.reorientation_failure",
         strong_reads,
         vec![write],
-        Vec::new(),
         &terminal.completed_at,
     )? {
         crate::EpiphanyMindCommitOutcome::Committed(receipt) => Ok(receipt),
@@ -621,13 +620,6 @@ pub fn accept_reorientation_result(
         next_safe_move: result.next_safe_move.clone(),
         decided_at: accepted_at.into(),
     };
-    let finding = crate::interpret_runtime_reorient_worker_result(&result);
-    let recovery = crate::continuity_recovery_receipt_from_reorient_finding(
-        format!("continuity-recovery-{}", request.request_id),
-        crate::EPIPHANY_REORIENT_LAUNCH_BINDING_ID.into(),
-        &finding,
-        accepted_at.into(),
-    );
     let mut strong_reads = exact_source_envelopes(&cache, &request.source_documents)?;
     for (document_type, document_key) in [
         (
@@ -652,14 +644,12 @@ pub fn accept_reorientation_result(
     }
     let write =
         crate::mind_documents::prepare_mind_document(&cache, &decision.decision_id, &decision)?;
-    let companion = cache.prepare_entry(&recovery.receipt_id, &recovery)?.0;
-    match crate::reasoning_context::commit_mind_mutation_with_derived_companions(
+    match crate::reasoning_context::commit_mind_mutation(
         store_path,
         &result.decision_context_id,
         "Continuity.reorientation",
         strong_reads,
         vec![write],
-        vec![companion],
         accepted_at,
     )? {
         crate::EpiphanyMindCommitOutcome::Committed(receipt) => Ok(receipt),
