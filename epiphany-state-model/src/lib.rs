@@ -238,38 +238,6 @@ pub enum RepoFrontierStatus {
     Superseded,
 }
 
-pub fn reorient_checkpoint_from_admitted_repo_model(
-    snapshot: &EpiphanyMemoryGraphSnapshot,
-    obligation_id: &str,
-) -> EpiphanyInvestigationCheckpoint {
-    EpiphanyInvestigationCheckpoint {
-        checkpoint_id: obligation_id.to_string(),
-        kind: "admitted_repo_model".to_string(),
-        disposition: EpiphanyInvestigationDisposition::ResumeReady,
-        focus: "Current Mind-admitted RepoModel frontier".to_string(),
-        summary: Some(
-            "Derived from the authenticated current keyed RepoModel view.".to_string(),
-        ),
-        next_action: Some("Resume from the current Mind-admitted RepoModel frontier.".to_string()),
-        captured_at_turn_id: None,
-        open_questions: Vec::new(),
-        code_refs: snapshot
-            .frontier
-            .iter()
-            .filter(|item| item.status == RepoFrontierStatus::Active)
-            .flat_map(|item| item.repository_scope.iter())
-            .map(|path| EpiphanyCodeRef {
-                path: path.into(),
-                start_line: None,
-                end_line: None,
-                symbol: None,
-                note: Some("Current admitted RepoModel frontier scope".to_string()),
-            })
-            .collect(),
-        evidence_ids: Vec::new(),
-    }
-}
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
 pub struct EpiphanyMemoryDomain {
     pub id: String,

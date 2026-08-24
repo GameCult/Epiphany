@@ -31,8 +31,6 @@ use std::collections::HashMap;
 use std::process::Stdio;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub const MCP_CLIENT_NAME: &str = "epiphany-tool-mcp-runtime";
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct InvocationOutcome {
     pub receipt: EpiphanyToolInvocationReceipt,

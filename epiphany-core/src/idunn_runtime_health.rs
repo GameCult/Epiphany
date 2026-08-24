@@ -256,9 +256,8 @@ fn require_id(value: &str, label: &str) -> Result<()> {
 mod tests {
     use super::*;
     use cultnet_rs::{
-        ServiceIdentityProfile, ServiceIdentitySignature, ServiceSignaturePurpose,
-        decode_cultnet_message_from_slice, enroll_service_identity_at,
-        verify_service_identity_signature,
+        ServiceIdentitySignature, ServiceSignaturePurpose, decode_cultnet_message_from_slice,
+        enroll_service_identity_at, verify_service_identity_signature,
     };
     use std::thread;
 
@@ -502,17 +501,5 @@ mod tests {
             rmp_serde::from_slice(&document.payload).unwrap();
         assert_eq!(decoded, record);
         assert_eq!(rmp_serde::to_vec(&decoded).unwrap(), document.payload);
-    }
-
-    #[test]
-    fn identity_profile_is_not_host_identity() {
-        assert_eq!(
-            GameCultProviderHealthIdentity::TRUST_ANCHOR_SCHEMA,
-            "gamecult.provider_health_identity.trust_anchor.v1"
-        );
-        assert_ne!(
-            GameCultProviderHealthIdentity::ID_DOMAIN,
-            b"epiphany.host-incarnation.identity.v0\0"
-        );
     }
 }

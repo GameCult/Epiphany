@@ -852,28 +852,6 @@ pub fn ensure_openai_runtime_ready(options: &EpiphanyOpenAiRuntimeOptions) -> Re
     Ok(())
 }
 
-pub fn assistant_text_from_openai_events(
-    store_path: impl AsRef<Path>,
-    request_id: &str,
-) -> Result<String> {
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    let mut events = cache
-        .get_all::<EpiphanyOpenAiStreamEvent>()?
-        .into_iter()
-        .filter(|event| event.request_id == request_id)
-        .collect::<Vec<_>>();
-    events.sort_by_key(|event| event.sequence);
-
-    let mut text = String::new();
-    for event in events {
-        if let EpiphanyOpenAiStreamPayload::TextDelta { text: delta } = event.payload {
-            text.push_str(&delta);
-        }
-    }
-    Ok(text)
-}
-
 pub fn assistant_text_from_model_events(
     store_path: impl AsRef<Path>,
     request_id: &str,
@@ -3470,7 +3448,6 @@ mod tests {
             record_openai_events(&store, &options, &request, DEFAULT_MODEL_PROVIDER, &events)?;
 
         assert_eq!(summary.verdict, "pass");
-        assert_eq!(assistant_text_from_openai_events(&store, "req-1")?, "");
         assert_eq!(assistant_text_from_model_events(&store, "req-1")?, "");
         let mut cache = runtime_spine_cache(&store)?;
         cache.pull_all_backing_stores()?;
