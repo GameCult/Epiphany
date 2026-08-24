@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `2a435eb5` on `codex/epiphany-shakedown-live`
-Current worktree cut: documentation/evidence for singular Persona/tool provenance;
+Latest committed implementation cut: `ffd91c20` on `codex/epiphany-shakedown-live`
+Current worktree cut: documentation/evidence for fixed routing/retention cargo removal;
 Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -33,7 +33,7 @@ Mind/runtime receipts own decisions and lifecycle identity; keyed RepoModel
 documents own repository structure; scratch and retrieval inputs belong to
 sealed reasoning passes. Two callerless OpenAI-runtime mouths and eight
 definition-only type constants are also gone. The cut is 291 pure deletions;
-the state-model crate is 398 lines. It does not touch the still-unrun Atlas
+the state-model crate is 366 lines. It does not touch the still-unrun Atlas
 inter-swarm path.
 
 Provider observability is typed consequence, not a no-op callback shelf. Exact
@@ -50,8 +50,21 @@ and removes a linked-event vector that repeated `effect_document_id` plus a
 relationship slot every producer left empty. The memory keeps the exact
 Interpreter effect document and decision context. Tool receipts advance to v1
 and remove an always-empty raw-result reference; exact result JSON or error is
-the receipt consequence. Mind/runtime writable epochs are v10/v26, and old
-stores refuse rather than inheriting the retired shapes.
+the receipt consequence. Mind/runtime writable epochs were v10/v26 at that
+cut, and old stores refuse rather than inheriting the retired shapes.
+
+Routing identity lives at the owner, not in every payload. Exact `ffd91c20`
+deletes the fixed Research role from Eyes evidence packets because their typed
+family plus request and decision-context identities already own provenance. It
+deletes the fixed Epiphany Persona agent label from each social mention because
+the Persona-only queue and immutable turn request own routing. Resident Self
+retention keeps cumulative lifecycle/envelope counts and its exact chained
+deletion digest; it no longer accepts a clock merely to persist an unread
+timestamp outside that chain. The live shapes are Eyes evidence packet v2,
+Persona social mention v2, Resident Self state v3/retention head v1, and
+Mind/runtime v10/v27. Model Atlas is unchanged and remains unaccepted until a
+live inter-swarm exchange exercises publication, transport, verification,
+admission, wake, and withdrawal end to end.
 
 CultMesh contains no JSON-derived operator snapshot, coordinator receipt,
 Hands gate, role-review event, unauthenticated Odin/Eve provider row, or daemon

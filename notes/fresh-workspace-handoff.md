@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `2a435eb5`
-Current worktree: documentation/evidence for singular Persona/tool provenance;
+Latest committed implementation cut: `ffd91c20`
+Current worktree: documentation/evidence for fixed routing/retention cargo removal;
 Ox17 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `2a435eb5` is the current
+production symlink body and is inactive. Exact `ffd91c20` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,20 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `ffd91c20` removes three fixed or non-causal fields outside Model Atlas.
+The Eyes evidence packet no longer repeats `source_role_id = research`; its
+request and decision-context identities own provenance. A Persona mention no
+longer repeats `target_agent_id = epiphany.Persona`; the Persona-owned queue and
+turn request own routing. Resident Self retention no longer accepts a clock
+only to store an unread `retained_at_millis`; counts plus the chained deletion
+digest remain the retention consequence. Eyes packet v2, Persona social mention
+v2, Resident Self state v3/retention head v1, and runtime v27 form a hard cut.
+Core and the swarm, model-runtime, and Persona-service entrypoints compile;
+Persona admission 7/7, Persona decision/retention 5/5, keyed Modeling/Research
+1/1, and both writable-epoch refusals 1/1 pass. The maintained source delta is
+6 net deletions. Model Atlas is untouched. Its component proofs are not a live
+inter-swarm collaboration result; that trial has not run.
 
 Exact `2a435eb5` makes Persona-memory and tool-receipt provenance singular.
 Persona-memory v2 retains the exact Interpreter effect-document and decision-
@@ -896,13 +910,13 @@ coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 
 ## Immediate next action
 
-The Ox17 deployment lane is paused. Continue the source/test-authority audit
-from exact `0bb6a883`; do not compile or deploy through Idunn yet. Inspect the
-remaining production modules and tests by owner, consumer, invariant, and
-failure mode. Delete an abstraction with the tests that merely animate it when
-it has no decision-bearing consumer. Preserve the keyed Mind, sealed reasoning,
-direct Body-to-Modeling flow, family admission owners, Persona social state,
-provider boundaries, and consequence-verifying receipts.
+The Ox17 deployment lane is paused. Continue the registered-document and test-
+liability audit from exact `ffd91c20`; do not compile or deploy through Idunn
+yet. Delete an abstraction with tests that merely animate it when it has no
+decision-bearing consumer. Preserve keyed Mind, sealed reasoning, direct Body-
+to-Modeling flow, family admission owners, Persona social state, provider
+boundaries, consequence-verifying receipts, and the complete Model Atlas
+vertical slice until its first live inter-swarm collaboration trial.
 
 Yggdrasil previously exposed 96 GiB of dead native Cargo targets after
 interrupted full-workspace builds; exact cleanup returned the builder target
