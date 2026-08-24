@@ -210,7 +210,7 @@ social, memory, and Body inputs without that fiction.
 
 The operator surface has no unconsumed view-lens registry, legacy acceptance
 bundle builder, test-only raw-JSON result interpreter, or second CRRC
-recommendation algorithm. Typed runtime-result interpretation remains shared by
+recommendation algorithm. Typed outcome interpretation remains shared by
 current work and reorientation. The keyed status composer is the sole CRRC
 recommendation projection; its DTO does not confer routing authority.
 
@@ -423,14 +423,12 @@ contract instead of rejecting the live resident fields it omitted. Runtime
 writable state is v20.
 
 Runtime session and job documents are lifecycle state, not duplicate result
-records. Exact `196222d9` removes their unread arbitrary metadata, and removes
-job summary and artifact refs plus the corresponding launch-option inputs.
-Every producer had emitted empty metadata and launch artifact lists; no reader
-consumed any of the four fields. The terminal `EpiphanyRuntimeJobResult`
-remains the sole owner of consequential summary, evidence, artifacts, and
-decision-context identity. Sessions retain objective and coordinator note;
-jobs retain exact session, role, status, and time identity. Runtime writable
-state is v21 and the closed session/job catalog schemas are v1.
+records. Sessions retain only grouping identity plus active/completed state;
+jobs retain only identity plus Queued/Completed/Failed state. Exact structured
+role/reorientation outcomes own semantic decision cargo, native model receipts
+or typed pass failures own model terminality, and worker process claims own
+process death. There is no generic terminal-result document or summary-bearing
+lifecycle record.
 
 Runtime physiology is created only by its real owners. Exact `cd2177e8` first
 deleted `ensure_runtime_session`, whose only consumers were fixtures and whose
@@ -990,12 +988,14 @@ Coordinator priority is a pure projection:
 No default Modeling job, latest lane, accepted-at comparison, runtime event, or
 generic interrupt can manufacture work.
 
-There is no persisted generic runtime-event document. A runtime session or job
-owns its own lifecycle state; `EpiphanyRuntimeJobResult`,
-`EpiphanyModelPassFailure`, `EpiphanyCoordinatorRunReceipt`, and
-`EpiphanyCoordinatorDeathRecovery` own their exact terminal facts. CultNet and
-operator views derive display from those documents. No paired event may become
-a second terminality, archival, replay, or recovery authority.
+There is no persisted generic runtime-event or generic job-result document. A
+runtime session or job owns only its lifecycle latch;
+`EpiphanyModelPassFailure`, typed role/reorientation outcomes,
+`EpiphanyCoordinatorRunReceipt`, exact process claims, and
+`EpiphanyCoordinatorDeathRecovery` own their respective terminal facts.
+CultNet and operator views derive display from those documents. No paired event
+or summary record may become a second terminality, archival, replay, or
+recovery authority.
 
 ```mermaid
 flowchart TD
@@ -1106,16 +1106,18 @@ decision-context identity. Runtime writable state is v43.
 Exact `8eaa96c5` removes the generic terminal document itself from structured
 worker completion. A typed role/reorientation outcome is strong-read and
 byte-identically replayed in the same CAS that terminalizes its job and process
-claim. Fulfilled archives carry context plus the full typed role result, not a
-generic companion. Generic results now exist only where no structured outcome
-exists. Runtime writable state is v44; archived worker attempts are v3.
+claim. Failed typed outcomes close as `Failed`/`TerminalFailure`; successful
+outcomes close as `Completed`/`TerminalResult`. Archives carry context plus the
+full typed role result, including typed failures. The generic result family is
+deleted. Runtime/Mind writable state is v45/v11; archived worker attempts are
+v3.
 
 The sealed typed launch owns exact live request association. The terminal role
 result owns only semantic decision cargo or typed failure. The archived attempt
 owns historical request kind/ID and typed terminal classification after the
-live launch is deleted. Archived fulfilled attempts retain the structured role
-result, exact generic result family, and decision context—not an ID/digest
-tombstone.
+live launch is deleted. Archived attempts retain the structured role result
+and decision context—not an ID/digest tombstone—and preserve typed failure
+cargo when the terminal process status is failure.
 
 The heartbeat scheduler does not exist. Resident Self directly selects the
 oldest pending pressure when no grant, prepared launch, or active lease exists.
@@ -1181,10 +1183,10 @@ receipts, and their direct context links.
 Runtime retention may remove SSE frames, deltas, intermediate requests,
 provider events, and tool scaffolding only after the terminal context is sealed
 and the retained decision can still reach its basis/context without them.
-The v1 worker-attempt archive embeds exact request kind/ID, the typed role
-result, and its context-bound generic result family. The read-only decision
-audit consumes the same durable records before and after archival; it never
-reconstructs family identity from terminal-result echoes.
+The v3 worker-attempt archive embeds exact request kind/ID, decision context,
+and the full typed role outcome when one exists. The read-only decision audit
+consumes the same durable records before and after archival; it never
+reconstructs family identity from terminal-result echoes or prose summaries.
 
 ## Verification and open gates
 

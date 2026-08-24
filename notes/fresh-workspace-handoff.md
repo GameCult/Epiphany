@@ -2,11 +2,11 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany source cut: `edb5c3a3`
+Latest committed Epiphany source cut: `2c3335dc`
 Current connector source: `54d8bc2525b7e7fa1b9dd26b95871247ff4c7566`
-Current pass: source subtraction continues after making the sealed typed worker
-launch the sole live owner of pass-family identity; the generic runtime session
-aggregate is next; Ox17 and Atlas Gate 1 remain paused
+Current pass: source subtraction continues after deleting the generic runtime
+job-result family; completed model-session retention is next; Ox17 and Atlas
+Gate 1 remain paused
 
 ## Orientation
 
@@ -17,7 +17,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `edb5c3a3` is the current
+production symlink body and is inactive. Exact `2c3335dc` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -189,6 +189,28 @@ failure, release coordinator, and release model-runtime checks pass. The source
 delta is +7 maintained lines because the exact CAS fence replaces a larger
 durable duplication. Verification generated 5.632 GiB across 6,826 files;
 Cargo cleanup restored only the authenticated 1,776,640-byte state inspector.
+
+Exact `2c3335dc` deletes the generic runtime job-result family completely: the
+durable type, completion DTO, result-bearing snapshot wrapper, schema
+registration, archive/session cargo, audit branch, and every
+summary/next-move/result-ID projection are gone. Typed role and reorientation
+outcomes atomically terminalize their own job and process claim. Native model
+receipts or `EpiphanyModelPassFailure` own model-pass terminality; the exact
+worker process claim owns process death. Reorientation failure admission binds
+the typed model failure directly.
+
+The review caught and removed a split terminality scar before commit. One
+shared worker-outcome rule now maps success to `Completed` plus
+`TerminalResult`, and a nonempty typed failure to `Failed` plus
+`TerminalFailure`. Failed-attempt archives may retain their full typed failure
+instead of erasing it as though only successful decisions were structured.
+Runtime and Mind writable epochs advance to v45 and v11 with no compatibility
+reader. Core passes 152/152; OpenAI runtime passes 21/21; the release-owned
+model runtime passes 12/12; coordinator and Persona entrypoints compile. The
+cut removes 361 maintained lines net. Verification generated 6.349 GiB across
+7,376 files; cleanup restored only the exact 1,776,640-byte authenticated state
+inspector at SHA-256
+`DD38855C6F092C2C53D2212A938E737643F41130F4681708840BA6075320A04E`.
 
 Exact `a6cf9383` quarantines concrete Codex/OpenRouter authentication,
 credential reading, and network transport at the two release entrypoints that
@@ -576,8 +598,10 @@ unproven.
 
 Exact `196222d9` removes session metadata plus job summary, artifact refs, and
 metadata from the live lifecycle documents. No reader consumed them, every
-metadata map and launch artifact list was empty, and terminal
-`EpiphanyRuntimeJobResult` already owns the summary and artifacts that matter.
+metadata map and launch artifact list was empty. At that cut,
+`EpiphanyRuntimeJobResult` still owned the terminal summary and artifacts;
+exact `2c3335dc` later deleted that family after moving each terminal fact to
+its exact typed owner.
 Sessions retain objective/coordinator note; jobs retain exact session, role,
 status, and time identity. The corresponding launch-option cargo, completion
 merge, and caller literals are gone. Runtime writable state advances to v21;
@@ -949,9 +973,11 @@ The global thread-state authority is gone.
   basis, decoded typed projection, exact terminal native/provider requests,
   governed tool observations, structured terminal records, and exact Mind
   commit receipts without consulting streams, events, or current Mind state.
-  Worker archival now retains the complete typed role/generic result family;
-  the digest-only archive shape is deleted. Runtime schema v2 refuses the
-  prior writable archive epoch.
+  Worker archival at that point retained the complete typed role/generic
+  result family; exact `2c3335dc` later deleted the generic companion while
+  preserving typed success and failure decisions. The digest-only archive
+  shape remains deleted. Runtime schema v2 refused the prior writable archive
+  epoch.
 - `553f79d9` makes the OpenAI Responses schema projector one explicit dialect
   compiler shared by every model pass. It types literal-only schemas, removes
   parent-relative and unsupported conditional validation from provider cargo,
@@ -1275,16 +1301,18 @@ coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 ## Immediate next action
 
 The Ox17 deployment lane remains paused. Continue subtraction from exact
-`10a70afc`: partition `EpiphanyRuntimeJobResult` consumers by structured
-role/reorientation success, typed model-pass failure, transport completion, and
-process-death recovery. Delete summary, next-move, evidence, and artifact mirrors
-where the exact structured owner already exists; preserve the minimal
-verdict/time/context or failure account needed for physiology, audit, replay,
-and retention. Do not replace removed cargo with metadata, a summary DTO,
-compatibility reader, or latest selector. The Connector CultMesh/Idunn/Yggdrasil proof and
-Ghostlight adoption remain queued behind source stabilization. Preserve keyed
-Mind, direct Body-to-Modeling flow, consequence receipts, and the complete
-Model Atlas vertical slice; no live inter-swarm collaboration has run.
+`2c3335dc` by mapping completed model-session retention end to end: the live
+session latch, binding-derived membership, terminal receipt/failure reachability,
+tool-family deletion, the private archived-session resurrection fence, and each
+identity-collision reader. Decide whether `EpiphanyRuntimeSession` plus
+`EpiphanyArchivedRuntimeSession` are one necessary lifecycle pair or a
+redundant aggregate that can collapse into binding-derived state and one
+minimal retirement authority. Do not replace them with a registry, retention
+head, metadata map, compatibility reader, or summary DTO. The remaining
+Connector publication/Yggdrasil caller-admission work stays queued behind
+source stabilization. Preserve keyed Mind, direct Body-to-Modeling flow,
+consequence receipts, and the complete Model Atlas vertical slice; no live
+inter-swarm collaboration has run.
 
 Yggdrasil previously exposed 96 GiB of dead native Cargo targets after
 interrupted full-workspace builds; exact cleanup returned the builder target

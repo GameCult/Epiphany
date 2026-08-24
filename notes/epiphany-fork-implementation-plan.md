@@ -852,6 +852,16 @@ Cut in this order:
    source delta is +7 lines for the CAS fence while one durable duplicate family
    disappears. Next determine whether the residual failure/transport result
    contract can be deleted entirely.
+53. **Generic job results are deleted at `2c3335dc`:** typed role and
+   reorientation outcomes atomically close their own job/process physiology;
+   native model receipts or typed model-pass failures own model terminality;
+   exact process claims own process death. Reorientation failure admission and
+   decision audit bind the typed failure directly. One shared outcome rule
+   prevents typed failures from claiming successful process fulfillment, and
+   failed archives retain the full typed failure. Runtime/Mind advance to
+   v45/v11 with no compatibility reader. The cut removes 361 maintained lines
+   net. Next audit whether live plus archived model-session aggregates are an
+   irreducible lifecycle pair or another derived grouping preserved by inertia.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,
