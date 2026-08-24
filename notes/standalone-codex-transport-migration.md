@@ -16,10 +16,12 @@ and release cadence.
 
 The source and live mechanisms are deliberately distinct during the braked cut:
 
-1. Exact Epiphany `ed7357a2` uses the standalone Connector client ABI for Codex
-   requests. Its embedded spine, direct Codex auth/HTTP/SSE path, compiled Codex
-   graph, `CODEX_HOME`, and auth.json readiness are deleted. That source is not
-   deployed; production Epiphany remains inactive on its historical release.
+1. Exact Epiphany `c37cae8b` seals the final Codex provider request and uses the
+   standalone Connector client ABI only for authenticated transport. Its
+   embedded spine, direct Codex auth/HTTP/SSE path, compiled Codex graph,
+   `CODEX_HOME`, auth.json readiness, and second release-edge request lowering
+   are deleted. That source is not deployed; production Epiphany remains
+   inactive on its historical release.
 2. Yggdrasil still runs `epiphany-model-connector.service` for Ghostlight.
    It uses encrypted CultNet/MessagePack on loopback TCP 4103, owns a private
    writable Codex home, serializes refresh through one `AuthManager`, bounds
@@ -35,14 +37,15 @@ is useful; the ownership is not.
 ## Current cut status
 
 Independent `GameCult/CodexConnector` exact
-`54d8bc2525b7e7fa1b9dd26b95871247ff4c7566` completes migration steps 1-4 on
+`6dc80f6d266db4d82566d2434adcc55a48e8ecad` completes migration steps 1-4 on
 the source side except redacted CultMesh/Odin publication and the Ghostlight
 cut. It owns one Cargo package, one public daemon binary, the v2 multi-caller
-encrypted MessagePack contract and lean default client ABI,
-caller-native and exact provider-request digest binding, typed tool/result
-transport, a private digest-pinned official `codex app-server` credential
-child, raw Responses HTTP/SSE, and durable keyed replay. It links no Codex
-crate.
+MessagePack contract, caller-native and exact provider-request digest binding,
+typed tool/result transport, a private digest-pinned official
+`codex app-server` credential child, raw Responses HTTP/SSE, and durable keyed
+replay. It links no Codex crate. The no-feature library is contract-only;
+default `client` adds authenticated encryption, framing, and socket transport;
+`daemon` adds service authority.
 
 Replay uses one CultCache document per caller/request identity in an owned Redb
 store. The daemon persists `Active` before provider I/O and replaces it with
@@ -53,8 +56,8 @@ capacity for unrelated identities. Replay records do not disappear merely
 because request admission expiry elapsed. A non-secret connection-key epoch
 detects rotation without persisting a secret-derived verifier.
 
-Default acceptance passes 10/10 and daemon acceptance passes 23/23 plus exact
-library/binary checks and Clippy. All disposable Connector targets were removed.
+Contract-only, client, and daemon acceptance pass 8/8, 10/10, and 29/29.
+Connector documentation exact `8c57be4` records the feature boundary.
 
 Exact Epiphany `ed7357a2` consumes the lean client, keeps OpenRouter as a direct
 separate provider edge, and preserves Connector caller/native/provider digest
@@ -63,6 +66,28 @@ model edge 12/12, Persona 1/1, launch checks, and focused Clippy pass. Its
 maintained non-lock source shrinks by 857 lines and Cargo.lock by 4,830 lines.
 The bounded verification roots were removed; only the exact state inspector
 remains. No live service, credential, or deployment authority moved.
+
+Exact Epiphany `c37cae8b` closes the remaining two-request seam. The
+consumer-owned adapter now lowers the native request directly to one durable
+closed provider-request variant. Its Codex variant is the exact
+`CodexProviderRequest` supplied to the daemon; the release edge adds only
+caller identity, native digest, expiry, encryption, and framing. The old
+release-edge schema/tool/call-ID/output-format lowering is deleted. Runtime and
+decision-context writable schemas advance to v47/v3. Core 152/152, runtime
+21/21, adapter 5/5, model edge 12/12, and Persona 1/1 pass. The source cut
+removes 10 net maintained lines. Epiphany pins the contract-only Connector
+surface in its adapter and enables `client` only at the release edge.
+
+Exact Epiphany `87ea81db` pins current Connector source `6dc80f6d` and deletes
+the obsolete public JSON schema for the extinct generic OpenAI-shaped request.
+Provider wire contracts are published by their owning provider boundary;
+Epiphany's closed provider-request wrapper remains private Mind state.
+
+Exact Ghostlight `8e7d980` pins the same Connector source contract. Cargo
+metadata and the additive Connector API diff validate the dependency seam; no
+local Ghostlight compilation, Idunn transaction, or live service mutation was
+performed. The current Yggdrasil Ghostlight connector remains historical live
+physiology until the standalone deployment cut is admitted separately.
 
 ## Authority map
 

@@ -222,15 +222,17 @@ Delete or demote:
 ## Immediate Next Action
 
 Keep the five-day shakedown, Ox17 deployment, and Model Atlas operational Gate
-1 paused. Exact `ed7357a2` completes Epiphany's source-side Codex transport cut:
-the embedded spine, compiled Codex graph, direct auth/HTTP/SSE path, and
-Codex-home readiness are absent. Modeling still consumes typed Body and keyed
-RepoModel state directly; Persona still consumes keyed memory and social state
-directly. No Epiphany-owned Rider or Unity bridge exists: Brokkr owns Unity
-through typed Eve/CultMesh capabilities, and a future Rider daemon owns Rider.
-Do not admit a fresh package until the standalone Connector has redacted signed
-readiness, an independent Idunn target, and a real digest-bound Epiphany round
-trip.
+1 paused. Exact `ed7357a2` removes Codex transport from Epiphany's body, and
+exact `c37cae8b` closes the residual request-authorship split. Epiphany now
+seals the exact final `CodexProviderRequest` as durable Mind input before the
+release edge sees it. The edge adds authenticated invocation physiology but no
+schema, tool, call-ID, tool-choice, or output-format opinion. Modeling still
+consumes typed Body and keyed RepoModel state directly; Persona still consumes
+keyed memory and social state directly. No Epiphany-owned Rider or Unity bridge
+exists: Brokkr owns Unity through typed Eve/CultMesh capabilities, and a future
+Rider daemon owns Rider. Do not admit a fresh package until the standalone
+Connector has redacted signed readiness, an independent Idunn target, and a
+real digest-bound Epiphany round trip.
 
 The immediate comparison is now explicit. The former release-edge
 `codex-login` graph is gone from Epiphany. `epiphany-core` remains broad and
@@ -241,20 +243,26 @@ semantic owner rather than invent a package taxonomy.
 The provider decision is a service extraction specified by
 `notes/standalone-codex-transport-migration.md`. Independent
 `GameCult/CodexConnector` exact
-`54d8bc2525b7e7fa1b9dd26b95871247ff4c7566` owns the v2 multi-caller contract,
+`6dc80f6d266db4d82566d2434adcc55a48e8ecad` owns the v2 multi-caller contract,
 exact native/provider digest binding, typed tool and terminal receipts, the
 pinned official Codex credential child, raw Responses transport, and durable
-keyed replay. Its default feature set is the lean encrypted client/contract ABI;
-daemon-only anatomy is feature-gated. It links no Codex crate. Active replay
-identity is written before network access; the exact encrypted completion is
-durable before reply; restart ambiguity refuses rather than re-executing.
-Redacted CultMesh/Odin readiness is the remaining daemon source cut before its
-independent Idunn deployment.
+keyed replay. No features yields only the typed contract; default `client` adds
+authenticated framing and socket transport; `daemon` adds service authority.
+It links no Codex crate. Active replay identity is written before network
+access; the exact encrypted completion is durable before reply; restart
+ambiguity refuses rather than re-executing. Redacted CultMesh/Odin readiness is
+the remaining daemon source cut before its independent Idunn deployment.
 
-Epiphany now passes the shared client contract and its old path is deleted.
-Ghostlight must adopt the same ABI and remove its copied wire types plus
-connector deployment authority after the standalone service is proven on
-Yggdrasil. No dual daemon or refresh writer is an acceptable transition state.
+Epiphany pins the contract-only surface in its adapter and enables the client
+only at its release edge. Exact `87ea81db` also deletes Epiphany's obsolete
+public schema for the extinct generic provider request; the shared Codex
+contract belongs to Connector, while Epiphany's wrapper remains private Mind
+state. Ghostlight exact `8e7d980` now pins the same Connector source without
+changing its live deployment. Repair the stale deployment maps next. No dual
+daemon or refresh writer is an acceptable transition state. After that,
+preserve the dirty vendored-Codex edits and delete
+the 3,592-file tree if its final live-consumer audit remains empty; resume the
+single-caller runtime-spine audit afterward.
 
 Model Atlas has component proofs but no live inter-swarm collaboration run.
 Preserve its publication, trust, transport, projection, Soul verification, Self

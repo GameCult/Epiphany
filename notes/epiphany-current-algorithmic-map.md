@@ -83,11 +83,13 @@ runtime-local identity, session, job, binding, coordinator, native model/tool,
 and state-ledger JSON mirror. Those documents remain typed CultCache state and
 are discovered from the native registration or projected by their owning
 CultMesh provider; no live CultNet crossing consumed the hand-maintained JSON,
-and several schemas contradicted their Rust owners. The catalog now contains
-only three earned portable boundaries: the exact OpenAI-compatible provider
-request, `gamecult.persona_state.v0`, and `epiphany.work_organ_state.v0`. The
-two cuts remove 850 net maintained lines. Atlas remains untouched and untested
-end to end.
+and several schemas contradicted their Rust owners. Those two cuts left three
+portable boundaries and removed 850 net maintained lines. Exact `87ea81db`
+then deletes the generic OpenAI-shaped schema after its Rust document ceases to
+exist. The public Epiphany catalog now contains only
+`gamecult.persona_state.v0` and `epiphany.work_organ_state.v0`. Connector owns
+the shared Codex contract; Epiphany's closed provider-request document remains
+private Mind state. Atlas remains untouched and untested end to end.
 
 Dependency ownership follows source ownership. Exact `695af6c6` deletes
 thirteen manifest edges with no consumer in their owning package, plus the
@@ -669,11 +671,12 @@ route, not a tool route plus a parallel no-tools opinion.
 The target boundary is the independent daemon mapped in
 `notes/standalone-codex-transport-migration.md`. Independent
 `GameCult/CodexConnector` exact
-`54d8bc2525b7e7fa1b9dd26b95871247ff4c7566` now owns one typed multi-caller
+`6dc80f6d266db4d82566d2434adcc55a48e8ecad` owns one typed multi-caller
 transport package and one public daemon binary without linking a Codex crate.
-Its default library is only the encrypted contract/client ABI; daemon-only
-auth, raw Responses transport, CultCache replay, and Ureq/Rustls dependencies
-sit behind the `daemon` feature.
+With no features the library exposes only the typed provider/result contract.
+The default `client` feature adds authenticated encryption, framing, and socket
+transport. Auth, raw Responses transport, CultCache replay, and Ureq/Rustls sit
+behind the `daemon` feature.
 Each consumer internally derives its exact typed provider request. The daemon
 verifies those exact bytes, returns a digest-bound transport receipt plus typed
 events, and uses a private digest-pinned official `codex app-server` child only
@@ -696,6 +699,17 @@ readiness, the independent Idunn target, Yggdrasil installation, one real
 Epiphany round trip, and Ghostlight's copied wire/deployment deletion remain
 open.
 
+Exact `c37cae8b` closes the remaining request-authorship split. The consumer
+adapter turns the canonical native request directly into one closed durable
+provider-request variant before inference. For Codex, that variant contains the
+exact `CodexProviderRequest` sent across the socket. The release edge may add
+only Connector invocation physiology: caller identity, native-request digest,
+expiry, encryption, and framing. It cannot lower schemas, rename tool calls,
+choose tools, or author a second provider request. OpenRouter retains its own
+exact direct request variant. Decision contexts and runtime model execution
+persist the same provider-request bytes; runtime v47 and decision context v3
+refuse the old writable shape.
+
 ## Canonical authority map
 
 | Owner | Inputs | Outputs | Invariant |
@@ -707,7 +721,7 @@ open.
 | `current_work.rs` | keyed Mind view and exact runtime request/job/result/decision families | pure family scheduling and continuation projections | Events, timestamps, role lanes, and thread provenance cannot create or suppress work. |
 | coordinator policy/status | keyed Mind presence, exact current work, and the accepted continuity decision | one action/reason pair plus operator-readable role lanes | Coordinator presence is derived; no mutable coordinator head, pressure tableau, or duplicate policy wrapper exists. |
 | runtime worker attempt owner | sealed typed launch, exact process claim, semantic result or typed failure, job result, archival evidence | one terminal attempt authority | The launch document solely owns live family identity. The result cannot repeat routing identity; after live deletion the archive owns exact request kind/ID beside the preserved structured decision. Scheduling, process liveness, and semantic admission remain distinct authorities. |
-| model-provider boundary | sealed native model request plus explicit provider configuration | exact internally derived provider request and transport result | OpenRouter remains a release-owned direct boundary. Codex crosses the lean CodexConnector client ABI; the daemon owns only caller admission, credential refresh, exact transport, and durable replay. Provider selection cannot author a second request truth or admit Mind state. |
+| model-provider boundary | sealed native model request plus explicit provider configuration | one closed durable provider-request variant and transport result | The consumer adapter owns provider lowering. OpenRouter remains a release-owned direct boundary. For Codex, the persisted request is the exact `CodexProviderRequest` crossing the lean Connector client ABI; the release edge adds only authenticated invocation physiology. The daemon owns caller admission, credential refresh, exact transport, and durable replay. No transport layer can author a second request truth or admit Mind state. |
 | OpenAI Responses schema projector | full native typed output schema | one provider-legal strict generation schema | Provider formatting preserves useful supported constraints but never replaces native decoding or Mind admission. |
 | model-pass terminal owner | sealed reasoning basis/context and typed failure class | exact transport closure plus `EpiphanyModelPassFailure` and terminal session/job result in one batch CAS | The caller cannot nominate a job/session; the context-derived binding closes role, reorient, and Persona failures without granting generic transport results decision authority. |
 | Substrate Gate | exact worker/job authority and requested operation | scoped grant or refusal | Access permission does not admit Mind state. |

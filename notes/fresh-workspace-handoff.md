@@ -2,11 +2,11 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany source cut: `24023265`
-Current connector source: `54d8bc2525b7e7fa1b9dd26b95871247ff4c7566`
-Current pass: source subtraction continues after deleting duplicate live Hands
-receipt rereads; the Hands actuator ABI boundary is next; Ox17 and Atlas
-Gate 1 remain paused
+Latest committed Epiphany source cut: `87ea81db`
+Current connector source: `6dc80f6d266db4d82566d2434adcc55a48e8ecad`
+Current pass: exact provider-request authorship is singular; reconcile the
+stale deployment maps, then preserve and remove the unused vendored Codex tree;
+Ox17 and Atlas Gate 1 remain paused
 
 ## Orientation
 
@@ -17,9 +17,9 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `2c3335dc` is the current
-build-affecting source. Historical live proofs remain evidence; they do not
-authorize the next capstone or Gate 1.
+production symlink body and is inactive. Exact `87ea81db` is the current
+build-affecting source on this branch. Historical live proofs remain evidence;
+they do not authorize the next capstone or Gate 1.
 
 ## Current live deployment
 
@@ -1338,18 +1338,39 @@ coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 
 ## Immediate next action
 
-The Ox17 deployment lane remains paused. Continue subtraction from exact
-`a01c6842`. Map the remaining Codex provider boundary before changing it: the
-decision context currently seals `EpiphanyOpenAiModelRequest`, then the release
-edge derives the final `CodexProviderRequest` that crosses the standalone
-daemon boundary. Collapse that two-request seam without moving prompts, tools,
-retry, interpretation, or Mind admission into CodexConnector. Then reconcile
-the consumer protocol pins and stale deployment maps. The 3,592-file vendored
-Codex tree is excluded from every production build and has no nonhistorical
-source consumer; preserve its current uncommitted edits before deciding its
-deletion. Resume the single-caller runtime-spine audit after this boundary is
-watertight. Preserve keyed Mind, direct Body-to-Modeling flow, OpenRouter as a
-separate temporary provider edge, and the complete unrun Model Atlas slice.
+The Ox17 deployment lane remains paused. Exact Epiphany `c37cae8b` closes the
+remaining two-stage Codex request seam. The consumer adapter now derives and
+seals one closed durable provider-request document: either the exact final
+`CodexProviderRequest` or the exact OpenRouter request. The release edge no
+longer rewrites Codex schemas, tools, call IDs, tool choice, or output format;
+it only wraps the sealed request in the authenticated Connector invocation.
+Runtime and decision-context writable schemas are v47/v3. The source cut is 10
+net maintained deletions and passes Core 152/152, runtime 21/21, adapter 5/5,
+model edge 12/12, and Persona 1/1.
+
+CodexConnector source exact
+`6dc80f6d266db4d82566d2434adcc55a48e8ecad` includes current mainline transport
+diagnostics and exposes three compile surfaces: contract-only with no features,
+the default encrypted socket client, and the daemon. Contract/client/daemon
+tests pass 8/8, 10/10, and 29/29. Documentation exact `8c57be4` records that
+boundary. Epiphany pins the contract-only surface in its adapter and enables
+the client only at the release edge.
+
+Exact `87ea81db` pins the current Connector source and deletes Epiphany's stale
+106-line public JSON schema for the extinct generic request; the public catalog
+now contains only the portable Persona and work-organ contracts.
+
+Ghostlight exact `8e7d980` now pins the same Connector source contract. Only
+Cargo metadata and the additive Connector API diff were checked locally; no
+Ghostlight compilation or deployment ran on Starfire.
+
+Continue subtraction from exact `87ea81db`. Reconcile the stale
+standalone-daemon deployment maps without mutating live service authority. Then
+preserve the uncommitted edits inside the 3,592-file
+vendored Codex tree and delete the tree if the final live-consumer audit remains
+empty. Resume the single-caller runtime-spine audit afterward. Preserve keyed
+Mind, direct Body-to-Modeling flow, OpenRouter as a separate temporary provider
+edge, and the complete unrun Model Atlas slice.
 
 Yggdrasil previously exposed 96 GiB of dead native Cargo targets after
 interrupted full-workspace builds; exact cleanup returned the builder target
