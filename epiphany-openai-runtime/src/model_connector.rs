@@ -505,7 +505,7 @@ fn sanitize_model_events(
             }
             EpiphanyModelStreamPayload::Completed { receipt } => {
                 if let Some(limit) = request.max_output_tokens
-                    && !matches!(receipt.output_tokens, Some(tokens) if tokens <= u64::from(limit))
+                    && !receipt_proves_public_output_bound(&receipt, limit)
                 {
                     return vec![connector_failed_event(
                         &request.request_id,
@@ -536,6 +536,23 @@ fn sanitize_model_events(
         ));
     }
     sanitized
+}
+
+fn receipt_proves_public_output_bound(
+    receipt: &epiphany_model_adapter::EpiphanyModelReceipt,
+    limit: u32,
+) -> bool {
+    let Some(total_output_tokens) = receipt.output_tokens else {
+        return false;
+    };
+    let public_output_tokens = match receipt.reasoning_output_tokens {
+        Some(reasoning_tokens) if reasoning_tokens <= total_output_tokens => {
+            total_output_tokens - reasoning_tokens
+        }
+        Some(_) => return false,
+        None => total_output_tokens,
+    };
+    public_output_tokens <= u64::from(limit)
 }
 
 fn connector_failed_event(request_id: &str, message: &str) -> EpiphanyModelStreamEvent {
@@ -945,6 +962,20 @@ mod tests {
                 }]
             ));
         }
+    }
+
+    #[test]
+    fn connector_bounds_public_output_without_exposing_hidden_reasoning() {
+        let mut receipt = EpiphanyModelReceipt::new("request-1", "openai-codex", "gpt-5.4");
+        receipt.output_tokens = Some(700);
+        receipt.reasoning_output_tokens = Some(300);
+        assert!(receipt_proves_public_output_bound(&receipt, 512));
+
+        receipt.reasoning_output_tokens = None;
+        assert!(!receipt_proves_public_output_bound(&receipt, 512));
+
+        receipt.reasoning_output_tokens = Some(701);
+        assert!(!receipt_proves_public_output_bound(&receipt, 512));
     }
 
     #[test]
