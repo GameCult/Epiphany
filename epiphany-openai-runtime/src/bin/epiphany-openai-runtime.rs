@@ -1144,7 +1144,6 @@ mod tests {
             epiphany_core::RuntimeSpineJobOptions {
                 job_id: job_id.clone(),
                 session_id: session_id.clone(),
-                role: OPENAI_RUNTIME_ROLE.to_string(),
             },
             &model_request,
         )?;
@@ -1242,9 +1241,6 @@ mod tests {
             &store,
             RuntimeSpineHeartbeatJobOptions {
                 runtime_id: "epiphany-test".to_string(),
-                session_id: "epiphany-main".to_string(),
-                objective: "Run typed worker.".to_string(),
-                coordinator_note: "test".to_string(),
                 job_id: "worker-job-loop".to_string(),
                 role: "verification".to_string(),
                 binding_id: "verification-review-worker".to_string(),
@@ -1333,9 +1329,6 @@ mod tests {
             &store,
             RuntimeSpineHeartbeatJobOptions {
                 runtime_id: "epiphany-test".to_string(),
-                session_id: "epiphany-main".to_string(),
-                objective: "Run typed worker.".to_string(),
-                coordinator_note: "test".to_string(),
                 job_id: "worker-job-runtime-error".to_string(),
                 role: "verification".to_string(),
                 binding_id: "verification-review-worker".to_string(),
@@ -1382,7 +1375,6 @@ mod tests {
             epiphany_core::RuntimeSpineJobOptions {
                 job_id: "openai-job-runtime-error".into(),
                 session_id: "openai-runtime-error".into(),
-                role: OPENAI_RUNTIME_ROLE.into(),
             },
             &request,
         )?;
@@ -1436,9 +1428,6 @@ mod tests {
             &store,
             RuntimeSpineHeartbeatJobOptions {
                 runtime_id: "epiphany-test".to_string(),
-                session_id: "epiphany-main".to_string(),
-                objective: "Run typed worker.".to_string(),
-                coordinator_note: "test".to_string(),
                 job_id: "worker-job-round-limit".to_string(),
                 role: "verification".to_string(),
                 binding_id: "verification-review-worker".to_string(),

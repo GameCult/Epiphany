@@ -55,7 +55,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v41";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v42";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(type = "epiphany.runtime.identity", schema = "EpiphanyRuntimeIdentity")]
@@ -127,10 +127,6 @@ pub struct EpiphanyRuntimeJob {
     #[cultcache(key = 1)]
     pub job_id: String,
     #[cultcache(key = 2)]
-    pub session_id: String,
-    #[cultcache(key = 3)]
-    pub role: String,
-    #[cultcache(key = 4)]
     pub status: EpiphanyRuntimeJobStatus,
 }
 
@@ -527,24 +523,18 @@ pub struct EpiphanyRuntimeJobResult {
     #[cultcache(key = 2)]
     pub job_id: String,
     #[cultcache(key = 3)]
-    pub session_id: String,
-    #[cultcache(key = 4)]
-    pub role: String,
-    #[cultcache(key = 5)]
     pub verdict: String,
-    #[cultcache(key = 6)]
+    #[cultcache(key = 4)]
     pub summary: String,
-    #[cultcache(key = 7)]
+    #[cultcache(key = 5)]
     pub completed_at: String,
-    #[cultcache(key = 8, default)]
+    #[cultcache(key = 6, default)]
     pub next_safe_move: String,
-    #[cultcache(key = 9, default)]
+    #[cultcache(key = 7, default)]
     pub evidence_refs: Vec<String>,
-    #[cultcache(key = 10, default)]
+    #[cultcache(key = 8, default)]
     pub artifact_refs: Vec<String>,
-    #[cultcache(key = 11, default)]
-    pub metadata: BTreeMap<String, String>,
-    #[cultcache(key = 12, default)]
+    #[cultcache(key = 9, default)]
     pub decision_context_id: Option<String>,
 }
 
@@ -647,7 +637,6 @@ pub struct ModelPassFailureTerminalOptions {
 pub struct RuntimeSpineJobOptions {
     pub job_id: String,
     pub session_id: String,
-    pub role: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -666,9 +655,6 @@ pub struct RuntimeSpineJobResultOptions {
 #[derive(Clone, Debug, PartialEq)]
 pub struct RuntimeSpineHeartbeatJobOptions {
     pub runtime_id: String,
-    pub session_id: String,
-    pub objective: String,
-    pub coordinator_note: String,
     pub job_id: String,
     pub role: String,
     pub binding_id: String,
@@ -943,11 +929,17 @@ pub fn close_runtime_session(
     if session.status == EpiphanyRuntimeSessionStatus::Completed {
         return Ok(session);
     }
+    let session_job_ids = cache
+        .get_all::<EpiphanyRuntimeModelExecutionBinding>()?
+        .into_iter()
+        .filter(|binding| binding.session_id == options.session_id)
+        .map(|binding| binding.job_id)
+        .collect::<BTreeSet<_>>();
     let open_job_ids = cache
         .get_all::<EpiphanyRuntimeJob>()?
         .into_iter()
         .filter(|job| {
-            job.session_id == options.session_id
+            session_job_ids.contains(&job.job_id)
                 && matches!(job.status, EpiphanyRuntimeJobStatus::Queued)
         })
         .map(|job| job.job_id)
@@ -1034,11 +1026,6 @@ pub fn terminalize_model_pass_failure_session(
     let mut model_job = cache
         .get::<EpiphanyRuntimeJob>(&binding.job_id)?
         .ok_or_else(|| anyhow!("model pass failure runtime job is absent"))?;
-    if model_job.session_id != binding.session_id {
-        return Err(anyhow!(
-            "model pass failure runtime job is outside its exact session"
-        ));
-    }
     let model_job_is_live = matches!(model_job.status, EpiphanyRuntimeJobStatus::Queued);
     let model_job_results = cache
         .get_all::<EpiphanyRuntimeJobResult>()?
@@ -1055,11 +1042,17 @@ pub fn terminalize_model_pass_failure_session(
             "terminal model transport job lost its non-authoritative result"
         ));
     }
+    let session_job_ids = cache
+        .get_all::<EpiphanyRuntimeModelExecutionBinding>()?
+        .into_iter()
+        .filter(|candidate| candidate.session_id == binding.session_id)
+        .map(|candidate| candidate.job_id)
+        .collect::<BTreeSet<_>>();
     let open_job_ids = cache
         .get_all::<EpiphanyRuntimeJob>()?
         .into_iter()
         .filter(|job| {
-            job.session_id == binding.session_id
+            session_job_ids.contains(&job.job_id)
                 && (!model_job_is_live || job.job_id != binding.job_id)
                 && matches!(job.status, EpiphanyRuntimeJobStatus::Queued)
         })
@@ -1082,8 +1075,6 @@ pub fn terminalize_model_pass_failure_session(
         let model_result = EpiphanyRuntimeJobResult {
             result_id: format!("result-model-pass-failure-{}", failure.failure_id),
             job_id: binding.job_id.clone(),
-            session_id: binding.session_id.clone(),
-            role: model_job.role.clone(),
             verdict: "failed".to_string(),
             summary: options.summary.clone(),
             completed_at: options.failed_at.clone(),
@@ -1092,7 +1083,6 @@ pub fn terminalize_model_pass_failure_session(
                     .to_string(),
             evidence_refs: Vec::new(),
             artifact_refs: Vec::new(),
-            metadata: BTreeMap::new(),
             decision_context_id: None,
         };
         expected.push(model_job_envelope);
@@ -1153,7 +1143,6 @@ pub fn open_runtime_model_execution(
 ) -> Result<EpiphanyRuntimeModelExecutionBinding> {
     validate_non_empty(&job_options.session_id, "model execution session id")?;
     validate_non_empty(&job_options.job_id, "model execution job id")?;
-    validate_non_empty(&job_options.role, "model execution job role")?;
     validate_non_empty(&model_request.request_id, "model execution request id")?;
     validate_non_empty(&model_request.provider, "model execution provider")?;
     let provider_request = epiphany_openai_adapter::request_from_native(model_request);
@@ -1198,12 +1187,10 @@ pub fn open_runtime_model_execution(
             let worker_job = cache
                 .get::<EpiphanyRuntimeJob>(worker_job_id)?
                 .ok_or_else(|| anyhow!("model execution source worker has no runtime job"))?;
-            if worker_job.role != launch.role
-                || matches!(
-                    worker_job.status,
-                    EpiphanyRuntimeJobStatus::Completed | EpiphanyRuntimeJobStatus::Failed
-                )
-            {
+            if matches!(
+                worker_job.status,
+                EpiphanyRuntimeJobStatus::Completed | EpiphanyRuntimeJobStatus::Failed
+            ) {
                 return Err(anyhow!(
                     "model execution source worker job is foreign or terminal"
                 ));
@@ -1243,8 +1230,6 @@ pub fn open_runtime_model_execution(
     }
     let job = EpiphanyRuntimeJob {
         job_id: job_options.job_id.clone(),
-        session_id: session.session_id.clone(),
-        role: job_options.role,
         status: EpiphanyRuntimeJobStatus::Queued,
     };
     let binding_id = model_request.request_id.clone();
@@ -1333,7 +1318,7 @@ pub fn put_runtime_tool_execution_intent(
     let job = cache
         .get::<EpiphanyRuntimeJob>(job_id)?
         .ok_or_else(|| anyhow!("tool execution job {job_id:?} does not exist"))?;
-    if job.session_id != session_id
+    if !runtime_job_belongs_to_session(&cache, job_id, session_id)?
         || matches!(
             job.status,
             EpiphanyRuntimeJobStatus::Completed | EpiphanyRuntimeJobStatus::Failed
@@ -1433,6 +1418,31 @@ pub fn put_runtime_tool_execution_intent(
     Ok(binding)
 }
 
+fn runtime_job_belongs_to_session(
+    cache: &CultCache,
+    job_id: &str,
+    session_id: &str,
+) -> Result<bool> {
+    if cache
+        .get::<EpiphanyRuntimeWorkerLaunchRequest>(job_id)?
+        .is_some()
+    {
+        return Ok(session_id == EPIPHANY_RUNTIME_ROOT_SESSION_ID);
+    }
+    let bindings = cache
+        .get_all::<EpiphanyRuntimeModelExecutionBinding>()?
+        .into_iter()
+        .filter(|binding| binding.job_id == job_id)
+        .collect::<Vec<_>>();
+    match bindings.as_slice() {
+        [binding] => Ok(binding.session_id == session_id),
+        [] => Ok(false),
+        _ => Err(anyhow!(
+            "runtime job has multiple model-session authorities"
+        )),
+    }
+}
+
 pub(crate) fn validate_runtime_model_execution_binding(
     cache: &CultCache,
     request_id: &str,
@@ -1452,12 +1462,11 @@ pub(crate) fn validate_runtime_model_execution_binding(
     cache
         .get::<EpiphanyRuntimeSession>(&binding.session_id)?
         .ok_or_else(|| anyhow!("model execution binding {request_id:?} lost its session"))?;
-    let job = cache
+    cache
         .get::<EpiphanyRuntimeJob>(&binding.job_id)?
         .ok_or_else(|| anyhow!("model execution binding {request_id:?} lost its job"))?;
     if binding.request_id != request_id
         || provider != epiphany_openai_adapter::request_from_native(&native)
-        || job.session_id != binding.session_id
     {
         return Err(anyhow!(
             "model execution binding {request_id:?} is not one exact request family"
@@ -1474,13 +1483,10 @@ pub(crate) fn validate_runtime_model_execution_binding(
         let launch = cache
             .get::<EpiphanyRuntimeWorkerLaunchRequest>(worker_job_id)?
             .ok_or_else(|| anyhow!("model execution binding lost its source worker launch"))?;
-        let worker_job = cache
+        cache
             .get::<EpiphanyRuntimeJob>(worker_job_id)?
             .ok_or_else(|| anyhow!("model execution binding lost its source worker job"))?;
-        if basis.pass_id != worker_job_id
-            || launch.job_id != worker_job_id
-            || worker_job.role != launch.role
-        {
+        if basis.pass_id != worker_job_id || launch.job_id != worker_job_id {
             return Err(anyhow!(
                 "model execution binding {request_id:?} has foreign worker authority"
             ));
@@ -1527,7 +1533,7 @@ pub(crate) fn validate_runtime_tool_execution_binding(
     let job = cache
         .get::<EpiphanyRuntimeJob>(&binding.job_id)?
         .ok_or_else(|| anyhow!("tool execution binding {intent_id:?} lost its job"))?;
-    if job.session_id != binding.session_id {
+    if !runtime_job_belongs_to_session(cache, &job.job_id, &binding.session_id)? {
         return Err(anyhow!(
             "tool execution binding {intent_id:?} has foreign or archived ownership"
         ));
@@ -1636,15 +1642,15 @@ pub fn retain_completed_runtime_sessions(
         .into_iter()
         .filter(|session| session.status == EpiphanyRuntimeSessionStatus::Completed)
         .filter(|session| {
-            let session_jobs = jobs
+            let session_job_ids = bindings
                 .iter()
-                .filter(|job| job.session_id == session.session_id)
-                .collect::<Vec<_>>();
-            !session_jobs.is_empty()
-                && session_jobs.iter().all(|job| {
-                    job.role == "openai-model-adapter"
-                        && bindings.iter().any(|binding| binding.job_id == job.job_id)
-                })
+                .filter(|binding| binding.session_id == session.session_id)
+                .map(|binding| binding.job_id.as_str())
+                .collect::<BTreeSet<_>>();
+            !session_job_ids.is_empty()
+                && session_job_ids
+                    .iter()
+                    .all(|job_id| jobs.iter().any(|job| job.job_id == **job_id))
         })
         .collect::<Vec<_>>();
     candidates.sort_by(|left, right| right.session_id.cmp(&left.session_id));
@@ -1683,17 +1689,26 @@ fn archive_completed_model_session(
     if session.status != EpiphanyRuntimeSessionStatus::Completed {
         return Err(anyhow!("runtime session {session_id:?} is not completed"));
     }
+    let mut model_bindings = cache
+        .get_all::<EpiphanyRuntimeModelExecutionBinding>()?
+        .into_iter()
+        .filter(|binding| binding.session_id == session_id)
+        .collect::<Vec<_>>();
+    model_bindings.sort_by(|left, right| left.request_id.cmp(&right.request_id));
+    let session_job_ids = model_bindings
+        .iter()
+        .map(|binding| binding.job_id.as_str())
+        .collect::<BTreeSet<_>>();
     let mut jobs = cache
         .get_all::<EpiphanyRuntimeJob>()?
         .into_iter()
-        .filter(|job| job.session_id == session_id)
+        .filter(|job| session_job_ids.contains(job.job_id.as_str()))
         .collect::<Vec<_>>();
     jobs.sort_by(|left, right| left.job_id.cmp(&right.job_id));
     if jobs.is_empty()
-        || jobs.iter().any(|job| {
-            job.role != "openai-model-adapter"
-                || matches!(job.status, EpiphanyRuntimeJobStatus::Queued)
-        })
+        || jobs
+            .iter()
+            .any(|job| matches!(job.status, EpiphanyRuntimeJobStatus::Queued))
     {
         return Err(anyhow!(
             "runtime session archive accepts only terminal model-adapter jobs"
@@ -1706,7 +1721,7 @@ fn archive_completed_model_session(
     let mut job_results = cache
         .get_all::<EpiphanyRuntimeJobResult>()?
         .into_iter()
-        .filter(|result| result.session_id == session_id)
+        .filter(|result| job_ids.contains(&result.job_id))
         .collect::<Vec<_>>();
     job_results.sort_by(|left, right| left.result_id.cmp(&right.result_id));
     if jobs.iter().any(|job| {
@@ -1747,12 +1762,6 @@ fn archive_completed_model_session(
         ));
     }
 
-    let mut model_bindings = cache
-        .get_all::<EpiphanyRuntimeModelExecutionBinding>()?
-        .into_iter()
-        .filter(|binding| binding.session_id == session_id)
-        .collect::<Vec<_>>();
-    model_bindings.sort_by(|left, right| left.request_id.cmp(&right.request_id));
     if jobs.iter().any(|job| {
         model_bindings
             .iter()
@@ -2040,8 +2049,6 @@ pub fn prepare_runtime_spine_heartbeat_job(
     options: RuntimeSpineHeartbeatJobOptions,
 ) -> Result<Vec<CultCacheEnvelope>> {
     validate_non_empty(&options.runtime_id, "runtime id")?;
-    validate_non_empty(&options.session_id, "session id")?;
-    validate_non_empty(&options.objective, "objective")?;
     validate_non_empty(&options.job_id, "job id")?;
     validate_non_empty(&options.role, "role")?;
     validate_repository_body_launch_carrier(&options.role, &options.launch_document)?;
@@ -2118,16 +2125,16 @@ pub fn prepare_runtime_spine_heartbeat_job(
             "runtime job preparation cannot substitute runtime identity"
         ));
     }
-    let session = match cache.get::<EpiphanyRuntimeSession>(&options.session_id)? {
+    let session = match cache.get::<EpiphanyRuntimeSession>(EPIPHANY_RUNTIME_ROOT_SESSION_ID)? {
         Some(existing) if existing.status == EpiphanyRuntimeSessionStatus::Completed => {
             return Err(anyhow!(
                 "runtime session {:?} is terminal and cannot accept jobs",
-                options.session_id
+                EPIPHANY_RUNTIME_ROOT_SESSION_ID
             ));
         }
         Some(existing) => existing,
         None => EpiphanyRuntimeSession {
-            session_id: options.session_id.clone(),
+            session_id: EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
             status: EpiphanyRuntimeSessionStatus::Active,
         },
     };
@@ -2145,8 +2152,6 @@ pub fn prepare_runtime_spine_heartbeat_job(
     }
     let job = EpiphanyRuntimeJob {
         job_id: options.job_id.clone(),
-        session_id: options.session_id.clone(),
-        role: options.role.clone(),
         status: EpiphanyRuntimeJobStatus::Queued,
     };
     let request = EpiphanyRuntimeWorkerLaunchRequest {
@@ -2456,15 +2461,15 @@ pub fn runtime_job_snapshot(
     let Some(job) = cache.get::<EpiphanyRuntimeJob>(job_id)? else {
         return Ok(None);
     };
-    let result = cache
+    let mut results = cache
         .get_all::<EpiphanyRuntimeJobResult>()?
         .into_iter()
         .filter(|result| result.job_id == job_id)
-        .max_by(|left, right| {
-            left.completed_at
-                .cmp(&right.completed_at)
-                .then_with(|| left.result_id.cmp(&right.result_id))
-        });
+        .collect::<Vec<_>>();
+    if results.len() > 1 {
+        return Err(anyhow!("runtime job has multiple terminal results"));
+    }
+    let result = results.pop();
     Ok(Some(EpiphanyRuntimeJobSnapshot { job, result }))
 }
 
@@ -2569,7 +2574,7 @@ pub fn put_runtime_requested_public_source_intents(
         .ok_or_else(|| anyhow!("requested public source worker has no launch request"))?;
     let request = frontier_research_request_for_launch(&cache, &launch)?
         .ok_or_else(|| anyhow!("requested public source worker has no typed Research request"))?;
-    let job = cache
+    cache
         .get::<EpiphanyRuntimeJob>(worker_job_id)?
         .ok_or_else(|| anyhow!("requested public source worker has no runtime job"))?;
     drop(cache);
@@ -2607,7 +2612,7 @@ pub fn put_runtime_requested_public_source_intents(
                 || chrono::DateTime::parse_from_rfc3339(&existing_intent.created_at).is_err()
                 || existing_binding.intent_id != intent_id
                 || existing_binding.job_id != worker_job_id
-                || existing_binding.session_id != job.session_id
+                || existing_binding.session_id != EPIPHANY_RUNTIME_ROOT_SESSION_ID
             {
                 return Err(anyhow!(
                     "requested public source intent {intent_id:?} collides with foreign authority"
@@ -2625,7 +2630,12 @@ pub fn put_runtime_requested_public_source_intents(
             ));
         }
         drop(cache);
-        put_runtime_tool_execution_intent(store_path, &job.session_id, worker_job_id, &intent)?;
+        put_runtime_tool_execution_intent(
+            store_path,
+            EPIPHANY_RUNTIME_ROOT_SESSION_ID,
+            worker_job_id,
+            &intent,
+        )?;
         intents.push(intent);
     }
     Ok(intents)
@@ -2946,9 +2956,6 @@ fn governed_source_tool_authority(
     let launch = cache
         .get::<EpiphanyRuntimeWorkerLaunchRequest>(&source_worker_job_id)?
         .ok_or_else(|| anyhow!("governed source tool intent lost its source worker launch"))?;
-    let source_worker_job = cache
-        .get::<EpiphanyRuntimeJob>(&source_worker_job_id)?
-        .ok_or_else(|| anyhow!("governed source tool intent lost its source worker job"))?;
     if !matches!(
         launch.binding_id.as_str(),
         crate::EPIPHANY_RESEARCH_ROLE_BINDING_ID
@@ -2976,8 +2983,7 @@ fn governed_source_tool_authority(
                 intent.intent_id
             )
         })?;
-    if source_worker_job.role != launch.role
-        || grant.runtime_job_id != source_worker_job_id
+    if grant.runtime_job_id != source_worker_job_id
         || grant.binding_id != launch.binding_id
         || grant.role != launch.role
         || grant.authority_scope != launch.authority_scope
@@ -3432,15 +3438,12 @@ fn commit_runtime_worker_process_death(
     let result = EpiphanyRuntimeJobResult {
         result_id: format!("result-worker-death-{job_id}"),
         job_id: job_id.to_string(),
-        session_id: job.session_id.clone(),
-        role: job.role.clone(),
         verdict: "failed".to_string(),
         summary: summary.clone(),
         completed_at: terminal_at.to_string(),
         next_safe_move: "Derive a fresh attempt from current typed work; never rebase the abandoned model output.".to_string(),
         evidence_refs: Vec::new(),
         artifact_refs: Vec::new(),
-        metadata: BTreeMap::new(),
         decision_context_id: decision_context_id.map(str::to_string),
     };
     if cache
@@ -8510,6 +8513,7 @@ pub fn open_coordinator_run(
         || cache
             .get::<EpiphanyCoordinatorRunTerminality>(session_id)?
             .is_some()
+        || cache.get::<EpiphanyRuntimeSession>(session_id)?.is_some()
     {
         return Err(anyhow!(
             "coordinator run session or thread authority already exists"
@@ -8544,10 +8548,7 @@ pub(crate) fn coordinator_run_incarnation_is_absent(
         && cache
             .get::<EpiphanyCoordinatorRunTerminality>(&session_id)?
             .is_none()
-        && !cache
-            .get_all::<EpiphanyRuntimeJob>()?
-            .iter()
-            .any(|job| job.session_id == session_id))
+        && cache.get::<EpiphanyRuntimeSession>(&session_id)?.is_none())
 }
 
 pub(crate) fn recover_coordinator_run_after_exact_process_death(
@@ -8613,9 +8614,8 @@ pub(crate) fn recover_coordinator_run_after_exact_process_death(
     if (session_started_at.timestamp_millis().max(0) as u64) < recovery.resident_started_at_millis
         || recovered_at < session_started_at
         || cache
-            .get_all::<EpiphanyRuntimeJob>()?
-            .iter()
-            .any(|job| job.session_id == recovery.session_id)
+            .get::<EpiphanyRuntimeSession>(&recovery.session_id)?
+            .is_some()
         || cache
             .get::<EpiphanyCoordinatorRunTerminality>(&recovery.session_id)?
             .is_some()
@@ -8685,9 +8685,8 @@ pub fn finalize_coordinator_run(
         return Err(anyhow!("coordinator run receipt substituted its run basis"));
     }
     if cache
-        .get_all::<EpiphanyRuntimeJob>()?
-        .iter()
-        .any(|job| job.session_id == receipt.session_id)
+        .get::<EpiphanyRuntimeSession>(&receipt.session_id)?
+        .is_some()
     {
         return Err(anyhow!(
             "coordinator run finalization refuses a session with runtime jobs"
@@ -8763,15 +8762,12 @@ pub fn complete_runtime_job(
     let result = EpiphanyRuntimeJobResult {
         result_id: options.result_id.clone(),
         job_id: options.job_id.clone(),
-        session_id: job.session_id.clone(),
-        role: job.role.clone(),
         verdict: options.verdict,
         summary: options.summary,
         completed_at: options.completed_at.clone(),
         next_safe_move: options.next_safe_move,
         evidence_refs: options.evidence_refs,
         artifact_refs: options.artifact_refs,
-        metadata: BTreeMap::new(),
         decision_context_id: options.decision_context_id,
     };
     let mut expected = vec![job_envelope];

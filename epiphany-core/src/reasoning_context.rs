@@ -2238,7 +2238,6 @@ mod tests {
             crate::RuntimeSpineJobOptions {
                 job_id: "model-job-1".into(),
                 session_id: "session-1".into(),
-                role: "model-adapter".into(),
             },
             &initial_native,
         )?;
@@ -2284,7 +2283,6 @@ mod tests {
             crate::RuntimeSpineJobOptions {
                 job_id: "model-job-2".into(),
                 session_id: "session-1".into(),
-                role: "model-adapter".into(),
             },
             &terminal_native,
         )?;
@@ -2351,7 +2349,6 @@ mod tests {
             crate::RuntimeSpineJobOptions {
                 job_id: "failed-model-job".into(),
                 session_id: "failed-pass-session".into(),
-                role: "model-adapter".into(),
             },
             &native,
         )?;
@@ -2435,15 +2432,12 @@ mod tests {
         let failure_runtime_result = crate::EpiphanyRuntimeJobResult {
             result_id: format!("result-runtime-{}", reasoning_basis.pass_id),
             job_id: reasoning_basis.pass_id.clone(),
-            session_id: "failed-pass-session".into(),
-            role: reasoning_basis.organ_id.clone(),
             verdict: "failed".into(),
             summary: failure_summary,
             completed_at: "2026-08-18T00:00:03Z".into(),
             next_safe_move: "Create a fresh work obligation and reasoning pass.".into(),
             evidence_refs: Vec::new(),
             artifact_refs: Vec::new(),
-            metadata: std::collections::BTreeMap::new(),
             decision_context_id: Some(context.context_id.clone()),
         };
         let mut cache = runtime_spine_cache(&store)?;
@@ -2569,7 +2563,6 @@ mod tests {
             crate::RuntimeSpineJobOptions {
                 job_id: "model-job-1".into(),
                 session_id: "session-1".into(),
-                role: "model-adapter".into(),
             },
             &native,
         )?;
@@ -2633,15 +2626,12 @@ mod tests {
         let terminal_result = crate::EpiphanyRuntimeJobResult {
             result_id: "worker-result-1".into(),
             job_id: "pass-1".into(),
-            session_id: "session-1".into(),
-            role: "Imagination".into(),
             verdict: "completed".into(),
             summary: "Structured Imagination decision".into(),
             completed_at: "2026-08-14T00:00:03Z".into(),
             next_safe_move: "Inspect the durable decision context".into(),
             evidence_refs: Vec::new(),
             artifact_refs: Vec::new(),
-            metadata: Default::default(),
             decision_context_id: Some(context.context_id.clone()),
         };
         runtime_spine_cache(&store)?.put(&terminal_result.result_id, &terminal_result)?;

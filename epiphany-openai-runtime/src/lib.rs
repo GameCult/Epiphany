@@ -117,7 +117,6 @@ pub fn open_model_turn(
         RuntimeSpineJobOptions {
             job_id: options.job_id.clone(),
             session_id: options.session_id.clone(),
-            role: OPENAI_RUNTIME_ROLE.to_string(),
         },
         model_request,
     )?;
@@ -2961,7 +2960,6 @@ mod tests {
             RuntimeSpineJobOptions {
                 job_id: options.job_id.clone(),
                 session_id: options.session_id.clone(),
-                role: OPENAI_RUNTIME_ROLE.to_string(),
             },
             &native_request,
         )?;
@@ -3057,7 +3055,6 @@ mod tests {
             RuntimeSpineJobOptions {
                 job_id: "openai-worker-worker-job-1".into(),
                 session_id: "openai-worker-session-modeling-checkpoint-worker".into(),
-                role: "openai-model-adapter".into(),
             },
             &model_request,
         )?;
@@ -3281,9 +3278,6 @@ mod tests {
             &store,
             RuntimeSpineHeartbeatJobOptions {
                 runtime_id: "epiphany-test".to_string(),
-                session_id: "epiphany-main".to_string(),
-                objective: "Verify the machine.".to_string(),
-                coordinator_note: "test".to_string(),
                 job_id: "verification-job-1".to_string(),
                 role: "verification".to_string(),
                 binding_id: epiphany_core::EPIPHANY_VERIFICATION_ROLE_BINDING_ID.to_string(),
@@ -3422,7 +3416,6 @@ mod tests {
             RuntimeSpineJobOptions {
                 job_id: options.job_id.clone(),
                 session_id: options.session_id.clone(),
-                role: OPENAI_RUNTIME_ROLE.to_string(),
             },
             &native_request,
         )?;

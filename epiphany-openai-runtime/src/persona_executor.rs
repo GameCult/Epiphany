@@ -594,7 +594,6 @@ mod tests {
                     epiphany_core::RuntimeSpineJobOptions {
                         job_id: format!("persona-{stage}-{turn_id}"),
                         session_id: format!("persona-turn-{turn_id}"),
-                        role: "openai-model-adapter".into(),
                     },
                     &request,
                 )?;

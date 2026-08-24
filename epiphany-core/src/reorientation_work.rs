@@ -456,9 +456,6 @@ pub fn launch_current_reorientation_work(
         &cache,
         crate::RuntimeSpineHeartbeatJobOptions {
             runtime_id: work.request.runtime_id.clone(),
-            session_id: crate::EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
-            objective: "Reorient from one exact keyed Mind projection".into(),
-            coordinator_note: "Reorientation current-work owner opened this pass.".into(),
             job_id: job_id.clone(),
             role: crate::EPIPHANY_REORIENT_OWNER_ROLE.into(),
             binding_id: crate::EPIPHANY_REORIENT_LAUNCH_BINDING_ID.into(),
@@ -970,7 +967,6 @@ mod tests {
             crate::RuntimeSpineJobOptions {
                 job_id: "reorientation-model-job".into(),
                 session_id: "reorientation-model-session".into(),
-                role: "openai-model".into(),
             },
             &native,
         )?;
@@ -1093,7 +1089,6 @@ mod tests {
             crate::RuntimeSpineJobOptions {
                 job_id: "failed-reorientation-model-job".into(),
                 session_id: "failed-reorientation-model-session".into(),
-                role: "openai-model".into(),
             },
             &failed_native,
         )?;

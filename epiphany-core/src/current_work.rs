@@ -1192,10 +1192,6 @@ pub fn launch_current_frontier_planning_work(
         &cache,
         crate::RuntimeSpineHeartbeatJobOptions {
             runtime_id: identity.runtime_id.clone(),
-            session_id: crate::EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
-            objective: "Propose one bounded plan for the exact frontier authority".into(),
-            coordinator_note: "Planning current-work launch transaction opened this session."
-                .into(),
             job_id: job_id.clone(),
             role: crate::EPIPHANY_IMAGINATION_OWNER_ROLE.into(),
             binding_id: crate::EPIPHANY_IMAGINATION_ROLE_BINDING_ID.into(),
@@ -1353,10 +1349,6 @@ pub fn launch_current_frontier_plan_mind_work(
         &cache,
         crate::RuntimeSpineHeartbeatJobOptions {
             runtime_id: identity.runtime_id.clone(),
-            session_id: crate::EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
-            objective: "Adjudicate one exact Imagination plan candidate".into(),
-            coordinator_note: "Plan Mind current-work launch transaction opened this session."
-                .into(),
             job_id: job_id.clone(),
             role: crate::EPIPHANY_MIND_OWNER_ROLE.into(),
             binding_id: crate::EPIPHANY_MIND_ROLE_BINDING_ID.into(),
@@ -1496,10 +1488,6 @@ pub fn launch_current_frontier_verification_work(
         &cache,
         crate::RuntimeSpineHeartbeatJobOptions {
             runtime_id: identity.runtime_id,
-            session_id: crate::EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
-            objective: "Audit one exact Hands consequence against its routed invariant".into(),
-            coordinator_note:
-                "Verification current-work launch transaction opened this session.".into(),
             job_id: job_id.clone(),
             role: crate::EPIPHANY_VERIFICATION_OWNER_ROLE.into(),
             binding_id: crate::EPIPHANY_VERIFICATION_ROLE_BINDING_ID.into(),
@@ -1646,10 +1634,6 @@ pub fn launch_current_frontier_research_work(
         &cache,
         crate::RuntimeSpineHeartbeatJobOptions {
             runtime_id: identity.runtime_id,
-            session_id: crate::EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
-            objective: "Gather evidence for one exact external-evidence obligation".into(),
-            coordinator_note: "Research current-work launch transaction opened this session."
-                .into(),
             job_id: job_id.clone(),
             role: crate::EPIPHANY_RESEARCH_OWNER_ROLE.into(),
             binding_id: crate::EPIPHANY_RESEARCH_ROLE_BINDING_ID.into(),
@@ -2769,9 +2753,6 @@ fn launch_consideration_work(
         &cache,
         crate::RuntimeSpineHeartbeatJobOptions {
             runtime_id: identity.runtime_id,
-            session_id: crate::EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
-            objective: "Consider one exact typed proposal-only obligation".into(),
-            coordinator_note: "Consideration current-work launch opened this attempt.".into(),
             job_id: job_id.clone(),
             role: crate::EPIPHANY_IMAGINATION_OWNER_ROLE.into(),
             binding_id: crate::EPIPHANY_IMAGINATION_ROLE_BINDING_ID.into(),
@@ -2928,10 +2909,6 @@ pub fn launch_current_body_modeling_work(
         &cache,
         crate::RuntimeSpineHeartbeatJobOptions {
             runtime_id: work.runtime_id.clone(),
-            session_id: crate::EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
-            objective: "Model the admitted repository Body".into(),
-            coordinator_note: "Keyed Mind current-work launch transaction opened this session."
-                .into(),
             job_id: job_id.clone(),
             role: crate::EPIPHANY_MODELING_OWNER_ROLE.into(),
             binding_id: crate::EPIPHANY_MODELING_ROLE_BINDING_ID.into(),
@@ -3101,10 +3078,6 @@ pub fn launch_current_proposal_modeling_work(
         &cache,
         crate::RuntimeSpineHeartbeatJobOptions {
             runtime_id: identity.runtime_id.clone(),
-            session_id: crate::EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
-            objective: "Model one admitted proposal against keyed Mind".into(),
-            coordinator_note: "Proposal current-work launch transaction opened this session."
-                .into(),
             job_id: job_id.clone(),
             role: crate::EPIPHANY_MODELING_OWNER_ROLE.into(),
             binding_id: crate::EPIPHANY_MODELING_ROLE_BINDING_ID.into(),
@@ -3231,10 +3204,6 @@ pub fn launch_current_frontier_verdict_modeling_work(
         &cache,
         crate::RuntimeSpineHeartbeatJobOptions {
             runtime_id: identity.runtime_id,
-            session_id: crate::EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
-            objective: "Incorporate one exact Soul verdict into its routed frontier".into(),
-            coordinator_note:
-                "Frontier verdict current-work launch transaction opened this session.".into(),
             job_id: job_id.clone(),
             role: crate::EPIPHANY_MODELING_OWNER_ROLE.into(),
             binding_id: crate::EPIPHANY_MODELING_ROLE_BINDING_ID.into(),
@@ -3690,7 +3659,6 @@ mod tests {
             crate::RuntimeSpineJobOptions {
                 job_id: "body-failed-model-job".into(),
                 session_id: "body-failed-model-session".into(),
-                role: "openai-model".into(),
             },
             &failed_native,
         )?;
@@ -4663,7 +4631,6 @@ mod tests {
             crate::RuntimeSpineJobOptions {
                 job_id: "verification-model-job".into(),
                 session_id: "verification-model-session".into(),
-                role: "openai-model".into(),
             },
             &verification_native,
         )?;
@@ -5325,7 +5292,6 @@ mod tests {
             crate::RuntimeSpineJobOptions {
                 job_id: "planning-model-job".into(),
                 session_id: "planning-model-session".into(),
-                role: "openai-model".into(),
             },
             &planning_native,
         )?;
@@ -5453,7 +5419,6 @@ mod tests {
             crate::RuntimeSpineJobOptions {
                 job_id: "plan-mind-model-job".into(),
                 session_id: "plan-mind-model-session".into(),
-                role: "openai-model".into(),
             },
             &mind_native,
         )?;
