@@ -1,12 +1,11 @@
 # Fresh workspace handoff
 
-Updated: 2026-08-24
+Updated: 2026-08-25
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany source cut: `87ea81db`
+Latest committed Epiphany source cut: `7a125d78`
 Current connector source: `6dc80f6d266db4d82566d2434adcc55a48e8ecad`
-Current pass: exact provider-request authorship is singular; reconcile the
-stale deployment maps, then preserve and remove the unused vendored Codex tree;
-Ox17 and Atlas Gate 1 remain paused
+Current pass: vendored Codex is physically absent; resume the semantic-owner
+audit of `runtime_spine.rs`; Ox17 and Atlas Gate 1 remain paused
 
 ## Orientation
 
@@ -1364,13 +1363,21 @@ Ghostlight exact `8e7d980` now pins the same Connector source contract. Only
 Cargo metadata and the additive Connector API diff were checked locally; no
 Ghostlight compilation or deployment ran on Starfire.
 
-Continue subtraction from exact `87ea81db`. Reconcile the stale
-standalone-daemon deployment maps without mutating live service authority. Then
-preserve the uncommitted edits inside the 3,592-file
-vendored Codex tree and delete the tree if the final live-consumer audit remains
-empty. Resume the single-caller runtime-spine audit afterward. Preserve keyed
-Mind, direct Body-to-Modeling flow, OpenRouter as a separate temporary provider
-edge, and the complete unrun Model Atlas slice.
+Exact `7a125d78` deletes the entire 3,592-file vendored Codex tree: 851,099 net
+lines removed. Cargo metadata and manifest/source guards prove it had no build
+consumer. Its seven dirty files contained only formatting churn, so no semantic
+work was lost or embalmed as a patch artifact. The workspace exclusion,
+obsolete search instructions, vendor-specific license clauses, and two
+superseded live migration notes are gone. Gamecult-ops exact `cb63e77` repairs
+the inventory to name the independent `yggdrasil-codex-connector` Idunn target;
+no service or deployment state changed.
+
+Continue subtraction from exact `7a125d78` in `runtime_spine.rs`. Group its
+surface by semantic owner, then delete or internalize single-caller public
+wrappers, duplicate load/validate paths, and retention/session cargo that buys
+no independent invariant. Preserve keyed Mind, exact audit and CAS guarantees,
+direct Body-to-Modeling flow, OpenRouter as a separate temporary provider edge,
+and the complete unrun Model Atlas slice.
 
 Yggdrasil previously exposed 96 GiB of dead native Cargo targets after
 interrupted full-workspace builds; exact cleanup returned the builder target
@@ -2065,10 +2072,9 @@ projection should fossilize its layout into shared truth.
 
 ## Git/worktree caution
 
-The shared worktree contains unrelated pre-existing modifications, including
-vendored Codex/CultMesh files and a dirty `vendor/cultnet-rs` submodule. Preserve
-them. Stage only intentional migration/documentation paths. Do not use reset or
-checkout to clean the tree.
+The shared worktree contains unrelated pre-existing Core/CultMesh modifications
+and a dirty `vendor/cultnet-rs` submodule. Preserve them. Stage only intentional
+migration/documentation paths. Do not use reset or checkout to clean the tree.
 
 ## Re-entry
 

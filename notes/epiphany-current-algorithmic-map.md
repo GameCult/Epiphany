@@ -1,9 +1,9 @@
 # Epiphany current algorithmic map
 
-Updated: 2026-08-24
-Latest committed implementation cut: `24023265` on `codex/epiphany-shakedown-live`
-Current pass: duplicate live Hands receipt rereads deleted;
-Ox17 remains paused
+Updated: 2026-08-25
+Latest committed implementation cut: `7a125d78` on `codex/epiphany-shakedown-live`
+Current pass: vendored Codex evicted; semantic-owner audit of
+`runtime_spine.rs` is next; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke

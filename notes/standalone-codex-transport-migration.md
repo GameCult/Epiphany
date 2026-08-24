@@ -233,7 +233,7 @@ second opinion about consumer-native cognition.
 
 The deletion line is tracked per consumer; no dual-read fallback is allowed.
 
-### Epiphany — complete at `ed7357a2`
+### Epiphany — complete at `7a125d78`
 
 - delete the `epiphany-openai-codex-spine` package;
 - delete all non-vendor compiled dependencies on `codex-login`, `codex-client`,
@@ -245,6 +245,8 @@ The deletion line is tracked per consumer; no dual-read fallback is allowed.
 - retain only provider-neutral native requests, pure provider lowering,
   OpenRouter's separately owned direct credential path, and the connector
   client.
+- delete the excluded vendored Codex implementation and its obsolete keeper
+  documentation after the live-consumer audit is empty.
 
 ### Ghostlight
 

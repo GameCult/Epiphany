@@ -258,11 +258,11 @@ only at its release edge. Exact `87ea81db` also deletes Epiphany's obsolete
 public schema for the extinct generic provider request; the shared Codex
 contract belongs to Connector, while Epiphany's wrapper remains private Mind
 state. Ghostlight exact `8e7d980` now pins the same Connector source without
-changing its live deployment. Repair the stale deployment maps next. No dual
-daemon or refresh writer is an acceptable transition state. After that,
-preserve the dirty vendored-Codex edits and delete
-the 3,592-file tree if its final live-consumer audit remains empty; resume the
-single-caller runtime-spine audit afterward.
+changing its live deployment. Exact `7a125d78` removes the excluded 3,592-file
+Codex implementation tree and its obsolete keeper notes; gamecult-ops exact
+`cb63e77` repairs the independent deployment ownership map. No dual daemon or
+refresh writer is an acceptable transition state. Resume the semantic-owner
+audit of `runtime_spine.rs`.
 
 Model Atlas has component proofs but no live inter-swarm collaboration run.
 Preserve its publication, trust, transport, projection, Soul verification, Self
