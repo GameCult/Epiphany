@@ -48,7 +48,8 @@ Owner:
 Inputs:
 
 - one authenticated caller identity;
-- one exact native request and its deterministically derived provider request;
+- one exact typed Codex provider request derived internally by the caller's
+  consumer-owned adapter, plus the caller-owned native-request digest it cites;
 - provider/model admission requested by the caller;
 - an expiry bound and request identity.
 
@@ -110,8 +111,8 @@ Every Codex-backed request uses one path:
 caller-owned projected state
   -> caller-owned exact native request
   -> pure deterministic provider lowering
-  -> authenticated connector invocation
-  -> daemon validates caller + exact request binding
+  -> authenticated connector invocation carrying those exact provider bytes
+  -> daemon validates caller + provider request identity/digest/policy
   -> vendored Codex auth/client transport
   -> typed provider events + transport receipt
   -> caller validates receipt/digests
@@ -129,7 +130,8 @@ The v2 hard cut must provide:
 
 - distinct authenticated caller keys and keyed caller admission;
 - exact caller/runtime and request identity;
-- exact native-request and provider-request SHA-256 binding;
+- caller-owned native-request SHA-256 plus daemon-verified exact provider-
+  request SHA-256 binding;
 - model/tool definitions, prior tool calls, and tool results;
 - ordered typed text, tool-call, completion, and failure events;
 - one terminal transport receipt with provider response and usage identity;
@@ -140,10 +142,15 @@ The v2 hard cut must provide:
 - provider/model capability discovery without credentials or prompt data;
 - explicit refusal documents rather than connection-close ambiguity.
 
-The caller derives the provider request using the shared pure dialect compiler.
-The daemon independently derives it from the native request and refuses a
-digest mismatch before network access. This retains one canonical native
-request while proving which exact provider request was transmitted.
+Each consumer derives the provider request through its own pure adapter; the
+daemon must not import Epiphany reasoning contracts or Ghostlight stage/world
+contracts merely to repeat that derivation. The daemon canonicalizes and hashes
+the exact typed provider request it receives, refuses a declared digest or
+identity mismatch before network access, and binds the same digest into its
+terminal receipt. Epiphany retains its exact native request, internally derived
+provider request, and matching daemon receipt in the decision context. This
+proves which provider request was transported without giving the daemon a
+second opinion about consumer-native cognition.
 
 ## Deletion line
 
@@ -243,7 +250,9 @@ GiB/16,483-file footprint is the pre-cut comparison.
 - Epiphany and Ghostlight issue concurrent requests under distinct caller keys;
   neither can replay, decrypt, exhaust, or impersonate the other.
 - One process and one writable Codex auth store own refresh rotation.
-- Exact native/provider request substitution refuses before network access.
+- Provider-request identity/digest substitution refuses before network access;
+  Epiphany independently refuses native-to-provider substitution before it
+  opens the connector invocation.
 - A connector receipt reconstructs the exact transport basis without a model
   transcript.
 - Epiphany tool calls return as typed intents and execute only through

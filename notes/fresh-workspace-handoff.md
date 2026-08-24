@@ -52,8 +52,9 @@ Ghostlight-only `epiphany-model-connector.service`, but that connector is
 source-owned by stale branch `codex/epiphany-model-bridge`, deployed in
 Ghostlight's Idunn transaction, limited to one caller/key/model, stateless, and
 unable to return tool calls. The target is an independent Idunn-managed daemon
-with one writable Codex refresh store, distinct authenticated callers, exact
-native/provider request-digest receipts, typed tool-call pass-through, bounded
+with one writable Codex refresh store, distinct authenticated callers,
+consumer-native plus daemon-verified provider-request digest receipts, typed
+tool-call pass-through, bounded
 replay/concurrency, and redacted CultMesh health. Consumers keep prompts,
 projection, tools, retries, interpretation, decisions, and admission. The hard
 deletion line removes Epiphany's Codex spine/dependency/auth-readiness plumbing

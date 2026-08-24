@@ -246,9 +246,10 @@ must expose an existing semantic owner rather than invent a package taxonomy.
 The provider decision is now a service extraction, specified by
 `notes/standalone-codex-transport-migration.md`. Promote the already-proven
 Ghostlight connector seam into an independently source-owned and Idunn-managed
-Codex transport daemon. Its v2 contract must admit distinct callers, bind exact
-native/provider request digests, return typed tool calls and terminal transport
-receipts, and preserve one credential-refresh writer. Only after Epiphany and
+Codex transport daemon. Its v2 contract must admit distinct callers, bind the
+consumer's native-request digest to the exact daemon-verified provider-request
+bytes, return typed tool calls and terminal transport receipts, and preserve
+one credential-refresh writer. Only after Epiphany and
 Ghostlight pass that contract may the old paths be deleted. The completed cut
 removes Epiphany's Codex spine and auth/readiness plumbing, Ghostlight's copied
 wire types and connector deployment authority, and the stale bridge branch as
