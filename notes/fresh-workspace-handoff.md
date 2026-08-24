@@ -2,9 +2,9 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `b3e9b229`
-Current pass: duplicate Persona delivery evidence deleted; Ox17
-remains paused
+Latest committed implementation cut: `ce6bff12`
+Current pass: execution bindings reduced to identity edges; Ox17 and Atlas Gate
+1 remain paused
 
 ## Orientation
 
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `b3e9b229` is the current
+production symlink body and is inactive. Exact `ce6bff12` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,21 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `ce6bff12` makes execution bindings identity edges instead of miniature
+copies of their owners. A model binding carries only request, session, and job
+identity; provider, source worker, and reasoning basis are loaded from the
+exact native model request. A tool binding carries only intent, session, and
+job identity; model ancestry is loaded from the exact tool intent. Validation,
+retention, public-source lookup, worker terminality, decision sealing, and tool
+continuation now follow those owners. Timestamp arguments and copied binding
+fields are gone. Runtime advances to v37. The focused core, epoch-refusal,
+transcript-free context, OpenAI continuation, and release-owned tool-runtime
+proofs pass. The cut removes 67 net source lines. The OpenAI test boundary
+generated 12.713 GiB across 19,134 files despite running one consequential
+test; Cargo cleanup restored the one 1.78 MiB state inspector. That dependency
+fan-out is the next source-shape audit. Atlas is untouched and remains
+operationally unaccepted: no live inter-swarm collaboration has run.
 
 Exact `b3e9b229` makes the Persona social terminal the sole local owner of a
 delivered speech consequence. The already-verified signed Bifrost receipt is

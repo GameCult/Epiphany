@@ -224,7 +224,7 @@ Delete or demote:
 
 Keep the five-day shakedown, Ox17 deployment, and Model Atlas operational Gate
 1 paused. Continue the source-subtraction and test-authority audit from exact
-`3b991e40`. The current sequence has deleted the semantic-memory/workspace-coverage
+`ce6bff12`. The current sequence has deleted the semantic-memory/workspace-coverage
 projection system, its local daemon supervisor, and the surviving generic
 RepoModel profile, impossible lifecycle, producerless receipt/summary, and
 decorative scoring axes. Modeling consumes typed Body and keyed RepoModel state
@@ -443,6 +443,14 @@ Cut in this order:
    identities into one receipt. Retention verifies that provider-owned receipt
    directly. Runtime advances to v36 and both changed Persona documents make a
    v2 hard cut. Atlas remains untouched and operationally unaccepted.
+   Exact `ce6bff12` reduces runtime execution bindings to their owned
+   request-or-intent to session/job edges. Provider, worker, reasoning-basis,
+   and model-request ancestry are loaded from the native request or typed tool
+   intent instead of copied into bindings; non-causal binding timestamps and
+   their API arguments are gone. Runtime advances to v37. The cut removes 67
+   net source lines. One focused OpenAI test generated 12.713 GiB across 19,134
+   files, so its provider/runtime dependency boundary is the next source-shape
+   audit. Atlas remains protected for its first live inter-swarm run.
 3. **Baseline transaction landed at `9f7b164f`; operator routing at `587c56d2`; Resident continuation and keyed acceptance at `478fb923`:** baseline Body Modeling is now thread-free from unresolved Body obligation through Launch/Wait/Review and exact Mind admission. Resident and operator callers consume the same family projection and acceptance owner. Thread ID remains immutable pass provenance only.
 4. **Proposal Modeling landed at `d1b031cb`:** its immutable request, worker launch, runtime attempt/result, and `Modeling.proposal_frontier` commit now own Launch/Wait/Review and admission. The aggregate launcher refuses proposal cargo; the old selector, validator, context builder, and generic-launch hint are deleted. Body and Proposal share only the exact-envelope launch CAS invariant, not a mutable family registry. Exact `b0a4978d` deletes the later duplicate launch-binding document entirely; the worker launch is the sole launch owner.
 5. **Continuation vocabulary landed at `e404c105` and was named truthfully at `fc5d1a4a`:** concrete pass families share one pure `EpiphanyAgentPassContinuationAction`; their semantic requests, projections, validators, and admission owners remain separate.

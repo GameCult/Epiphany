@@ -1005,6 +1005,14 @@ These are distinct authorities and must not be collapsed into one state enum:
 - Mind owns adoption of a successful structured family result.
 - Retention owns deletion only after all live authorities are terminal.
 
+Execution bindings own edges, not copied request content. Exact `ce6bff12`
+reduces a model binding to request, session, and job identity; provider, source
+worker, and reasoning basis are read from the exact native model request. A
+tool binding contains only intent, session, and job identity; its optional
+model ancestry is read from the exact typed tool intent. Validation and
+retention reload those owners. No binding timestamp participates in causality.
+Runtime writable state is v37.
+
 The attempt aggregate centralizes exact request association and typed terminal
 classification. Archived fulfilled attempts must retain recoverable decision
 authority, not merely an ID/digest tombstone.
@@ -1031,7 +1039,7 @@ standalone Persona delivery-evidence document and the conversation receipt's
 copied evidence-ID vector. Bifrost keeps the durable signed crossing request and
 receipt; the Persona social terminal folds that exact receipt into message ID,
 crossing receipt ID, and digest. Retention reloads and verifies the provider-
-owned pair and matches it against the terminal. Runtime is v36; the terminal
+owned pair and matches it against the terminal. Runtime is v37; the terminal
 and conversation execution schemas are v2. This is not an Atlas proof: live
 inter-swarm collaboration remains unrun.
 
