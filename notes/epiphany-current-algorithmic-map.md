@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `6f5d6600` on `codex/epiphany-shakedown-live`
-Current worktree cut: documentation/evidence for autonomous proposal origin collapse;
+Latest committed implementation cut: `952dcd9f` on `codex/epiphany-shakedown-live`
+Current pass: operator-objective intake collapse landed and documented;
 Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -136,6 +136,20 @@ refusal pass; package cleanup removes 677.2 MiB. The cut removes 50 net
 maintained lines. Atlas remains protected until a real inter-swarm exchange
 exercises publication, trust, transport, projection, verification, admission,
 wake, brake, and re-entry together.
+
+Operator objective intake carries the human assertion, not a second objective
+model. Exact `952dcd9f` keeps thread provenance, objective text, source actor
+and reference, and submission time, while deleting fixed schema prose, stored
+key identity, a digest of the already-hashed payload, and contract text. The
+singleton Mind objective remains the active state and the commit receipt still
+binds its exact operator provenance atomically. The outcome exposes only the
+projection digest, commit receipt, and changed bit. A binary test that merely
+repeated the library seed/idempotency/refusal proof is deleted; the library
+proof now requires byte-identical replay and the resident-grant provenance
+proof remains. Runtime advances to v32. The three focused proofs pass and the
+cut removes 54 net maintained lines. Package cleanup removes 18.5 GiB; the
+1.7 MiB state tool is preserved while another 961.1 MiB of regenerated build
+artifacts is removed. Atlas is untouched.
 
 CultMesh contains no JSON-derived operator snapshot, coordinator receipt,
 Hands gate, role-review event, unauthenticated Odin/Eve provider row, or daemon
@@ -1079,7 +1093,7 @@ Accepted through the local `5b799b12` source boundary:
 
 Open before Model Atlas Gate 1 resumes:
 
-1. let Idunn compile, test, and seal exact build-affecting source `6f5d6600`;
+1. let Idunn compile, test, and seal exact build-affecting source `952dcd9f`;
 2. use that exact package in private fresh-store Ox17; stop after three
    provider failures total, and prove direct Body Modeling, typed
    refusal-to-retry if exercised, Hands through Verification, exact context

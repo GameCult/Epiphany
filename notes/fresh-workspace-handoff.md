@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `6f5d6600`
-Current pass: repository-domain binding collapse landed and documented; Ox17
+Latest committed implementation cut: `952dcd9f`
+Current pass: operator-objective intake collapse landed and documented; Ox17
 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `6f5d6600` is the current
+production symlink body and is inactive. Exact `952dcd9f` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,20 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `952dcd9f` keeps the typed human objective assertion and its atomic
+singleton Mind-objective commit, but removes the fixed schema prose, stored key
+identity, derived objective digest, and contract text from the intake payload.
+The public outcome now returns only the current Mind projection digest, exact
+commit receipt, and changed bit; it no longer exports a full intake or full
+Mind view that production never consumed. The coordinator-binary test that
+only replayed the library seed/idempotency/refusal proof is deleted. The library
+proof now requires byte-identical replay, while the wrapper-specific
+resident-grant provenance proof remains. Runtime advances to v32. Objective
+intake, resident provenance, and old-store refusal pass (1/1 each). The cut
+removes 54 net maintained lines. Initial package cleanup removes 18.5 GiB; the
+1.7 MiB state tool is then preserved across cleanup of 961.1 MiB regenerated
+artifacts. Atlas is untouched.
 
 Exact `6f5d6600` preserves the immutable typed repository-domain receipt while
 cutting it from nine fields to the two facts it alone owns: the canonical
@@ -994,7 +1008,7 @@ coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 ## Immediate next action
 
 The Ox17 deployment lane is paused. Continue the registered-document and test-
-liability audit from exact `6f5d6600`; do not compile or deploy through Idunn
+liability audit from exact `952dcd9f`; do not compile or deploy through Idunn
 yet. Delete an abstraction with tests that merely animate it when it has no
 decision-bearing consumer. Preserve keyed Mind, sealed reasoning, direct Body-
 to-Modeling flow, family admission owners, Persona social state, provider
