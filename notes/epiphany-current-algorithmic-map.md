@@ -658,6 +658,18 @@ route, not a tool route plus a parallel no-tools opinion. The remaining broad
 `codex-login` graph is therefore isolated supply-chain liability, not hidden
 runtime-library anatomy.
 
+The target boundary is the independent daemon mapped in
+`notes/standalone-codex-transport-migration.md`. One credential-isolated
+Yggdrasil connector already serves Ghostlight over encrypted CultNet, proving
+the process seam, but its current single-caller, single-key, fixed-model,
+stateless, no-tools contract and Ghostlight-owned deployment are not shared
+authority. The v2 daemon independently derives and verifies the exact provider
+request, returns a digest-bound transport receipt and typed events, and owns
+only Codex credential/transport physiology. Once both consumers pass that
+contract, Epiphany deletes its Codex spine, Codex-home/readiness plumbing, and
+every compiled Codex dependency; Ghostlight deletes its copied wire law and
+connector deployment path.
+
 ## Canonical authority map
 
 | Owner | Inputs | Outputs | Invariant |

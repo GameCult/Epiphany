@@ -243,6 +243,18 @@ behavior, not as cleanup chores. A narrower OpenAI auth/refresh boundary must
 preserve exact provider capability and refresh-token authority; a core split
 must expose an existing semantic owner rather than invent a package taxonomy.
 
+The provider decision is now a service extraction, specified by
+`notes/standalone-codex-transport-migration.md`. Promote the already-proven
+Ghostlight connector seam into an independently source-owned and Idunn-managed
+Codex transport daemon. Its v2 contract must admit distinct callers, bind exact
+native/provider request digests, return typed tool calls and terminal transport
+receipts, and preserve one credential-refresh writer. Only after Epiphany and
+Ghostlight pass that contract may the old paths be deleted. The completed cut
+removes Epiphany's Codex spine and auth/readiness plumbing, Ghostlight's copied
+wire types and connector deployment authority, and the stale bridge branch as
+a production source. No dual daemon or refresh writer is an acceptable
+transition state.
+
 Model Atlas has component proofs but no live inter-swarm collaboration run.
 Preserve its publication, trust, transport, projection, Soul verification, Self
 admission, wake, brake, and Eve path until Gate 1 exercises the complete crossing.

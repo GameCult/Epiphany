@@ -3,8 +3,8 @@
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
 Latest committed implementation cut: `a6cf9383`
-Current pass: Codex transport quarantined at release entrypoints; Ox17 and
-Atlas Gate 1 remain paused
+Current pass: standalone Codex transport authority mapped; source extraction
+is next; Ox17 and Atlas Gate 1 remain paused
 
 ## Orientation
 
@@ -44,6 +44,21 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+`notes/standalone-codex-transport-migration.md` is the authority and deletion
+map for removing Codex transport entirely from Epiphany's process/build body.
+Yggdrasil already proves the underlying process boundary through the
+Ghostlight-only `epiphany-model-connector.service`, but that connector is
+source-owned by stale branch `codex/epiphany-model-bridge`, deployed in
+Ghostlight's Idunn transaction, limited to one caller/key/model, stateless, and
+unable to return tool calls. The target is an independent Idunn-managed daemon
+with one writable Codex refresh store, distinct authenticated callers, exact
+native/provider request-digest receipts, typed tool-call pass-through, bounded
+replay/concurrency, and redacted CultMesh health. Consumers keep prompts,
+projection, tools, retries, interpretation, decisions, and admission. The hard
+deletion line removes Epiphany's Codex spine/dependency/auth-readiness plumbing
+and Ghostlight's copied protocol/deployment ownership. No live service,
+credential, or deployment authority moved in this mapping pass.
 
 Exact `a6cf9383` quarantines concrete Codex/OpenRouter authentication,
 credential reading, and network transport at the two release entrypoints that
