@@ -8,8 +8,6 @@ pub const REQUEST_SCHEMA: &str = "epiphany.self.imagination_consideration_reques
 pub const REQUEST_CONTRACT: &str = "epiphany.imagination_consideration_request.v1";
 pub const CANDIDATE_SCHEMA: &str = "epiphany.imagination.consideration_candidate.v1";
 pub const CANDIDATE_CONTRACT: &str = "epiphany.imagination_consideration_candidate.v1";
-pub const LAUNCH_BINDING_SCHEMA: &str =
-    "epiphany.coordinator.imagination_consideration_launch_binding.v0";
 pub const REVIEW_REQUEST_SCHEMA: &str = "epiphany.self.imagination_consideration_review_request.v0";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -147,32 +145,6 @@ pub struct ImaginationConsiderationCandidate {
     pub source_visibility: String,
     #[cultcache(key = 19)]
     pub data_classification: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.coordinator.imagination_consideration_launch_binding",
-    schema = "ImaginationConsiderationLaunchBinding"
-)]
-pub struct ImaginationConsiderationLaunchBinding {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub binding_record_id: String,
-    #[cultcache(key = 2)]
-    pub request_id: String,
-    #[cultcache(key = 3)]
-    pub job_id: String,
-    #[cultcache(key = 4)]
-    pub binding_id: String,
-    #[cultcache(key = 5)]
-    pub runtime_id: String,
-    #[cultcache(key = 6)]
-    pub thread_id: String,
-    #[cultcache(key = 7)]
-    pub launched_at: String,
-    #[cultcache(key = 8)]
-    pub worker_launch_document_sha256: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]

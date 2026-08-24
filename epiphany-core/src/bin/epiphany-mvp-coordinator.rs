@@ -1161,17 +1161,13 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     } else if role_id == "modeling"
                         && status["currentWork"]["bodyModeling"].is_object()
                     {
-                        let binding = epiphany_core::launch_current_body_modeling_work(
+                        let job_id = epiphany_core::launch_current_body_modeling_work(
                             &runtime_store,
-                            epiphany_core::EpiphanyBodyModelingLaunchOptions {
-                                job_id: Uuid::new_v4().to_string(),
-                                created_at: now(),
-                            },
+                            &now(),
                         )?;
                         json!({
                             "bindingId": epiphany_core::EPIPHANY_MODELING_ROLE_BINDING_ID,
-                            "backendJobId": binding.job_id,
-                            "bodyModelingLaunchBinding": binding,
+                            "backendJobId": job_id,
                         })
                     } else if role_id == "modeling"
                         && status["currentWork"]["frontierVerdictModeling"].is_object()

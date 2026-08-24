@@ -9,8 +9,6 @@ use crate::{
 };
 
 pub const REORIENTATION_REQUEST_SCHEMA_VERSION: &str = "epiphany.self.reorientation_request.v1";
-pub const REORIENTATION_LAUNCH_BINDING_SCHEMA_VERSION: &str =
-    "epiphany.runtime.reorientation_launch.v1";
 pub const MIND_REORIENTATION_DECISION_SCHEMA_VERSION: &str =
     "epiphany.mind.reorientation_decision.v1";
 pub const MIND_REORIENTATION_PASS_FAILURE_SCHEMA_VERSION: &str =
@@ -46,26 +44,6 @@ pub struct EpiphanyReorientationRequest {
     pub source_documents: Vec<EpiphanyMindDocumentVersion>,
     #[cultcache(key = 5)]
     pub requested_at: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.runtime.reorientation_launch.v1",
-    schema = "EpiphanyReorientationLaunchBinding"
-)]
-pub struct EpiphanyReorientationLaunchBinding {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub binding_id: String,
-    #[cultcache(key = 2)]
-    pub request_id: String,
-    #[cultcache(key = 3)]
-    pub job_id: String,
-    #[cultcache(key = 4)]
-    pub attempt_ordinal: u64,
-    #[cultcache(key = 5)]
-    pub launched_at: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -210,6 +188,81 @@ pub fn request_current_reorientation(
     Ok(request)
 }
 
+fn reorientation_attempt_ordinal(request_id: &str, job_id: &str) -> Result<usize> {
+    let prefix = format!("reorientation-{request_id}-attempt-");
+    job_id
+        .strip_prefix(&prefix)
+        .ok_or_else(|| anyhow!("reorientation job identity is not canonical"))?
+        .parse::<usize>()
+        .map_err(|_| anyhow!("reorientation attempt ordinal is invalid"))
+}
+
+fn reorientation_launch_document(
+    launch: &crate::EpiphanyRuntimeWorkerLaunchRequest,
+) -> Result<crate::EpiphanyReorientWorkerLaunchDocument> {
+    let document = match launch.launch_document()? {
+        crate::EpiphanyWorkerLaunchDocument::Reorient(document) => document,
+        crate::EpiphanyWorkerLaunchDocument::Role(_) => {
+            return Err(anyhow!("reorientation owner carried a role launch"));
+        }
+    };
+    if launch.schema_version != crate::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION
+        || launch.role != crate::EPIPHANY_REORIENT_OWNER_ROLE
+        || launch.binding_id != crate::EPIPHANY_REORIENT_LAUNCH_BINDING_ID
+        || document.schema_version != "epiphany.reorientation_launch_projection.v1"
+        || document.request_id.trim().is_empty()
+        || document.creation_thread_id != launch.job_id
+        || launch.proposal_modeling_request_id.is_some()
+        || launch.frontier_planning_request_id.is_some()
+        || launch.frontier_plan_mind_request_id.is_some()
+        || launch.imagination_consideration_request_id.is_some()
+        || launch
+            .admitted_model_direction_consideration_request_id
+            .is_some()
+        || launch.repo_frontier_modeling_request_id.is_some()
+        || launch.repo_frontier_research_request_id.is_some()
+        || launch.repo_frontier_verification_request_id.is_some()
+    {
+        return Err(anyhow!(
+            "reorientation immutable launch crossed family authority"
+        ));
+    }
+    reorientation_attempt_ordinal(&document.request_id, &launch.job_id)?;
+    Ok(document)
+}
+
+fn reorientation_launches(
+    cache: &CultCache,
+    request_id: &str,
+) -> Result<Vec<(usize, crate::EpiphanyRuntimeWorkerLaunchRequest)>> {
+    let mut launches = Vec::new();
+    for launch in cache
+        .get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?
+        .into_iter()
+        .filter(|launch| {
+            launch.role == crate::EPIPHANY_REORIENT_OWNER_ROLE
+                || launch.binding_id == crate::EPIPHANY_REORIENT_LAUNCH_BINDING_ID
+        })
+    {
+        let document = reorientation_launch_document(&launch)?;
+        if document.request_id == request_id {
+            launches.push((
+                reorientation_attempt_ordinal(request_id, &launch.job_id)?,
+                launch,
+            ));
+        }
+    }
+    launches.sort_by_key(|(ordinal, _)| *ordinal);
+    for (expected, (ordinal, _)) in launches.iter().enumerate() {
+        if *ordinal != expected {
+            return Err(anyhow!(
+                "reorientation request has noncontiguous attempt identity"
+            ));
+        }
+    }
+    Ok(launches)
+}
+
 pub(crate) fn current_reorientation_work(
     cache: &CultCache,
 ) -> Result<Option<EpiphanyReorientationWorkProjection>> {
@@ -225,33 +278,28 @@ pub(crate) fn current_reorientation_work(
         {
             continue;
         }
-        let mut bindings = cache
-            .get_all::<EpiphanyReorientationLaunchBinding>()?
-            .into_iter()
-            .filter(|binding| binding.request_id == request.request_id)
-            .collect::<Vec<_>>();
-        bindings.sort_by_key(|binding| binding.attempt_ordinal);
-        let Some(binding) = bindings.last() else {
+        let launches = reorientation_launches(cache, &request.request_id)?;
+        let Some((_, launch)) = launches.last() else {
             return Ok(Some(EpiphanyReorientationWorkProjection {
                 request,
                 attempt: crate::EpiphanyAgentPassAttemptProjection::unattempted(),
             }));
         };
         let job = cache
-            .get::<crate::EpiphanyRuntimeJob>(&binding.job_id)?
+            .get::<crate::EpiphanyRuntimeJob>(&launch.job_id)?
             .ok_or_else(|| anyhow!("reorientation launch lost its runtime job"))?;
-        let result = cache.get::<crate::EpiphanyRuntimeReorientWorkerResult>(&binding.job_id)?;
+        let result = cache.get::<crate::EpiphanyRuntimeReorientWorkerResult>(&launch.job_id)?;
         let action = match job.status {
             EpiphanyRuntimeJobStatus::Completed if result.is_some() => {
                 EpiphanyAgentPassContinuationAction::Review
             }
             EpiphanyRuntimeJobStatus::Failed => {
-                let terminal = exact_runtime_job_result(cache, &binding.job_id)?;
+                let terminal = exact_runtime_job_result(cache, &launch.job_id)?;
                 match terminal.decision_context_id.as_deref() {
                     Some(context_id)
                         if failures.iter().any(|failure| {
                             failure.request_id == request.request_id
-                                && failure.job_id == binding.job_id
+                                && failure.job_id == launch.job_id
                                 && failure.runtime_result_id == terminal.result_id
                                 && failure.decision_context_id == context_id
                         }) =>
@@ -269,7 +317,7 @@ pub(crate) fn current_reorientation_work(
             request,
             attempt: crate::EpiphanyAgentPassAttemptProjection::with(
                 action,
-                Some(binding.job_id.clone()),
+                Some(launch.job_id.clone()),
             ),
         }));
     }
@@ -283,13 +331,12 @@ pub fn record_reorientation_pass_failure(
     let store_path = store_path.as_ref();
     let mut cache = crate::runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
-    let binding = cache
-        .get_all::<EpiphanyReorientationLaunchBinding>()?
-        .into_iter()
-        .find(|binding| binding.job_id == job_id)
-        .ok_or_else(|| anyhow!("reorientation failure has no exact launch binding"))?;
+    let launch = cache
+        .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(job_id)?
+        .ok_or_else(|| anyhow!("reorientation failure has no immutable launch"))?;
+    let launch_document = reorientation_launch_document(&launch)?;
     let request = cache
-        .get::<EpiphanyReorientationRequest>(&binding.request_id)?
+        .get::<EpiphanyReorientationRequest>(&launch_document.request_id)?
         .ok_or_else(|| anyhow!("reorientation failure lost its request"))?;
     validate_reorientation_request_intrinsic(&request)?;
     let job = cache
@@ -349,10 +396,6 @@ pub fn record_reorientation_pass_failure(
             EpiphanyReorientationRequest::TYPE,
             request.request_id.as_str(),
         ),
-        (
-            EpiphanyReorientationLaunchBinding::TYPE,
-            binding.binding_id.as_str(),
-        ),
         (crate::EpiphanyRuntimeWorkerLaunchRequest::TYPE, job_id),
         (crate::EpiphanyRuntimeJob::TYPE, job_id),
         (
@@ -408,11 +451,8 @@ pub fn launch_current_reorientation_work(
         return Err(anyhow!("reorientation request is not launchable"));
     }
     validate_reorientation_request_current(&cache, &work.request)?;
-    let attempt_ordinal = cache
-        .get_all::<EpiphanyReorientationLaunchBinding>()?
-        .into_iter()
-        .filter(|binding| binding.request_id == work.request.request_id)
-        .count() as u64;
+    let prior_launches = reorientation_launches(&cache, &work.request.request_id)?;
+    let attempt_ordinal = prior_launches.len();
     let job_id = format!(
         "reorientation-{}-attempt-{attempt_ordinal}",
         work.request.request_id
@@ -450,28 +490,56 @@ pub fn launch_current_reorientation_work(
             created_at: created_at.into(),
         },
     )?;
-    let binding = EpiphanyReorientationLaunchBinding {
-        schema_version: REORIENTATION_LAUNCH_BINDING_SCHEMA_VERSION.into(),
-        binding_id: format!("reorientation-launch-{job_id}"),
-        request_id: work.request.request_id.clone(),
-        job_id: job_id.clone(),
-        attempt_ordinal,
-        launched_at: created_at.into(),
-    };
-    let expected = exact_source_envelopes(&cache, &work.request.source_documents)?
+    let mut expected = exact_source_envelopes(&cache, &work.request.source_documents)?
         .into_iter()
         .chain(
             cache
                 .get_envelope::<EpiphanyReorientationRequest>(&work.request.request_id)?
                 .into_iter(),
         )
-        .collect();
+        .collect::<Vec<_>>();
+    for (_, launch) in &prior_launches {
+        expected.push(
+            cache
+                .get_envelope::<crate::EpiphanyRuntimeWorkerLaunchRequest>(&launch.job_id)?
+                .ok_or_else(|| anyhow!("reorientation retry lost its prior launch envelope"))?,
+        );
+    }
+    if let Some((_, latest)) = prior_launches.last() {
+        expected.push(
+            cache
+                .get_envelope::<crate::EpiphanyRuntimeJob>(&latest.job_id)?
+                .ok_or_else(|| anyhow!("reorientation retry lost its prior job envelope"))?,
+        );
+        for failure in cache
+            .get_all::<EpiphanyMindReorientationPassFailureDocument>()?
+            .into_iter()
+            .filter(|failure| {
+                failure.request_id == work.request.request_id && failure.job_id == latest.job_id
+            })
+        {
+            expected.push(
+                cache
+                    .get_envelope::<EpiphanyMindReorientationPassFailureDocument>(
+                        &failure.failure_id,
+                    )?
+                    .ok_or_else(|| anyhow!("reorientation retry lost its failure envelope"))?,
+            );
+            expected.push(
+                cache
+                    .get_envelope::<crate::EpiphanyRuntimeJobResult>(&failure.runtime_result_id)?
+                    .ok_or_else(|| {
+                        anyhow!("reorientation retry lost its terminal result envelope")
+                    })?,
+            );
+        }
+    }
     crate::current_work::commit_current_work_launch(
         store_path,
         &cache,
         expected,
         prepared,
-        vec![cache.prepare_entry(&binding.binding_id, &binding)?.0],
+        Vec::new(),
         "reorientation",
     )?;
     Ok(job_id)
@@ -487,13 +555,12 @@ pub fn accept_reorientation_result(
     let store_path = store_path.as_ref();
     let mut cache = crate::runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
-    let binding = cache
-        .get_all::<EpiphanyReorientationLaunchBinding>()?
-        .into_iter()
-        .find(|binding| binding.job_id == job_id)
-        .ok_or_else(|| anyhow!("reorientation result has no exact launch binding"))?;
+    let launch = cache
+        .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(job_id)?
+        .ok_or_else(|| anyhow!("reorientation result has no immutable launch"))?;
+    let launch_document = reorientation_launch_document(&launch)?;
     let request = cache
-        .get::<EpiphanyReorientationRequest>(&binding.request_id)?
+        .get::<EpiphanyReorientationRequest>(&launch_document.request_id)?
         .ok_or_else(|| anyhow!("reorientation result lost its request"))?;
     validate_reorientation_request_intrinsic(&request)?;
     let job = cache
@@ -566,10 +633,6 @@ pub fn accept_reorientation_result(
         (
             EpiphanyReorientationRequest::TYPE,
             request.request_id.as_str(),
-        ),
-        (
-            EpiphanyReorientationLaunchBinding::TYPE,
-            binding.binding_id.as_str(),
         ),
         (crate::EpiphanyRuntimeWorkerLaunchRequest::TYPE, job_id),
         (crate::EpiphanyRuntimeJob::TYPE, job_id),

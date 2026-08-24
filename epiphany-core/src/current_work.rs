@@ -14,8 +14,6 @@ use crate::RepoFrontierResearchContinuationAction;
 
 pub const BODY_MODELING_DECISION_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.mind.body_modeling_decision.v1";
-pub const BODY_MODELING_LAUNCH_BINDING_SCHEMA_VERSION: &str =
-    "epiphany.runtime.body_modeling_launch.v1";
 pub const AGENT_PASS_ADMISSION_REFUSAL_SCHEMA_VERSION: &str =
     "epiphany.mind.agent_pass_admission_refusal.v1";
 
@@ -233,36 +231,6 @@ pub struct EpiphanyBodyModelingCurrentWorkProjection {
     pub attempt: EpiphanyAgentPassAttemptProjection,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.runtime.body_modeling_launch.v1",
-    schema = "EpiphanyBodyModelingLaunchBinding"
-)]
-pub struct EpiphanyBodyModelingLaunchBinding {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub binding_record_id: String,
-    #[cultcache(key = 2)]
-    pub work_id: String,
-    #[cultcache(key = 3)]
-    pub job_id: String,
-    #[cultcache(key = 4)]
-    pub attempt_ordinal: u64,
-    #[cultcache(key = 5)]
-    pub body_document_sha256: String,
-    #[cultcache(key = 6)]
-    pub observed_repo_model_projection_digest: String,
-    #[cultcache(key = 7)]
-    pub launched_at: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct EpiphanyBodyModelingLaunchOptions {
-    pub job_id: String,
-    pub created_at: String,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EpiphanyProposalModelingLaunchOptions {
     pub created_at: String,
@@ -373,7 +341,6 @@ impl EpiphanyBodyModelingDecisionReceipt {
 
 pub(crate) fn register_current_work_types(cache: &mut CultCache) -> Result<()> {
     cache.register_entry_type::<EpiphanyBodyModelingDecisionReceipt>()?;
-    cache.register_entry_type::<EpiphanyBodyModelingLaunchBinding>()?;
     cache.register_entry_type::<EpiphanyAgentPassAdmissionRefusal>()?;
     Ok(())
 }
@@ -482,7 +449,7 @@ pub fn project_current_work(store_path: impl AsRef<Path>) -> Result<EpiphanyCurr
             )?;
             match unresolved {
                 Some(work) => Some(EpiphanyBodyModelingCurrentWorkProjection {
-                    attempt: body_modeling_attempt(&cache, &work.work_id)?,
+                    attempt: body_modeling_attempt(&cache, &work)?,
                     work,
                 }),
                 None => None,
@@ -532,7 +499,7 @@ fn consideration_attempt(
     Ok(EpiphanyAgentPassAttemptProjection::from_job(&job, false))
 }
 
-fn consideration_attempt_ordinal(request_id: &str, job_id: &str) -> Result<usize> {
+pub(crate) fn consideration_attempt_ordinal(request_id: &str, job_id: &str) -> Result<usize> {
     let prefix = format!("consideration-{request_id}-attempt-");
     job_id
         .strip_prefix(&prefix)
@@ -547,7 +514,7 @@ fn current_imagination_consideration_work(
     let model_basis =
         crate::repo_model_documents::assemble_repo_model_view_from_cache(cache)?.reasoning_basis();
     let candidates = cache.get_all::<crate::ImaginationConsiderationCandidate>()?;
-    let bindings = cache.get_all::<crate::ImaginationConsiderationLaunchBinding>()?;
+    let launches = cache.get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?;
     let mut requests = cache.get_all::<crate::ImaginationConsiderationRequest>()?;
     requests.sort_by(|left, right| left.request_id.cmp(&right.request_id));
     let mut work = Vec::new();
@@ -561,22 +528,32 @@ fn current_imagination_consideration_work(
             continue;
         }
         crate::validate_current_imagination_consideration_request(cache, &request)?;
-        let mut launches = bindings
+        let mut job_ids = launches
             .iter()
-            .filter(|binding| binding.request_id == request.request_id)
-            .map(|binding| {
+            .filter(|launch| {
+                launch.imagination_consideration_request_id.as_deref()
+                    == Some(request.request_id.as_str())
+            })
+            .map(|launch| {
                 Ok((
-                    consideration_attempt_ordinal(&request.request_id, &binding.job_id)?,
-                    binding.job_id.clone(),
+                    consideration_attempt_ordinal(&request.request_id, &launch.job_id)?,
+                    launch.job_id.clone(),
                 ))
             })
             .collect::<Result<Vec<_>>>()?;
-        launches.sort_by_key(|(ordinal, _)| *ordinal);
-        let launches = launches
+        job_ids.sort_by_key(|(ordinal, _)| *ordinal);
+        for (expected, (ordinal, _)) in job_ids.iter().enumerate() {
+            if *ordinal != expected {
+                return Err(anyhow!(
+                    "Persona feedback consideration has noncontiguous attempt identity"
+                ));
+            }
+        }
+        let job_ids = job_ids
             .into_iter()
             .map(|(_, job_id)| job_id)
             .collect::<Vec<_>>();
-        let attempt = consideration_attempt(cache, &launches)?;
+        let attempt = consideration_attempt(cache, &job_ids)?;
         work.push(EpiphanyImaginationConsiderationWorkProjection { request, attempt });
     }
     Ok(work)
@@ -819,30 +796,87 @@ fn current_frontier_verdict_modeling_work(
     Ok(None)
 }
 
+fn body_modeling_attempt_ordinal(work_id: &str, job_id: &str) -> Result<usize> {
+    let prefix = format!("{work_id}-attempt-");
+    job_id
+        .strip_prefix(&prefix)
+        .ok_or_else(|| anyhow!("Body Modeling job identity is not canonical"))?
+        .parse::<usize>()
+        .map_err(|_| anyhow!("Body Modeling attempt ordinal is invalid"))
+}
+
+fn body_modeling_launches(
+    cache: &CultCache,
+    work: &EpiphanyBodyModelingWorkProjection,
+) -> Result<Vec<(usize, crate::EpiphanyRuntimeWorkerLaunchRequest)>> {
+    let prefix = format!("{}-attempt-", work.work_id);
+    let mut launches = cache
+        .get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?
+        .into_iter()
+        .filter(|launch| launch.job_id.starts_with(&prefix))
+        .map(|launch| {
+            let ordinal = body_modeling_attempt_ordinal(&work.work_id, &launch.job_id)?;
+            let document = launch.launch_document()?;
+            let role = match &document {
+                crate::EpiphanyWorkerLaunchDocument::Role(role) => role,
+                crate::EpiphanyWorkerLaunchDocument::Reorient(_) => {
+                    return Err(anyhow!("Body Modeling launch used reorientation authority"));
+                }
+            };
+            if launch.schema_version != crate::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION
+                || launch.role != crate::EPIPHANY_MODELING_OWNER_ROLE
+                || launch.binding_id != crate::EPIPHANY_MODELING_ROLE_BINDING_ID
+                || document.thread_id() != launch.job_id
+                || role.role_id != "modeling"
+                || role.repository_body_observation_basis.as_ref() != Some(&work.body_basis)
+                || launch.proposal_modeling_request_id.is_some()
+                || launch.repo_frontier_modeling_request_id.is_some()
+                || launch.frontier_planning_request_id.is_some()
+                || launch.frontier_plan_mind_request_id.is_some()
+                || launch.imagination_consideration_request_id.is_some()
+                || launch
+                    .admitted_model_direction_consideration_request_id
+                    .is_some()
+                || launch.repo_frontier_research_request_id.is_some()
+                || launch.repo_frontier_verification_request_id.is_some()
+            {
+                return Err(anyhow!(
+                    "Body Modeling immutable launch crossed family authority"
+                ));
+            }
+            Ok((ordinal, launch))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    launches.sort_by_key(|(ordinal, _)| *ordinal);
+    for (expected, (ordinal, _)) in launches.iter().enumerate() {
+        if *ordinal != expected {
+            return Err(anyhow!(
+                "Body Modeling request has noncontiguous attempt identity"
+            ));
+        }
+    }
+    Ok(launches)
+}
+
 fn body_modeling_attempt(
     cache: &CultCache,
-    work_id: &str,
+    work: &EpiphanyBodyModelingWorkProjection,
 ) -> Result<EpiphanyAgentPassAttemptProjection> {
-    let mut bindings = cache
-        .get_all::<EpiphanyBodyModelingLaunchBinding>()?
-        .into_iter()
-        .filter(|binding| binding.work_id == work_id)
-        .collect::<Vec<_>>();
-    bindings.sort_by_key(|binding| binding.attempt_ordinal);
-    let Some(binding) = bindings.last() else {
+    let launches = body_modeling_launches(cache, work)?;
+    let Some((_, launch)) = launches.last() else {
         return Ok(EpiphanyAgentPassAttemptProjection::unattempted());
     };
     let job = cache
-        .get::<crate::EpiphanyRuntimeJob>(&binding.job_id)?
-        .ok_or_else(|| anyhow!("Body Modeling launch binding lost its runtime job"))?;
-    let result = cache.get::<crate::EpiphanyRuntimeRoleWorkerResult>(&binding.job_id)?;
+        .get::<crate::EpiphanyRuntimeJob>(&launch.job_id)?
+        .ok_or_else(|| anyhow!("Body Modeling launch lost its runtime job"))?;
+    let result = cache.get::<crate::EpiphanyRuntimeRoleWorkerResult>(&launch.job_id)?;
     let reviewable = result.is_some();
     let admission_refusals = cache.get_all::<EpiphanyAgentPassAdmissionRefusal>()?;
     let admission_refused = result.as_ref().is_some_and(|result| {
         admission_refusals.iter().any(|refusal| {
             refusal.pass_family == EpiphanyAgentPassFamily::BodyModeling
-                && refusal.request_id == work_id
-                && refusal.job_id == binding.job_id
+                && refusal.request_id == work.work_id
+                && refusal.job_id == launch.job_id
                 && refusal.result_id == result.result_id
                 && refusal.decision_context_id == result.decision_context_id
         })
@@ -850,7 +884,7 @@ fn body_modeling_attempt(
     if admission_refused {
         return Ok(EpiphanyAgentPassAttemptProjection::with(
             EpiphanyAgentPassContinuationAction::Launch,
-            Some(binding.job_id.clone()),
+            Some(launch.job_id.clone()),
         ));
     }
     Ok(EpiphanyAgentPassAttemptProjection::from_job(
@@ -1008,30 +1042,10 @@ pub fn body_modeling_continuation_action_for_job(
     store_path: impl AsRef<Path>,
     job_id: &str,
 ) -> Result<Option<EpiphanyAgentPassContinuationAction>> {
-    let mut cache = crate::runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    let bindings = cache
-        .get_all::<EpiphanyBodyModelingLaunchBinding>()?
-        .into_iter()
-        .filter(|binding| binding.job_id == job_id)
-        .collect::<Vec<_>>();
-    let [binding] = bindings.as_slice() else {
-        if bindings.is_empty() {
-            return Ok(None);
-        }
-        return Err(anyhow!(
-            "runtime job has multiple Body Modeling launch bindings"
-        ));
-    };
-    if cache
-        .get::<EpiphanyBodyModelingDecisionReceipt>(&binding.work_id)?
-        .is_some()
-    {
-        return Ok(None);
-    }
-    Ok(Some(
-        body_modeling_attempt(&cache, &binding.work_id)?.action,
-    ))
+    Ok(project_current_work(store_path)?
+        .body_modeling
+        .filter(|work| work.attempt.job_id.as_deref() == Some(job_id))
+        .map(|work| work.attempt.action))
 }
 
 pub fn current_body_modeling_review_job_id(store_path: impl AsRef<Path>) -> Result<Option<String>> {
@@ -2737,68 +2751,76 @@ fn launch_consideration_work(
         .get::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
         .ok_or_else(|| anyhow!("consideration launch requires runtime identity"))?;
     let model = crate::repo_model_documents::assemble_repo_model_view_from_cache(&cache)?;
-    let (attempt_ordinal, dynamic_prompt_context, imagination_context, direction_context) =
-        match launch {
-            ConsiderationLaunch::PersonaFeedback(request) => {
-                crate::validate_current_imagination_consideration_request(&cache, request)?;
-                let current = current_imagination_consideration_work(&cache)?
-                    .into_iter()
-                    .find(|work| work.request.request_id == request.request_id)
-                    .ok_or_else(|| anyhow!("Persona feedback consideration is not current"))?;
-                if current.attempt.action != EpiphanyAgentPassContinuationAction::Launch {
-                    return Err(anyhow!("Persona feedback consideration is not launchable"));
-                }
-                let ordinal = cache
-                    .get_all::<crate::ImaginationConsiderationLaunchBinding>()?
-                    .into_iter()
-                    .filter(|binding| binding.request_id == request.request_id)
-                    .count();
-                (
-                    ordinal,
-                    crate::render_imagination_consideration_prompt(request)?,
-                    Some(crate::ImaginationConsiderationContextProjection::new(
-                        request, &model,
-                    )),
-                    None,
-                )
-            }
-            ConsiderationLaunch::AdmittedModelDirection(request) => {
-                crate::validate_current_admitted_model_direction_consideration_request(
-                    &cache, request,
-                )?;
-                let current = current_admitted_model_direction_consideration_work(&cache)?
-                    .filter(|work| work.request.request_id == request.request_id)
-                    .ok_or_else(|| {
-                        anyhow!("admitted model direction consideration is not current")
-                    })?;
-                if current.attempt.action != EpiphanyAgentPassContinuationAction::Launch {
-                    return Err(anyhow!(
-                        "admitted model direction consideration is not launchable"
-                    ));
-                }
-                let ordinal = cache
-                    .get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?
-                    .into_iter()
-                    .filter(|worker| {
-                        worker
-                            .admitted_model_direction_consideration_request_id
-                            .as_deref()
-                            == Some(request.request_id.as_str())
-                    })
-                    .count();
-                (
-                    ordinal,
-                    crate::render_admitted_model_direction_consideration_prompt(request),
-                    None,
-                    Some(
-                        crate::AdmittedModelDirectionConsiderationContextProjection::new(
-                            request, &model,
-                        ),
-                    ),
-                )
-            }
-        };
     let request_id = launch.request_id().to_string();
+    let is_feedback = matches!(launch, ConsiderationLaunch::PersonaFeedback(_));
+    let mut prior_launches = cache
+        .get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?
+        .into_iter()
+        .filter(|worker| {
+            if is_feedback {
+                worker.imagination_consideration_request_id.as_deref() == Some(request_id.as_str())
+            } else {
+                worker
+                    .admitted_model_direction_consideration_request_id
+                    .as_deref()
+                    == Some(request_id.as_str())
+            }
+        })
+        .map(|worker| {
+            Ok((
+                consideration_attempt_ordinal(&request_id, &worker.job_id)?,
+                worker,
+            ))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    prior_launches.sort_by_key(|(ordinal, _)| *ordinal);
+    for (expected, (ordinal, _)) in prior_launches.iter().enumerate() {
+        if *ordinal != expected {
+            return Err(anyhow!("consideration has noncontiguous attempt identity"));
+        }
+    }
+    let attempt_ordinal = prior_launches.len();
+    let (dynamic_prompt_context, imagination_context, direction_context) = match launch {
+        ConsiderationLaunch::PersonaFeedback(request) => {
+            crate::validate_current_imagination_consideration_request(&cache, request)?;
+            let current = current_imagination_consideration_work(&cache)?
+                .into_iter()
+                .find(|work| work.request.request_id == request.request_id)
+                .ok_or_else(|| anyhow!("Persona feedback consideration is not current"))?;
+            if current.attempt.action != EpiphanyAgentPassContinuationAction::Launch {
+                return Err(anyhow!("Persona feedback consideration is not launchable"));
+            }
+            (
+                crate::render_imagination_consideration_prompt(request)?,
+                Some(crate::ImaginationConsiderationContextProjection::new(
+                    request, &model,
+                )),
+                None,
+            )
+        }
+        ConsiderationLaunch::AdmittedModelDirection(request) => {
+            crate::validate_current_admitted_model_direction_consideration_request(
+                &cache, request,
+            )?;
+            let current = current_admitted_model_direction_consideration_work(&cache)?
+                .filter(|work| work.request.request_id == request.request_id)
+                .ok_or_else(|| anyhow!("admitted model direction consideration is not current"))?;
+            if current.attempt.action != EpiphanyAgentPassContinuationAction::Launch {
+                return Err(anyhow!(
+                    "admitted model direction consideration is not launchable"
+                ));
+            }
+            (
+                crate::render_admitted_model_direction_consideration_prompt(request),
+                None,
+                Some(
+                    crate::AdmittedModelDirectionConsiderationContextProjection::new(
+                        request, &model,
+                    ),
+                ),
+            )
+        }
+    };
     let job_id = format!("consideration-{request_id}-attempt-{attempt_ordinal}");
     let launch_document =
         crate::EpiphanyWorkerLaunchDocument::Role(crate::EpiphanyRoleWorkerLaunchDocument {
@@ -2823,7 +2845,6 @@ fn launch_consideration_work(
     }
     .to_string();
     let output_contract_id = launch_document.output_contract_id().to_string();
-    let is_feedback = matches!(launch, ConsiderationLaunch::PersonaFeedback(_));
     let prepared = crate::prepare_runtime_spine_heartbeat_job(
         &cache,
         crate::RuntimeSpineHeartbeatJobOptions {
@@ -2874,42 +2895,11 @@ fn launch_consideration_work(
         &cache,
         launch.model_source_documents(),
     )?);
-    let mut companions = Vec::new();
-    if let ConsiderationLaunch::PersonaFeedback(request) = launch {
-        let worker = prepared
-            .iter()
-            .find(|envelope| {
-                envelope.r#type == crate::EpiphanyRuntimeWorkerLaunchRequest::TYPE
-                    && envelope.key == job_id
-            })
-            .ok_or_else(|| anyhow!("consideration launch preparation lost its worker"))?;
-        let worker: crate::EpiphanyRuntimeWorkerLaunchRequest =
-            rmp_serde::from_slice(&worker.payload)?;
-        let binding_record_id = format!(
-            "imagination-consideration-launch-{}-attempt-{attempt_ordinal}",
-            request.request_id
-        );
-        companions.push(
+    for (_, worker) in &prior_launches {
+        expected.push(
             cache
-                .prepare_entry(
-                    &binding_record_id,
-                    &crate::ImaginationConsiderationLaunchBinding {
-                        schema_version:
-                            crate::IMAGINATION_CONSIDERATION_LAUNCH_BINDING_SCHEMA_VERSION.into(),
-                        binding_record_id: binding_record_id.clone(),
-                        request_id: request.request_id.clone(),
-                        job_id: job_id.clone(),
-                        binding_id: crate::EPIPHANY_IMAGINATION_ROLE_BINDING_ID.into(),
-                        runtime_id: request.runtime_id.clone(),
-                        thread_id: request.thread_id.clone(),
-                        launched_at: created_at.into(),
-                        worker_launch_document_sha256: format!(
-                            "{:x}",
-                            Sha256::digest(&worker.launch_document_msgpack)
-                        ),
-                    },
-                )?
-                .0,
+                .get_envelope::<crate::EpiphanyRuntimeWorkerLaunchRequest>(&worker.job_id)?
+                .ok_or_else(|| anyhow!("consideration retry lost its prior launch envelope"))?,
         );
     }
     commit_current_work_launch(
@@ -2917,7 +2907,7 @@ fn launch_consideration_work(
         &cache,
         expected,
         prepared,
-        companions,
+        Vec::new(),
         "consideration",
     )?;
     Ok(job_id)
@@ -2961,14 +2951,11 @@ pub fn launch_current_admitted_model_direction_consideration_work(
 
 pub fn launch_current_body_modeling_work(
     store_path: impl AsRef<Path>,
-    options: EpiphanyBodyModelingLaunchOptions,
-) -> Result<EpiphanyBodyModelingLaunchBinding> {
+    created_at: &str,
+) -> Result<String> {
     let store_path = store_path.as_ref();
-    if options.job_id.trim().is_empty()
-        || chrono::DateTime::parse_from_rfc3339(&options.created_at).is_err()
-    {
-        return Err(anyhow!("Body Modeling launch options are invalid"));
-    }
+    chrono::DateTime::parse_from_rfc3339(created_at)
+        .map_err(|_| anyhow!("Body Modeling launch time is invalid"))?;
     let mind = crate::assemble_mind_view(store_path)?;
     let body_basis = mind
         .repository_body_observation
@@ -2990,7 +2977,7 @@ pub fn launch_current_body_modeling_work(
         cache.get::<EpiphanyBodyModelingDecisionReceipt>(&work.work_id)?,
     )?
     .is_none()
-        || body_modeling_attempt(&cache, &work.work_id)?.action
+        || body_modeling_attempt(&cache, &work)?.action
             != EpiphanyAgentPassContinuationAction::Launch
     {
         return Err(anyhow!("Mind has no launchable Body Modeling work"));
@@ -3004,20 +2991,12 @@ pub fn launch_current_body_modeling_work(
         })
         .cloned()
         .ok_or_else(|| anyhow!("Body Modeling launch lost its admitted Body source"))?;
-    let attempt_ordinal = cache
-        .get_all::<EpiphanyBodyModelingLaunchBinding>()?
-        .into_iter()
-        .filter(|binding| binding.work_id == work.work_id)
-        .map(|binding| binding.attempt_ordinal)
-        .max()
-        .map_or(0, |ordinal| ordinal + 1);
-    let binding_record_id = format!(
-        "body-modeling-launch-{}-attempt-{attempt_ordinal}",
-        work.work_id
-    );
+    let prior_launches = body_modeling_launches(&cache, &work)?;
+    let attempt_ordinal = prior_launches.len();
+    let job_id = format!("{}-attempt-{attempt_ordinal}", work.work_id);
     let launch_document =
         crate::EpiphanyWorkerLaunchDocument::Role(crate::EpiphanyRoleWorkerLaunchDocument {
-            thread_id: binding_record_id.clone(),
+            thread_id: job_id.clone(),
             role_id: "modeling".into(),
             objective: None,
             dynamic_prompt_context: None,
@@ -3042,7 +3021,7 @@ pub fn launch_current_body_modeling_work(
             objective: "Model the admitted repository Body".into(),
             coordinator_note: "Keyed Mind current-work launch transaction opened this session."
                 .into(),
-            job_id: options.job_id.clone(),
+            job_id: job_id.clone(),
             role: crate::EPIPHANY_MODELING_OWNER_ROLE.into(),
             binding_id: crate::EPIPHANY_MODELING_ROLE_BINDING_ID.into(),
             authority_scope: authority_scope.clone(),
@@ -3057,27 +3036,17 @@ pub fn launch_current_body_modeling_work(
             repo_frontier_modeling_request_id: None,
             repo_frontier_research_request_id: None,
             repo_frontier_verification_request_id: None,
-            created_at: options.created_at.clone(),
+            created_at: created_at.into(),
         },
     )?;
-    let binding = EpiphanyBodyModelingLaunchBinding {
-        schema_version: BODY_MODELING_LAUNCH_BINDING_SCHEMA_VERSION.into(),
-        binding_record_id,
-        work_id: work.work_id,
-        job_id: options.job_id,
-        attempt_ordinal,
-        body_document_sha256: body_source.payload_sha256.clone(),
-        observed_repo_model_projection_digest: work.repo_model_basis.projection_digest.clone(),
-        launched_at: options.created_at.clone(),
-    };
     let grant = crate::substrate_gate::substrate_gate_repo_access_grant_for_worker(
-        format!("substrate-grant-{}", binding.job_id),
-        binding.job_id.clone(),
+        format!("substrate-grant-{job_id}"),
+        job_id.clone(),
         crate::EPIPHANY_MODELING_ROLE_BINDING_ID.into(),
         crate::EPIPHANY_MODELING_OWNER_ROLE.into(),
         authority_scope,
         false,
-        options.created_at,
+        created_at.into(),
     );
     let snapshot = cache.snapshot_envelopes();
     let mut expected = Vec::new();
@@ -3093,18 +3062,55 @@ pub fn launch_current_body_modeling_work(
             expected.push(envelope.clone());
         }
     }
+    for (_, launch) in &prior_launches {
+        expected.push(
+            cache
+                .get_envelope::<crate::EpiphanyRuntimeWorkerLaunchRequest>(&launch.job_id)?
+                .ok_or_else(|| anyhow!("Body Modeling retry lost its prior launch envelope"))?,
+        );
+    }
+    if let Some((_, latest)) = prior_launches.last() {
+        expected.push(
+            cache
+                .get_envelope::<crate::EpiphanyRuntimeJob>(&latest.job_id)?
+                .ok_or_else(|| anyhow!("Body Modeling retry lost its prior job envelope"))?,
+        );
+        if let Some(result) = cache.get::<crate::EpiphanyRuntimeRoleWorkerResult>(&latest.job_id)? {
+            expected.push(
+                cache
+                    .get_envelope::<crate::EpiphanyRuntimeRoleWorkerResult>(&latest.job_id)?
+                    .ok_or_else(|| anyhow!("Body Modeling retry lost its result envelope"))?,
+            );
+            if let Some(refusal) = cache
+                .get_all::<EpiphanyAgentPassAdmissionRefusal>()?
+                .into_iter()
+                .find(|refusal| {
+                    refusal.pass_family == EpiphanyAgentPassFamily::BodyModeling
+                        && refusal.request_id == work.work_id
+                        && refusal.job_id == latest.job_id
+                        && refusal.result_id == result.result_id
+                        && refusal.decision_context_id == result.decision_context_id
+                })
+            {
+                expected.push(
+                    cache
+                        .get_envelope::<EpiphanyAgentPassAdmissionRefusal>(&refusal.refusal_id)?
+                        .ok_or_else(|| {
+                            anyhow!("Body Modeling retry lost its admission refusal envelope")
+                        })?,
+                );
+            }
+        }
+    }
     commit_current_work_launch(
         store_path,
         &cache,
         expected,
         prepared,
-        vec![
-            cache.prepare_entry(&binding.binding_record_id, &binding)?.0,
-            cache.prepare_entry(&grant.receipt_id, &grant)?.0,
-        ],
+        vec![cache.prepare_entry(&grant.receipt_id, &grant)?.0],
         "Body Modeling",
     )?;
-    Ok(binding)
+    Ok(job_id)
 }
 
 pub fn launch_current_proposal_modeling_work(
@@ -3702,15 +3708,8 @@ mod tests {
         );
         assert_eq!(crate::repository_body_read_counters(), (0, 0));
         assert_current_work_reentry_is_read_only(&store, &current_work)?;
-        let scheduled = launch_current_body_modeling_work(
-            &store,
-            EpiphanyBodyModelingLaunchOptions {
-                job_id: "body-scheduled-job".into(),
-                created_at: "2026-08-17T00:00:02Z".into(),
-            },
-        )?;
-        assert_eq!(scheduled.work_id, projected_work.work_id);
-        assert_eq!(scheduled.attempt_ordinal, 0);
+        let scheduled = launch_current_body_modeling_work(&store, "2026-08-17T00:00:02Z")?;
+        assert_eq!(scheduled, format!("{}-attempt-0", projected_work.work_id));
         let scheduled_work = project_current_work(&store)?;
         assert_eq!(
             scheduled_work
@@ -3719,7 +3718,7 @@ mod tests {
                 .map(|work| (work.attempt.action, work.attempt.job_id.as_deref())),
             Some((
                 EpiphanyAgentPassContinuationAction::Wait,
-                Some("body-scheduled-job")
+                Some(scheduled.as_str())
             ))
         );
         let resident_policy = crate::ResidentSelfPolicy {
@@ -3766,31 +3765,22 @@ mod tests {
         );
         assert!(
             scheduled_cache
-                .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>("body-scheduled-job")?
+                .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(&scheduled)?
                 .is_some()
         );
         assert!(
             scheduled_cache
-                .get::<crate::SubstrateGateRepoAccessGrantReceipt>(
-                    "substrate-grant-body-scheduled-job"
-                )?
+                .get::<crate::SubstrateGateRepoAccessGrantReceipt>(&format!(
+                    "substrate-grant-{scheduled}"
+                ))?
                 .is_some()
         );
-        assert!(
-            launch_current_body_modeling_work(
-                &store,
-                EpiphanyBodyModelingLaunchOptions {
-                    job_id: "body-scheduled-job-duplicate".into(),
-                    created_at: "2026-08-17T00:00:03Z".into(),
-                },
-            )
-            .is_err()
-        );
+        assert!(launch_current_body_modeling_work(&store, "2026-08-17T00:00:03Z").is_err());
         assert_eq!(crate::repository_body_read_counters(), (0, 0));
         let mut cache = crate::runtime_spine_cache(&store)?;
         cache.pull_all_backing_stores()?;
         let failed_launch = cache
-            .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>("body-scheduled-job")?
+            .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(&scheduled)?
             .expect("scheduled Body launch exists");
         drop(cache);
         let failed_basis = crate::worker_reasoning_basis(&store, &failed_launch)?;
@@ -3851,7 +3841,7 @@ mod tests {
         let mut death_cache = crate::runtime_spine_cache(&store)?;
         death_cache.pull_all_backing_stores()?;
         let death = death_cache
-            .get::<crate::EpiphanyRuntimeJobResult>("result-worker-death-body-scheduled-job")?
+            .get::<crate::EpiphanyRuntimeJobResult>(&format!("result-worker-death-{scheduled}"))?
             .expect("worker death emits its terminal runtime result");
         assert_eq!(death.verdict, "failed");
         let death_context = death
@@ -3873,7 +3863,7 @@ mod tests {
                 .map(|work| (work.attempt.action, work.attempt.job_id.as_deref())),
             Some((
                 EpiphanyAgentPassContinuationAction::Launch,
-                Some("body-scheduled-job")
+                Some(scheduled.as_str())
             ))
         );
         assert_ne!(
@@ -3901,18 +3891,12 @@ mod tests {
                 "/launchModeling"
             )
         );
-        let retried = launch_current_body_modeling_work(
-            &store,
-            EpiphanyBodyModelingLaunchOptions {
-                job_id: "body-retry-job".into(),
-                created_at: "2026-08-17T00:00:04Z".into(),
-            },
-        )?;
-        assert_eq!(retried.attempt_ordinal, 1);
+        let retried = launch_current_body_modeling_work(&store, "2026-08-17T00:00:04Z")?;
+        assert_eq!(retried, format!("{}-attempt-1", projected_work.work_id));
         let mut cache = crate::runtime_spine_cache(&store)?;
         cache.pull_all_backing_stores()?;
         let launch = cache
-            .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>("body-retry-job")?
+            .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(&retried)?
             .unwrap();
         crate::reset_repository_body_read_counters();
         let reasoning_basis = crate::worker_reasoning_basis(&store, &launch)?;

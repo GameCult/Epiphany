@@ -88,7 +88,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v18";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v19";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
@@ -864,7 +864,6 @@ fn runtime_spine_schema_cache() -> Result<CultCache> {
     cache.register_entry_type::<RepoFrontierResearchRequest>()?;
     cache.register_entry_type::<RepoFrontierPlanningFailureReview>()?;
     cache.register_entry_type::<crate::ImaginationConsiderationRequest>()?;
-    cache.register_entry_type::<crate::ImaginationConsiderationLaunchBinding>()?;
     cache.register_entry_type::<crate::ImaginationConsiderationCandidate>()?;
     cache.register_entry_type::<crate::AdmittedModelDirectionConsiderationRequest>()?;
     cache.register_entry_type::<crate::AdmittedModelDirectionConsiderationResult>()?;
@@ -872,7 +871,6 @@ fn runtime_spine_schema_cache() -> Result<CultCache> {
     cache.register_entry_type::<RepoFrontierPlanCandidate>()?;
     cache.register_entry_type::<RepoFrontierPlanMindRequest>()?;
     cache.register_entry_type::<crate::EpiphanyReorientationRequest>()?;
-    cache.register_entry_type::<crate::EpiphanyReorientationLaunchBinding>()?;
     cache.register_entry_type::<crate::EpiphanyMindReorientationDecisionDocument>()?;
     cache.register_entry_type::<crate::EpiphanyMindReorientationPassFailureDocument>()?;
     cache.register_entry_type::<RepoFrontierVerificationRequest>()?;
@@ -4448,17 +4446,6 @@ pub fn put_runtime_role_worker_result(
                 "consideration candidate identity was not assigned by exact launch"
             ));
         }
-        let bindings = cache
-            .get_all::<crate::ImaginationConsiderationLaunchBinding>()?
-            .into_iter()
-            .filter(|binding| binding.request_id == request_id && binding.job_id == result.job_id)
-            .collect::<Vec<_>>();
-        if bindings.len() != 1 {
-            return Err(anyhow!(
-                "consideration result requires one exact attempt binding"
-            ));
-        }
-        let binding = &bindings[0];
         let worker = cache
             .get::<EpiphanyRuntimeWorkerLaunchRequest>(&result.job_id)?
             .ok_or_else(|| anyhow!("consideration result requires worker launch"))?;
@@ -4469,15 +4456,13 @@ pub fn put_runtime_role_worker_result(
             }
             EpiphanyWorkerLaunchDocument::Reorient(_) => None,
         };
-        let launch_hash = format!("{:x}", Sha256::digest(&worker.launch_document_msgpack));
-        if binding.job_id != result.job_id
-            || binding.binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
-            || binding.runtime_id != request.runtime_id
-            || binding.thread_id != request.thread_id
-            || binding.worker_launch_document_sha256 != launch_hash
+        crate::current_work::consideration_attempt_ordinal(request_id, &result.job_id)?;
+        if worker.schema_version != RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION
+            || worker.job_id != result.job_id
             || worker.role != EPIPHANY_IMAGINATION_OWNER_ROLE
             || worker.binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
             || worker.imagination_consideration_request_id.as_deref() != Some(request_id)
+            || document.thread_id() != result.job_id
             || projection.map(|projection| &projection.request) != Some(&request)
             || projection.map(|projection| projection.model.reasoning_basis())
                 != Some(crate::EpiphanyRepoModelBasis {
@@ -8622,7 +8607,6 @@ fn validate_archivable_typed_worker_launch(
     }
     let document = launch.launch_document()?;
     let identity = require_identity(cache)?;
-    let launch_sha256 = format!("{:x}", Sha256::digest(&launch.launch_document_msgpack));
     match request_kind {
         "proposal-modeling" => {
             validate_proposal_modeling_launch_carrier(
@@ -8726,15 +8710,6 @@ fn validate_archivable_typed_worker_launch(
             {
                 return Err(anyhow!("archived Imagination launch request is invalid"));
             }
-            let bindings = cache
-                .get_all::<crate::ImaginationConsiderationLaunchBinding>()?
-                .into_iter()
-                .filter(|binding| binding.job_id == launch.job_id)
-                .collect::<Vec<_>>();
-            if bindings.len() != 1 {
-                return Err(anyhow!("archived Imagination launch requires one binding"));
-            }
-            let binding = &bindings[0];
             let projection = match &document {
                 EpiphanyWorkerLaunchDocument::Role(document) => {
                     document.imagination_consideration_context.as_ref()
@@ -8743,11 +8718,8 @@ fn validate_archivable_typed_worker_launch(
             }
             .ok_or_else(|| anyhow!("archived Imagination launch lost its context"))?;
             if request.runtime_id != identity.runtime_id
-                || binding.request_id != request.request_id
-                || binding.binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
-                || binding.runtime_id != request.runtime_id
-                || binding.thread_id != request.thread_id
-                || binding.worker_launch_document_sha256 != launch_sha256
+                || launch.job_id.trim().is_empty()
+                || document.thread_id() != launch.job_id
                 || projection.request != request
                 || projection.model.reasoning_basis()
                     != (crate::EpiphanyRepoModelBasis {
@@ -8936,12 +8908,6 @@ fn archive_runtime_worker_attempt(
         }
     }
     let snapshot = cache.snapshot_envelopes();
-    let imagination_bindings = cache
-        .get_all::<crate::ImaginationConsiderationLaunchBinding>()?
-        .into_iter()
-        .filter(|item| item.job_id == job_id)
-        .map(|item| item.binding_record_id)
-        .collect::<BTreeSet<_>>();
     let worker_job_results = cache
         .get_all::<EpiphanyRuntimeJobResult>()?
         .into_iter()
@@ -8992,8 +8958,6 @@ fn archive_runtime_worker_attempt(
                 || (entry.r#type == EpiphanyRuntimeJob::TYPE && entry.key == job_id)
                 || (entry.r#type == EpiphanyRuntimeJobResult::TYPE
                     && job_results.contains(&entry.key))
-                || (entry.r#type == crate::ImaginationConsiderationLaunchBinding::TYPE
-                    && imagination_bindings.contains(&entry.key))
         })
         .cloned()
         .collect::<Vec<_>>();
