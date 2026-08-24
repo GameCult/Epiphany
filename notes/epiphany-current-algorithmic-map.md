@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `9abadfe7` on `codex/epiphany-shakedown-live`
-Current worktree cut: documentation/evidence for provider-frame observer deletion;
+Latest committed implementation cut: `2a435eb5` on `codex/epiphany-shakedown-live`
+Current worktree cut: documentation/evidence for singular Persona/tool provenance;
 Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -44,6 +44,14 @@ same typed model events and receipts. A provider-specific transcript reader
 used only by a test assertion is also absent; decision audit continues to use
 sealed native/provider requests, structured terminal records, governed tool
 receipts, and Mind commit receipts rather than stream text.
+
+Durable provenance is singular. Exact `2a435eb5` advances Persona memory to v2
+and removes a linked-event vector that repeated `effect_document_id` plus a
+relationship slot every producer left empty. The memory keeps the exact
+Interpreter effect document and decision context. Tool receipts advance to v1
+and remove an always-empty raw-result reference; exact result JSON or error is
+the receipt consequence. Mind/runtime writable epochs are v10/v26, and old
+stores refuse rather than inheriting the retired shapes.
 
 CultMesh contains no JSON-derived operator snapshot, coordinator receipt,
 Hands gate, role-review event, unauthenticated Odin/Eve provider row, or daemon

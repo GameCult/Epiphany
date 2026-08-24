@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `9abadfe7`
-Current worktree: documentation/evidence for provider-frame observer deletion;
+Latest committed implementation cut: `2a435eb5`
+Current worktree: documentation/evidence for singular Persona/tool provenance;
 Ox17 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `9abadfe7` is the current
+production symlink body and is inactive. Exact `2a435eb5` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,17 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `2a435eb5` makes Persona-memory and tool-receipt provenance singular.
+Persona-memory v2 retains the exact Interpreter effect-document and decision-
+context IDs; its linked-event vector repeated that same effect ID and its
+relationship field was always `None`. Tool-receipt v1 retains exact result JSON
+or error; its sealed-raw-result reference was always `None` and had no producer
+or reader. Mind/runtime writable epochs advance to v10/v26 with no migrator or
+compatibility reader. Tool adapter compiles; tool MCP 8/8, Persona conversation
+and retention 5/5, old-epoch refusal 1/1, OpenAI runtime 23/23, and the packaged
+model-runtime entrypoint pass. The cut removes 10 net maintained lines. Atlas
+is untouched and live inter-swarm collaboration remains unproven.
 
 Exact `9abadfe7` deletes the provider-frame observation DTO and callback APIs
 from both Codex Responses and OpenRouter transports. No runtime, binary, test,
@@ -209,7 +220,7 @@ the live resident fields. Runtime writable state advances to v20. JSON schemas
 parse; core check, old-epoch refusal, coordinator 5/5, and swarm 4/4 pass. The
 cut removes 59 maintained lines and leaves `runtime_spine.rs` at 9,807 lines.
 
-Continue the registered-type and test-liability audit after exact `9abadfe7`. Model Atlas remains protected
+Continue the registered-type, field-cargo, and test-liability audit after exact `2a435eb5`. Model Atlas remains protected
 for its first live inter-swarm collaboration trial.
 
 Exact `3ed1d564` deletes the public
