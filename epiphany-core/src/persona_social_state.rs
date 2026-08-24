@@ -146,30 +146,9 @@ pub struct PersonaTurnBlockedEvidence {
     pub bridge_receipt_sha256: Option<String>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PersonaBlockedConversationPressure {
-    pub schema_version: String,
-    pub quarantine_id: String,
-    pub request_id: String,
-    pub terminal_receipt_id: String,
-    pub crossing_status: String,
-    pub evidence_source: String,
-    pub reason: String,
-    pub mentions: Vec<PersonaSocialMention>,
-    pub mention_cargo_sha256: String,
-    #[serde(default)]
-    pub crossing_receipt_id: Option<String>,
-    #[serde(default)]
-    pub bridge_receipt_sha256: Option<String>,
-    pub quarantined_at: String,
-    pub private_state_exposed: bool,
-}
-
 pub const PERSONA_SOCIAL_MENTION_TYPE: &str = "epiphany.persona.social_mention.v1";
 pub const PERSONA_SOCIAL_TURN_REQUEST_TYPE: &str = "epiphany.persona.turn_request.v1";
 pub const PERSONA_SOCIAL_TURN_TERMINAL_TYPE: &str = "epiphany.persona.turn_terminal.v1";
-pub const PERSONA_SOCIAL_QUARANTINE_TYPE: &str = "epiphany.persona.quarantine.v1";
 pub const PERSONA_SOCIAL_RETENTION_HEAD_TYPE: &str = "epiphany.persona.retention_head.v1";
 pub const PERSONA_SOCIAL_RETENTION_PLAN_TYPE: &str = "epiphany.persona.retention_plan.v1";
 pub const PERSONA_SOCIAL_RETENTION_HEAD_KEY: &str = "persona";
@@ -226,16 +205,6 @@ pub struct PersonaSocialTurnRequestDocument {
 pub struct PersonaSocialTurnTerminalDocument {
     #[cultcache(key = 0)]
     pub receipt: PersonaTurnTerminalReceipt,
-}
-
-#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.persona.quarantine.v1",
-    schema = "PersonaSocialQuarantineDocument"
-)]
-pub struct PersonaSocialQuarantineDocument {
-    #[cultcache(key = 0)]
-    pub pressure: PersonaBlockedConversationPressure,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
@@ -644,33 +613,6 @@ pub fn complete_persona_social_turn(
         document.terminal_receipt_id = Some(receipt.receipt_id.clone());
         writes.push(cache.prepare_entry(&mention.id, &document)?.0);
     }
-    if mention_disposition == "quarantined" {
-        let evidence = blocked_evidence.expect("validated blocked evidence");
-        let pressure = PersonaBlockedConversationPressure {
-            schema_version: "epiphany.persona_blocked_conversation_pressure.v1".into(),
-            quarantine_id: format!("{}:quarantine", request.request_id),
-            request_id: request.request_id.clone(),
-            terminal_receipt_id: receipt.receipt_id.clone(),
-            crossing_status: evidence.crossing_status.clone(),
-            evidence_source: evidence.evidence_source.clone(),
-            reason: evidence.reason.clone(),
-            mentions: request.mentions.clone(),
-            mention_cargo_sha256: receipt.mention_cargo_sha256.clone(),
-            crossing_receipt_id: evidence.crossing_receipt_id.clone(),
-            bridge_receipt_sha256: evidence.bridge_receipt_sha256.clone(),
-            quarantined_at: receipt.completed_at.clone(),
-            private_state_exposed: false,
-        };
-        let quarantine_id = pressure.quarantine_id.clone();
-        writes.push(
-            cache
-                .prepare_entry(
-                    &quarantine_id,
-                    &PersonaSocialQuarantineDocument { pressure },
-                )?
-                .0,
-        );
-    }
     if !persona_social_backing(store_path).compare_and_swap_batch(&expected, writes)? {
         return Err(anyhow!(
             "Persona terminal decision lost exact document compare-and-swap"
@@ -877,7 +819,6 @@ fn register_persona_social_types(cache: &mut CultCache) -> Result<()> {
     cache.register_entry_type::<PersonaSocialMentionDocument>()?;
     cache.register_entry_type::<PersonaSocialTurnRequestDocument>()?;
     cache.register_entry_type::<PersonaSocialTurnTerminalDocument>()?;
-    cache.register_entry_type::<PersonaSocialQuarantineDocument>()?;
     cache.register_entry_type::<PersonaSocialRetentionHeadDocument>()?;
     cache.register_entry_type::<PersonaSocialRetentionPlanDocument>()?;
     Ok(())
@@ -888,7 +829,6 @@ fn is_persona_social_type(document_type: &str) -> bool {
         PERSONA_SOCIAL_MENTION_TYPE,
         PERSONA_SOCIAL_TURN_REQUEST_TYPE,
         PERSONA_SOCIAL_TURN_TERMINAL_TYPE,
-        PERSONA_SOCIAL_QUARANTINE_TYPE,
         PERSONA_SOCIAL_RETENTION_HEAD_TYPE,
         PERSONA_SOCIAL_RETENTION_PLAN_TYPE,
     ]
@@ -905,9 +845,6 @@ fn load_persona_social_envelope(cache: &mut CultCache, envelope: CultCacheEnvelo
         }
         PERSONA_SOCIAL_TURN_TERMINAL_TYPE => {
             cache.load_envelope::<PersonaSocialTurnTerminalDocument>(envelope)?;
-        }
-        PERSONA_SOCIAL_QUARANTINE_TYPE => {
-            cache.load_envelope::<PersonaSocialQuarantineDocument>(envelope)?;
         }
         PERSONA_SOCIAL_RETENTION_HEAD_TYPE => {
             cache.load_envelope::<PersonaSocialRetentionHeadDocument>(envelope)?;
