@@ -5,8 +5,6 @@ use crate::agent_launch::{
     EPIPHANY_MIND_OWNER_ROLE, EPIPHANY_MIND_ROLE_BINDING_ID, EPIPHANY_MODELING_OWNER_ROLE,
     EPIPHANY_MODELING_ROLE_BINDING_ID,
 };
-use crate::eyes_gateway::EyesEvidencePacket;
-use crate::eyes_gateway::EyesSourceLookupReceipt;
 use crate::hands_gateway::*;
 use crate::repo_model_gateway::{
     RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY, RepoFrontierHandsAuthority, RepoFrontierModelingRequest,
@@ -57,7 +55,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v34";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v35";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(type = "epiphany.runtime.identity", schema = "EpiphanyRuntimeIdentity")]
@@ -781,8 +779,6 @@ fn runtime_spine_schema_cache() -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyRuntimeJobResult>()?;
     cache.register_entry_type::<EpiphanyCoordinatorRunReceipt>()?;
     cache.register_entry_type::<EpiphanyCoordinatorDeathRecovery>()?;
-    cache.register_entry_type::<EyesEvidencePacket>()?;
-    cache.register_entry_type::<EyesSourceLookupReceipt>()?;
     cache.register_entry_type::<SubstrateGateRepoAccessGrantReceipt>()?;
     cache.register_entry_type::<HandsActionIntent>()?;
     cache.register_entry_type::<HandsActionReview>()?;
@@ -2986,10 +2982,16 @@ pub(crate) fn frontier_verification_request_for_launch(
     Ok(Some(request))
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct AuthenticatedPublicSourceLookup {
+    pub receipt_id: String,
+    pub source_ref: String,
+}
+
 pub(crate) fn runtime_authenticated_public_source_lookups_for_worker(
     store_path: impl AsRef<Path>,
     worker_job_id: &str,
-) -> Result<Vec<EyesSourceLookupReceipt>> {
+) -> Result<Vec<AuthenticatedPublicSourceLookup>> {
     validate_non_empty(worker_job_id, "public source worker job id")?;
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
@@ -3000,7 +3002,7 @@ pub(crate) fn runtime_authenticated_public_source_lookups_for_worker(
 fn authenticated_public_source_lookup_receipts_for_worker(
     cache: &CultCache,
     worker_job_id: &str,
-) -> Result<Vec<EyesSourceLookupReceipt>> {
+) -> Result<Vec<AuthenticatedPublicSourceLookup>> {
     validate_non_empty(worker_job_id, "public source worker job id")?;
     require_identity(cache)?;
     let launch = cache
@@ -3011,7 +3013,6 @@ fn authenticated_public_source_lookup_receipts_for_worker(
     {
         return Err(anyhow!("public source evidence is Eyes-owned"));
     }
-    let grant_id = format!("substrate-grant-{worker_job_id}");
     let model_request_ids = cache
         .get_all::<EpiphanyRuntimeModelExecutionBinding>()?
         .into_iter()
@@ -3076,22 +3077,9 @@ fn authenticated_public_source_lookup_receipts_for_worker(
         {
             return Err(anyhow!("public source result provenance is substituted"));
         }
-        lookups.push(EyesSourceLookupReceipt {
-            schema_version: crate::EYES_SOURCE_LOOKUP_RECEIPT_SCHEMA_VERSION.to_string(),
+        lookups.push(AuthenticatedPublicSourceLookup {
             receipt_id: lookup_receipt_id,
-            source_job_id: worker_job_id.to_string(),
-            substrate_grant_receipt_id: grant_id.clone(),
-            tool_intent_id: intent.intent_id,
-            tool_receipt_id: receipt.receipt_id,
-            provider: "github".to_string(),
-            repository,
-            revision: source.revision().to_string(),
-            path: source.path().to_string(),
             source_ref,
-            content_sha256,
-            byte_count,
-            observed_at: receipt.completed_at,
-            contract: "Eyes admitted one bounded immutable public source only after authenticating its worker, causal request or model execution, tool, grant, provider identity, and content digest.".to_string(),
         });
     }
     lookups.sort_by(|left, right| left.receipt_id.cmp(&right.receipt_id));
@@ -3105,7 +3093,7 @@ fn authenticated_public_source_lookup_receipts_for_worker(
 pub(crate) fn authenticated_requested_public_source_lookups_for_worker(
     cache: &CultCache,
     worker_job_id: &str,
-) -> Result<Vec<EyesSourceLookupReceipt>> {
+) -> Result<Vec<AuthenticatedPublicSourceLookup>> {
     validate_non_empty(worker_job_id, "frontier public source worker job id")?;
     let launch = cache
         .get::<EpiphanyRuntimeWorkerLaunchRequest>(worker_job_id)?
@@ -6326,8 +6314,7 @@ pub(crate) fn select_and_commit_repo_frontier_research_request(
     let (view, basis) = current_keyed_repo_model(&cache)?;
     let model = view.memory_context_projection();
     let launches = cache.get_all::<EpiphanyRuntimeWorkerLaunchRequest>()?;
-    let packets = cache.get_all::<EyesEvidencePacket>()?;
-    let item = match next_repo_frontier_research_work(&cache, &model, &launches, &packets)? {
+    let item = match next_repo_frontier_research_work(&cache, &model, &launches)? {
         Some(NextRepoFrontierResearchWork::Existing(request)) => return Ok(request),
         Some(NextRepoFrontierResearchWork::Unrequested(item)) => item,
         None => {
@@ -6467,7 +6454,7 @@ impl RepoFrontierResearchLifecycle {
 }
 
 /// Projects the next exact actionable Eyes frontier through request, worker,
-/// review, and accepted-packet lifecycle. This is the launch-currency owner:
+/// review, and accepted Mind-commit lifecycle. This is the launch-currency owner:
 /// an uncovered frontier is not launchable while its current attempt is still
 /// running or awaiting review.
 pub(crate) fn runtime_repo_frontier_research_lifecycle(
@@ -6478,14 +6465,13 @@ pub(crate) fn runtime_repo_frontier_research_lifecycle(
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
     let launches = cache.get_all::<EpiphanyRuntimeWorkerLaunchRequest>()?;
-    let packets = cache.get_all::<EyesEvidencePacket>()?;
     let jobs = cache.get_all::<EpiphanyRuntimeJob>()?;
     let job_results = cache.get_all::<EpiphanyRuntimeJobResult>()?;
     let role_results = cache.get_all::<EpiphanyRuntimeRoleWorkerResult>()?;
     let (view, _basis) = current_keyed_repo_model(&cache)?;
     let model = view.memory_context_projection();
 
-    let work = next_repo_frontier_research_work(&cache, &model, &launches, &packets)?;
+    let work = next_repo_frontier_research_work(&cache, &model, &launches)?;
     let request = match work {
         Some(NextRepoFrontierResearchWork::Unrequested(item)) => {
             return Ok(RepoFrontierResearchLifecycle {
@@ -6593,14 +6579,13 @@ fn next_repo_frontier_research_work(
     cache: &CultCache,
     model: &crate::EpiphanyMemoryGraphSnapshot,
     launches: &[EpiphanyRuntimeWorkerLaunchRequest],
-    packets: &[EyesEvidencePacket],
 ) -> Result<Option<NextRepoFrontierResearchWork>> {
     let existing_actionable = actionable_repo_frontier_research_requests(cache)?;
     let mut existing_uncovered = existing_actionable
         .iter()
         .cloned()
         .filter_map(|request| {
-            match repo_frontier_research_request_is_covered(cache, &request, launches, packets) {
+            match repo_frontier_research_request_is_covered(cache, &request, launches) {
                 Ok(false) => Some(Ok(request)),
                 Ok(true) => None,
                 Err(error) => Some(Err(error)),
@@ -6632,7 +6617,6 @@ fn repo_frontier_research_request_is_covered(
     cache: &CultCache,
     request: &RepoFrontierResearchRequest,
     launches: &[EpiphanyRuntimeWorkerLaunchRequest],
-    packets: &[EyesEvidencePacket],
 ) -> Result<bool> {
     let mut matching_jobs = BTreeSet::new();
     for launch in launches {
@@ -6648,32 +6632,29 @@ fn repo_frontier_research_request_is_covered(
         }
         matching_jobs.insert(launch.job_id.as_str());
     }
-    for packet in packets
-        .iter()
-        .filter(|packet| packet.research_request_id == request.request_id)
-    {
-        let result = cache.get::<EpiphanyRuntimeRoleWorkerResult>(&packet.source_job_id)?;
-        let archived = cache.get::<EpiphanyArchivedRuntimeWorkerAttempt>(&packet.source_job_id)?;
-        let exact_live = result.as_ref().is_some_and(|result| {
-            matching_jobs.contains(result.job_id.as_str())
-                && result.result_id == packet.source_result_id
-                && result.decision_context_id == packet.decision_context_id
-                && result.repo_frontier_research_request_id.as_deref()
-                    == Some(request.request_id.as_str())
-        });
-        let exact_archived = archived.as_ref().is_some_and(|attempt| {
-            attempt.request_kind == "frontier-research"
-                && attempt.request_id == request.request_id
-                && attempt.fulfilled_result_id() == Some(packet.source_result_id.as_str())
-                && attempt.decision_context_id() == Some(packet.decision_context_id.as_str())
-                && attempt.decision.as_ref().is_some_and(|decision| {
-                    decision.role_result.as_ref().is_some_and(|result| {
-                        result.repo_frontier_research_request_id.as_deref()
-                            == Some(request.request_id.as_str())
-                    })
-                })
-        });
-        if exact_live || exact_archived {
+    for job_id in matching_jobs {
+        if let Some(result) = cache.get::<EpiphanyRuntimeRoleWorkerResult>(job_id)?
+            && result.repo_frontier_research_request_id.as_deref()
+                == Some(request.request_id.as_str())
+            && result.role_id.eq_ignore_ascii_case("research")
+            && result.item_error.is_none()
+            && worker_result_has_keyed_mind_commit(cache, &result)?
+        {
+            return Ok(true);
+        }
+        if let Some(attempt) = cache.get::<EpiphanyArchivedRuntimeWorkerAttempt>(job_id)?
+            && attempt.request_kind == "frontier-research"
+            && attempt.request_id == request.request_id
+            && let Some(decision) = attempt.decision.as_ref()
+            && let Some(result) = decision.role_result.as_ref()
+            && result.repo_frontier_research_request_id.as_deref()
+                == Some(request.request_id.as_str())
+            && result.role_id.eq_ignore_ascii_case("research")
+            && result.item_error.is_none()
+            && attempt.fulfilled_result_id() == Some(result.result_id.as_str())
+            && attempt.decision_context_id() == Some(result.decision_context_id.as_str())
+            && worker_result_has_keyed_mind_commit(cache, result)?
+        {
             return Ok(true);
         }
     }
@@ -7492,39 +7473,40 @@ fn worker_result_has_keyed_mind_commit(
     result: &EpiphanyRuntimeRoleWorkerResult,
 ) -> Result<bool> {
     require_worker_decision_context(cache, &result.decision_context_id, &result.job_id)?;
-    Ok(cache
-        .get_all::<crate::EpiphanyMindCommitReceipt>()?
-        .into_iter()
-        .any(|receipt| {
-            matches!(
-                receipt.authority,
-                crate::EpiphanyMindCommitAuthority::ModelDecisionContext {
-                    ref decision_context_id
-                } if decision_context_id == &result.decision_context_id
-            ) && if result.role_id.eq_ignore_ascii_case("modeling") {
-                receipt.invariant_owner.starts_with("Modeling.")
-                    && receipt
-                        .writes
-                        .iter()
-                        .any(|write| write.document_type.starts_with("epiphany.mind.repo_model."))
-            } else if result.role_id.eq_ignore_ascii_case("research") {
-                receipt.invariant_owner == "Eyes.frontier_research"
-                    && receipt.writes.iter().any(|write| {
-                        matches!(
-                            write.document_type.as_str(),
-                            crate::EpiphanyMindEvidenceDocument::TYPE
-                                | crate::EpiphanyMindObservationDocument::TYPE
-                        )
-                    })
-            } else if result.role_id.eq_ignore_ascii_case("verification") {
-                receipt.invariant_owner == "Soul.verification"
-                    && receipt.writes.iter().any(|write| {
-                        write.document_type == crate::EpiphanyMindVerificationAuditDocument::TYPE
-                    })
-            } else {
-                false
-            }
-        }))
+    for receipt in cache.get_all::<crate::EpiphanyMindCommitReceipt>()? {
+        receipt.validate()?;
+        if matches!(
+            receipt.authority,
+            crate::EpiphanyMindCommitAuthority::ModelDecisionContext {
+                ref decision_context_id
+            } if decision_context_id == &result.decision_context_id
+        ) && if result.role_id.eq_ignore_ascii_case("modeling") {
+            receipt.invariant_owner.starts_with("Modeling.")
+                && receipt
+                    .writes
+                    .iter()
+                    .any(|write| write.document_type.starts_with("epiphany.mind.repo_model."))
+        } else if result.role_id.eq_ignore_ascii_case("research") {
+            receipt.invariant_owner == "Eyes.frontier_research"
+                && receipt.writes.iter().any(|write| {
+                    matches!(
+                        write.document_type.as_str(),
+                        crate::EpiphanyMindEvidenceDocument::TYPE
+                            | crate::EpiphanyMindObservationDocument::TYPE
+                    )
+                })
+        } else if result.role_id.eq_ignore_ascii_case("verification") {
+            receipt.invariant_owner == "Soul.verification"
+                && receipt.writes.iter().any(|write| {
+                    write.document_type == crate::EpiphanyMindVerificationAuditDocument::TYPE
+                })
+        } else {
+            false
+        } {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 pub(crate) fn validate_repo_frontier_verification_request_intrinsic(

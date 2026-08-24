@@ -6,7 +6,6 @@ mod coordinator_results;
 pub mod coordinator_status;
 mod cultmesh_integration;
 mod current_work;
-mod eyes_gateway;
 mod hands_gateway;
 mod idunn_provider_health;
 mod idunn_runtime_health;
@@ -105,11 +104,6 @@ pub use epiphany_state_model::EpiphanyMemoryDomain;
 pub use epiphany_state_model::EpiphanyMemoryEdge;
 pub use epiphany_state_model::EpiphanyMemoryLifecycle;
 pub use epiphany_state_model::EpiphanyMemoryNode;
-pub use eyes_gateway::EYES_EVIDENCE_PACKET_SCHEMA_VERSION;
-pub use eyes_gateway::EYES_SOURCE_LOOKUP_RECEIPT_SCHEMA_VERSION;
-pub use eyes_gateway::EyesEvidencePacket;
-pub use eyes_gateway::EyesSourceLookupReceipt;
-pub use eyes_gateway::eyes_evidence_packet_from_research_finding;
 pub use hands_gateway::*;
 pub use idunn_provider_health::{
     EPIPHANY_IDUNN_PROVIDER_HEALTH_ADMISSION_SCHEMA, EPIPHANY_IDUNN_PROVIDER_HEALTH_ADMISSION_TYPE,

@@ -1731,21 +1731,24 @@ pub fn accept_frontier_research_result(
             ));
         }
         if let Some(receipt) = receipts.pop() {
+            receipt.validate()?;
             let request_id = result
                 .repo_frontier_research_request_id
                 .as_deref()
                 .ok_or_else(|| anyhow!("frontier Research replay lost its request identity"))?;
-            let packet_id = format!("eyes-packet-{request_id}");
-            let packet = cache
-                .get::<crate::EyesEvidencePacket>(&packet_id)?
-                .ok_or_else(|| anyhow!("frontier Research replay lost its evidence packet"))?;
-            if packet.research_request_id != request_id
-                || packet.decision_context_id != result.decision_context_id
-                || !receipt
-                    .writes
-                    .iter()
-                    .any(|write| write.document_type == crate::EpiphanyMindEvidenceDocument::TYPE)
-            {
+            if !receipt.strong_reads.iter().any(|read| {
+                read.document_type == crate::RepoFrontierResearchRequest::TYPE
+                    && read.document_key == request_id
+            }) || !receipt.strong_reads.iter().any(|read| {
+                read.document_type == crate::EpiphanyRuntimeRoleWorkerResult::TYPE
+                    && read.document_key == job_id
+            }) || !receipt.writes.iter().any(|write| {
+                matches!(
+                    write.document_type.as_str(),
+                    crate::EpiphanyMindEvidenceDocument::TYPE
+                        | crate::EpiphanyMindObservationDocument::TYPE
+                )
+            }) {
                 return Err(anyhow!(
                     "frontier Research replay does not preserve its exact accepted decision"
                 ));
@@ -1812,20 +1815,6 @@ pub fn accept_frontier_research_result(
             "frontier Research result did not expose every proposed evidence identity"
         ));
     }
-    let finding = crate::interpret_runtime_role_worker_result(
-        crate::EpiphanyRoleResultRoleId::Research,
-        &result,
-    );
-    let packet_id = format!("eyes-packet-{}", request.request_id);
-    let packet = crate::eyes_evidence_packet_from_research_finding(
-        packet_id.clone(),
-        request.request_id.clone(),
-        result.decision_context_id.clone(),
-        &finding,
-        &decision,
-        &lookups,
-        accepted_at.to_string(),
-    );
     let mut writes = Vec::new();
     for evidence in &decision.evidence {
         writes.push(crate::mind_documents::prepare_mind_document(
@@ -1889,14 +1878,12 @@ pub fn accept_frontier_research_result(
         }
         strong_reads.push(envelope.clone());
     }
-    let packet_envelope = cache.prepare_entry(&packet_id, &packet)?.0;
-    match crate::reasoning_context::commit_mind_mutation_with_derived_companions(
+    match crate::reasoning_context::commit_mind_mutation(
         store_path,
         &result.decision_context_id,
         "Eyes.frontier_research",
         strong_reads,
         writes,
-        vec![packet_envelope],
         accepted_at,
     )? {
         crate::EpiphanyMindCommitOutcome::Committed(receipt) => Ok(receipt),
@@ -6062,11 +6049,6 @@ mod tests {
                 .get::<crate::EpiphanyMindObservationDocument>(&observation.id)?
                 .is_some()
         );
-        let packet = admitted_research_cache
-            .get::<crate::EyesEvidencePacket>(&format!("eyes-packet-{research_request_id}"))?
-            .expect("request-bound Eyes packet");
-        assert_eq!(packet.research_request_id, research_request_id);
-        assert_eq!(packet.decision_context_id, research_context.context_id);
         let after_research = project_current_work(&store)?;
         assert!(after_research.research.continuation_action().is_none());
         assert!(after_research.body_modeling.is_none());
