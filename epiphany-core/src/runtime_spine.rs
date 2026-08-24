@@ -55,7 +55,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v35";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v36";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(type = "epiphany.runtime.identity", schema = "EpiphanyRuntimeIdentity")]
@@ -793,7 +793,6 @@ fn runtime_spine_schema_cache() -> Result<CultCache> {
     cache.register_entry_type::<crate::PersonaInterpreterEffectDocument>()?;
     cache.register_entry_type::<crate::PersonaModelStageReceipt>()?;
     cache.register_entry_type::<crate::PersonaModelTerminalReceipt>()?;
-    cache.register_entry_type::<crate::PersonaDiscordDeliveryEvidence>()?;
     cache.register_entry_type::<crate::PersonaConversationExecutionReceipt>()?;
     cache.register_entry_type::<crate::PersonaEffectExecutionIntent>()?;
     cache.register_entry_type::<crate::PersonaConversationStoreRetirementReceipt>()?;

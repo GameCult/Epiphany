@@ -10,7 +10,7 @@ use std::path::Path;
 
 pub const PERSONA_TURN_REQUEST_SCHEMA_VERSION: &str = "epiphany.persona_turn_request.v1";
 pub const PERSONA_TURN_TERMINAL_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.persona_turn_terminal_receipt.v1";
+    "epiphany.persona_turn_terminal_receipt.v2";
 pub const PERSONA_CONVERSATION_RETENTION_HEAD_SCHEMA_VERSION: &str =
     "epiphany.persona_conversation_retention_head.v1";
 pub const PERSONA_CONVERSATION_RETENTION_PLAN_SCHEMA_VERSION: &str =
@@ -72,7 +72,7 @@ pub struct PersonaTurnTerminalReceipt {
     pub mention_ids: Vec<String>,
     pub mention_cargo_sha256: String,
     #[serde(default)]
-    pub delivery_evidence_id: Option<String>,
+    pub delivery_message_id: Option<String>,
     #[serde(default)]
     pub crossing_receipt_id: Option<String>,
     #[serde(default)]
@@ -89,7 +89,7 @@ pub struct PersonaTurnTerminalReceipt {
 pub struct PersonaTurnTerminalOptions {
     pub request_id: String,
     pub outcome: String,
-    pub delivery_evidence: Option<crate::PersonaDiscordDeliveryEvidence>,
+    pub delivery_receipt: Option<crate::PersonaDiscordDeliveryReceipt>,
     pub blocked_evidence: Option<PersonaTurnBlockedEvidence>,
 }
 
@@ -147,7 +147,7 @@ pub struct PersonaTurnBlockedEvidence {
 
 pub const PERSONA_SOCIAL_MENTION_TYPE: &str = "epiphany.persona.social_mention.v2";
 pub const PERSONA_SOCIAL_TURN_REQUEST_TYPE: &str = "epiphany.persona.turn_request.v1";
-pub const PERSONA_SOCIAL_TURN_TERMINAL_TYPE: &str = "epiphany.persona.turn_terminal.v1";
+pub const PERSONA_SOCIAL_TURN_TERMINAL_TYPE: &str = "epiphany.persona.turn_terminal.v2";
 pub const PERSONA_SOCIAL_RETENTION_HEAD_TYPE: &str = "epiphany.persona.retention_head.v1";
 pub const PERSONA_SOCIAL_RETENTION_PLAN_TYPE: &str = "epiphany.persona.retention_plan.v1";
 pub const PERSONA_SOCIAL_RETENTION_HEAD_KEY: &str = "persona";
@@ -198,7 +198,7 @@ pub struct PersonaSocialTurnRequestDocument {
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(
-    type = "epiphany.persona.turn_terminal.v1",
+    type = "epiphany.persona.turn_terminal.v2",
     schema = "PersonaSocialTurnTerminalDocument"
 )]
 pub struct PersonaSocialTurnTerminalDocument {
@@ -494,30 +494,33 @@ pub fn complete_persona_social_turn(
             existing.outcome
         ));
     }
-    let delivery_evidence = options.delivery_evidence.as_ref();
+    let delivery_receipt = options.delivery_receipt.as_ref();
     let blocked_evidence = options.blocked_evidence.as_ref();
     if options.outcome == "delivered" {
-        let evidence = delivery_evidence.ok_or_else(|| {
-            anyhow!("delivered Persona turn requires typed Discord delivery evidence")
+        let receipt = delivery_receipt.ok_or_else(|| {
+            anyhow!("delivered Persona turn requires a typed Discord delivery receipt")
         })?;
-        if evidence.schema_version != crate::PERSONA_DISCORD_DELIVERY_EVIDENCE_SCHEMA_VERSION
-            || evidence.private_state_exposed
-            || evidence.evidence_id.trim().is_empty()
-            || evidence.message_id.trim().is_empty()
-            || evidence.crossing_receipt_id.trim().is_empty()
-            || evidence.bridge_receipt_sha256.trim().is_empty()
+        if receipt.schema_version != crate::PERSONA_DISCORD_DELIVERY_RECEIPT_SCHEMA_VERSION
+            || receipt.status != "completed"
+            || receipt.private_state_exposed
+            || receipt.receipt_id != receipt.request_id
+            || !receipt
+                .request_id
+                .starts_with(&format!("persona-discord:{}:", request.request_id))
+            || receipt.message_id.trim().is_empty()
+            || receipt.crossing_receipt_id.trim().is_empty()
             || !request
                 .mentions
                 .iter()
-                .any(|mention| mention.channel_id == evidence.channel_id)
+                .any(|mention| mention.channel_id == receipt.channel_id)
         {
             return Err(anyhow!(
-                "Discord delivery evidence is not bound to the Persona turn"
+                "Discord delivery receipt is not bound to the Persona turn"
             ));
         }
-    } else if delivery_evidence.is_some() {
+    } else if delivery_receipt.is_some() {
         return Err(anyhow!(
-            "non-delivered Persona terminal outcome must not carry delivery evidence"
+            "non-delivered Persona terminal outcome must not carry a delivery receipt"
         ));
     }
     if options.outcome == "blocked" {
@@ -568,10 +571,12 @@ pub fn complete_persona_social_turn(
             "sha256-{:x}",
             sha2::Sha256::digest(rmp_serde::to_vec(&request.mentions)?)
         ),
-        delivery_evidence_id: delivery_evidence.map(|evidence| evidence.evidence_id.clone()),
-        crossing_receipt_id: delivery_evidence.map(|evidence| evidence.crossing_receipt_id.clone()),
-        bridge_receipt_sha256: delivery_evidence
-            .map(|evidence| evidence.bridge_receipt_sha256.clone()),
+        delivery_message_id: delivery_receipt.map(|receipt| receipt.message_id.clone()),
+        crossing_receipt_id: delivery_receipt.map(|receipt| receipt.crossing_receipt_id.clone()),
+        bridge_receipt_sha256: delivery_receipt
+            .map(rmp_serde::to_vec)
+            .transpose()?
+            .map(|bytes| format!("sha256:{:x}", sha2::Sha256::digest(bytes))),
         blocked_crossing_status: blocked_evidence.map(|evidence| evidence.crossing_status.clone()),
         blocked_reason: blocked_evidence.map(|evidence| evidence.reason.clone()),
         completed_at: now_iso(),

@@ -21,10 +21,8 @@ use crate::{
     verify_persona_discord_delivery_receipt,
 };
 
-pub const PERSONA_DISCORD_DELIVERY_EVIDENCE_SCHEMA_VERSION: &str =
-    "epiphany.persona_discord_delivery_evidence.v0";
 pub const PERSONA_CONVERSATION_EXECUTION_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.persona_conversation_execution_receipt.v1";
+    "epiphany.persona_conversation_execution_receipt.v2";
 pub const PERSONA_EFFECT_EXECUTION_INTENT_SCHEMA_VERSION: &str =
     "epiphany.persona_effect_execution_intent.v0";
 pub const PERSONA_CONVERSATION_STORE_RETIREMENT_RECEIPT_SCHEMA_VERSION: &str =
@@ -150,37 +148,7 @@ pub struct PersonaEffectExecutionIntent {
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(
-    type = "epiphany.persona_discord_delivery_evidence.v0",
-    schema = "PersonaDiscordDeliveryEvidence"
-)]
-pub struct PersonaDiscordDeliveryEvidence {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub evidence_id: String,
-    #[cultcache(key = 2)]
-    pub effect_document_id: String,
-    #[cultcache(key = 3)]
-    pub channel_id: String,
-    #[cultcache(key = 4, default)]
-    pub reply_to_message_id: Option<String>,
-    #[cultcache(key = 5)]
-    pub message_id: String,
-    #[cultcache(key = 6)]
-    pub transport: String,
-    #[cultcache(key = 7)]
-    pub crossing_receipt_id: String,
-    #[cultcache(key = 8)]
-    pub receipt_url: String,
-    #[cultcache(key = 9)]
-    pub bridge_receipt_sha256: String,
-    #[cultcache(key = 10)]
-    pub private_state_exposed: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.persona_conversation_execution_receipt.v1",
+    type = "epiphany.persona_conversation_execution_receipt.v2",
     schema = "PersonaConversationExecutionReceipt"
 )]
 pub struct PersonaConversationExecutionReceipt {
@@ -198,8 +166,6 @@ pub struct PersonaConversationExecutionReceipt {
     pub state_effect_status: String,
     #[cultcache(key = 6, default)]
     pub state_effect_reasons: Vec<String>,
-    #[cultcache(key = 7, default)]
-    pub delivery_evidence_ids: Vec<String>,
     #[cultcache(key = 8)]
     pub social_terminal_receipt_id: Option<String>,
     #[cultcache(key = 9)]
@@ -289,7 +255,7 @@ pub fn poll_persona_discord_crossing(
             PersonaTurnTerminalOptions {
                 request_id: request_id.into(),
                 outcome: outcome.into(),
-                delivery_evidence: None,
+                delivery_receipt: None,
                 blocked_evidence: None,
             },
         )?;
@@ -301,7 +267,6 @@ pub fn poll_persona_discord_crossing(
             outcome: outcome.into(),
             state_effect_status: state_status,
             state_effect_reasons: reasons,
-            delivery_evidence_ids: vec![],
             social_terminal_receipt_id: Some(terminal.receipt_id),
             private_state_exposed: false,
             model_terminal_receipt_id: Some(model_terminal.receipt_id.clone()),
@@ -379,32 +344,12 @@ pub fn poll_persona_discord_crossing(
         ),
         _ => unreachable!(),
     };
-    let evidence = (outcome == "delivered").then(|| PersonaDiscordDeliveryEvidence {
-        schema_version: PERSONA_DISCORD_DELIVERY_EVIDENCE_SCHEMA_VERSION.into(),
-        evidence_id: format!(
-            "persona-delivery:{}:{}",
-            effects.document_id, delivery.message_id
-        ),
-        effect_document_id: effects.document_id.clone(),
-        channel_id: delivery.channel_id.clone(),
-        reply_to_message_id: (!delivery.reply_to_message_id.is_empty())
-            .then(|| delivery.reply_to_message_id.clone()),
-        message_id: delivery.message_id.clone(),
-        transport: delivery.transport.clone(),
-        crossing_receipt_id: delivery.crossing_receipt_id.clone(),
-        receipt_url: delivery.receipt_url.clone(),
-        bridge_receipt_sha256: signed_receipt_sha256,
-        private_state_exposed: false,
-    });
-    if let Some(value) = &evidence {
-        put_runtime_document(runtime_store, &value.evidence_id, value)?;
-    }
     let terminal = complete_persona_social_turn(
         social_store,
         PersonaTurnTerminalOptions {
             request_id: request_id.into(),
             outcome: outcome.into(),
-            delivery_evidence: evidence.clone(),
+            delivery_receipt: (outcome == "delivered").then(|| delivery.clone()),
             blocked_evidence,
         },
     )?;
@@ -422,10 +367,6 @@ pub fn poll_persona_discord_crossing(
         outcome: outcome.into(),
         state_effect_status: "admitted_before_delivery_request".into(),
         state_effect_reasons: vec![],
-        delivery_evidence_ids: evidence
-            .iter()
-            .map(|value| value.evidence_id.clone())
-            .collect(),
         social_terminal_receipt_id: Some(terminal.receipt_id),
         private_state_exposed: false,
         model_terminal_receipt_id: Some(model_terminal.receipt_id.clone()),
@@ -448,7 +389,7 @@ fn terminalize_local_effect_quarantine(
         PersonaTurnTerminalOptions {
             request_id: request.request_id.clone(),
             outcome: "blocked".into(),
-            delivery_evidence: None,
+            delivery_receipt: None,
             blocked_evidence: Some(crate::PersonaTurnBlockedEvidence {
                 evidence_source: "local_effect".into(),
                 crossing_status: "unknown".into(),
@@ -466,7 +407,6 @@ fn terminalize_local_effect_quarantine(
         outcome: "blocked".into(),
         state_effect_status: "quarantined_ambiguous_local_effect".into(),
         state_effect_reasons: vec![error.to_string()],
-        delivery_evidence_ids: vec![],
         social_terminal_receipt_id: Some(terminal.receipt_id),
         private_state_exposed: false,
         model_terminal_receipt_id: Some(model_terminal.receipt_id),
@@ -519,7 +459,6 @@ pub fn reconcile_terminal_persona_conversation(
         outcome: terminal.outcome.clone(),
         state_effect_status: "reconciled_from_social_terminal".into(),
         state_effect_reasons: vec![],
-        delivery_evidence_ids: terminal.delivery_evidence_id.clone().into_iter().collect(),
         social_terminal_receipt_id: Some(terminal.receipt_id.clone()),
         private_state_exposed: false,
         model_terminal_receipt_id: Some(model_terminal.receipt_id),
@@ -756,22 +695,6 @@ fn build_persona_retention_member(
         }
         runtime_ids.push((<PersonaEffectExecutionIntent as DatabaseEntry>::TYPE, id));
     }
-    if let Some(evidence_id) = &terminal.delivery_evidence_id {
-        let Some(evidence) =
-            runtime_document::<PersonaDiscordDeliveryEvidence>(runtime_store, evidence_id)?
-        else {
-            return Ok(None);
-        };
-        if conversation.delivery_evidence_ids != [evidence_id.clone()]
-            || evidence.private_state_exposed
-        {
-            return Err(anyhow!("Persona retained delivery evidence is invalid"));
-        }
-    } else if terminal.outcome == "delivered" || !conversation.delivery_evidence_ids.is_empty() {
-        return Err(anyhow!(
-            "delivered Persona retention candidate lacks evidence"
-        ));
-    }
     let mut runtime_cache = runtime_spine_cache(runtime_store)?;
     runtime_cache.pull_all_backing_stores()?;
     let runtime_snapshot = runtime_cache.snapshot_envelopes();
@@ -801,7 +724,16 @@ fn build_persona_retention_member(
             &crossing_request,
             receipt_anchor,
         )?;
-        if crossing_receipt.status != "completed" {
+        let receipt_sha256 = format!(
+            "sha256:{:x}",
+            Sha256::digest(rmp_serde::to_vec(&crossing_receipt)?)
+        );
+        if crossing_receipt.status != "completed"
+            || terminal.delivery_message_id.as_deref() != Some(crossing_receipt.message_id.as_str())
+            || terminal.crossing_receipt_id.as_deref()
+                != Some(crossing_receipt.crossing_receipt_id.as_str())
+            || terminal.bridge_receipt_sha256.as_deref() != Some(receipt_sha256.as_str())
+        {
             return Ok(None);
         }
         // The signed request and consequence receipt remain durable audit
@@ -1528,7 +1460,6 @@ mod tests {
                 outcome: "dropped".into(),
                 state_effect_status: "none".into(),
                 state_effect_reasons: vec![],
-                delivery_evidence_ids: vec![],
                 social_terminal_receipt_id: Some(terminal.receipt_id),
                 private_state_exposed: false,
                 model_terminal_receipt_id: Some(format!("persona-terminal:{request_id}")),
@@ -1896,7 +1827,6 @@ mod tests {
             outcome: "dropped".into(),
             state_effect_status: "none".into(),
             state_effect_reasons: vec![],
-            delivery_evidence_ids: vec![],
             social_terminal_receipt_id: Some("retry:terminal".into()),
             private_state_exposed: false,
             model_terminal_receipt_id: Some("persona-terminal:retry".into()),

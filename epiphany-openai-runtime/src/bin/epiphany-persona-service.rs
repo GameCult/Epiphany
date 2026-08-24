@@ -113,7 +113,7 @@ async fn poll_once(options: &Options) -> Result<bool> {
                 PersonaTurnTerminalOptions {
                     request_id: request.request_id,
                     outcome: "failed".into(),
-                    delivery_evidence: None,
+                    delivery_receipt: None,
                     blocked_evidence: None,
                 },
             )?;
