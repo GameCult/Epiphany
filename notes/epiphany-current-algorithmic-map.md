@@ -659,17 +659,24 @@ route, not a tool route plus a parallel no-tools opinion. The remaining broad
 runtime-library anatomy.
 
 The target boundary is the independent daemon mapped in
-`notes/standalone-codex-transport-migration.md`. One credential-isolated
-Yggdrasil connector already serves Ghostlight over encrypted CultNet, proving
-the process seam, but its current single-caller, single-key, fixed-model,
-stateless, no-tools contract and Ghostlight-owned deployment are not shared
-authority. Each consumer internally derives its exact typed provider request;
-the v2 daemon verifies those exact bytes and returns a digest-bound transport
-receipt plus typed events. It owns only Codex credential/transport physiology.
-Once both consumers pass that
-contract, Epiphany deletes its Codex spine, Codex-home/readiness plumbing, and
-every compiled Codex dependency; Ghostlight deletes its copied wire law and
-connector deployment path.
+`notes/standalone-codex-transport-migration.md`. Independent
+`GameCult/CodexConnector` exact
+`9da6070faa1c4a29455b2383abfaae44d9a7b229` now owns one typed multi-caller
+transport package and one public daemon binary without linking a Codex crate.
+Each consumer internally derives its exact typed provider request. The daemon
+verifies those exact bytes, returns a digest-bound transport receipt plus typed
+events, and uses a private digest-pinned official `codex app-server` child only
+to own credential refresh. The child never receives cognitive input or output.
+
+Replay is one keyed CultCache document per caller/request identity in an owned
+Redb store. `Active` is durable before provider I/O; the exact encrypted
+`Completed` response is durable before socket reply. After restart, completed
+work replays byte-identically and ambiguous active work refuses without
+consuming unrelated live capacity. RAM retains only the current process's live
+execution set. Redacted CultMesh/Odin readiness remains open before the shared
+consumer cuts. Once both consumers pass that contract, Epiphany deletes its
+Codex spine, Codex-home/readiness plumbing, and every compiled Codex dependency;
+Ghostlight deletes its copied wire law and connector deployment path.
 
 ## Canonical authority map
 
@@ -682,7 +689,7 @@ connector deployment path.
 | `current_work.rs` | keyed Mind view and exact runtime request/job/result/decision families | pure family scheduling and continuation projections | Events, timestamps, role lanes, and thread provenance cannot create or suppress work. |
 | coordinator policy/status | keyed Mind presence, exact current work, and the accepted continuity decision | one action/reason pair plus operator-readable role lanes | Coordinator presence is derived; no mutable coordinator head, pressure tableau, or duplicate policy wrapper exists. |
 | runtime worker attempt owner | immutable launch, exact process claim, typed result, job result, archival evidence | one terminal attempt authority | Scheduling, process liveness, and semantic admission remain distinct authorities. |
-| model-provider boundary | sealed native model request plus explicit provider configuration and injected credential | exact internally derived provider request and transport result | The pure runtime owns request/event admission; only release entrypoints own auth/network transport. Provider selection cannot author a second request truth or admit Mind state. |
+| model-provider boundary | sealed native model request plus explicit provider configuration | exact internally derived provider request and transport result | OpenRouter remains a release-owned direct boundary. Codex transport is moving to independent CodexConnector, which owns only caller admission, credential refresh, exact transport, and durable replay. Provider selection cannot author a second request truth or admit Mind state. |
 | OpenAI Responses schema projector | full native typed output schema | one provider-legal strict generation schema | Provider formatting preserves useful supported constraints but never replaces native decoding or Mind admission. |
 | model-pass terminal owner | sealed reasoning basis/context and typed failure class | exact transport closure plus `EpiphanyModelPassFailure` and terminal session/job result in one batch CAS | The caller cannot nominate a job/session; the context-derived binding closes role, reorient, and Persona failures without granting generic transport results decision authority. |
 | Substrate Gate | exact worker/job authority and requested operation | scoped grant or refusal | Access permission does not admit Mind state. |

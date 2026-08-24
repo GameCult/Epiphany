@@ -32,6 +32,30 @@ The second path is source-owned by the stale
 transaction. Ghostlight duplicates its wire documents locally. The live proof
 is useful; the ownership is not.
 
+## Current cut status
+
+Independent `GameCult/CodexConnector` exact
+`9da6070faa1c4a29455b2383abfaae44d9a7b229` completes migration steps 1-3
+except redacted CultMesh/Odin publication. It owns one Cargo package, one
+public daemon binary, the v2 multi-caller encrypted MessagePack contract,
+caller-native and exact provider-request digest binding, typed tool/result
+transport, a private digest-pinned official `codex app-server` credential
+child, raw Responses HTTP/SSE, and durable keyed replay. It links no Codex
+crate.
+
+Replay uses one CultCache document per caller/request identity in an owned Redb
+store. The daemon persists `Active` before provider I/O and replaces it with
+the exact encrypted `Completed` response before socket reply. Completed replay
+survives restart byte-for-byte. A restart-era active record returns explicit
+`Indeterminate` and never re-executes; it does not consume current-process
+capacity for unrelated identities. Replay records do not disappear merely
+because request admission expiry elapsed. A non-secret connection-key epoch
+detects rotation without persisting a secret-derived verifier.
+
+Focused native acceptance passes 22/22 plus exact library/binary checks and
+Clippy. The disposable target peaked at 625 MiB and was removed. No live
+service, credential, consumer, or deployment authority has moved.
+
 ## Authority map
 
 ### Standalone Codex transport service
@@ -70,7 +94,8 @@ Derived state:
 
 - current health, capacity, admitted provider/model capabilities, and caller
   pressure are CultMesh/Eve projections;
-- the bounded replay cache is transport physiology, not decision history;
+- keyed replay records are transport physiology, not decision history; they
+  remain durable until a separately proven retirement law exists;
 - request/provider documents returned in the receipt are evidence of bytes
   transported, not daemon-owned decisions.
 
@@ -153,7 +178,8 @@ The v2 hard cut must provide:
 - model/tool definitions, prior tool calls, and tool results;
 - ordered typed text, tool-call, completion, and failure events;
 - one terminal transport receipt with provider response and usage identity;
-- byte-identical replay for the same caller/request/digest and refusal for a
+- durable byte-identical replay for the same caller/request/digest, explicit
+  indeterminate refusal after a crash-era active claim, and refusal for a
   conflicting replay;
 - bounded per-caller concurrency and total payload/output limits;
 - no reasoning-delta publication or transcript-retention dependency;
@@ -254,25 +280,28 @@ GiB/16,483-file footprint is the pre-cut comparison.
 
 ## Migration order
 
-1. Create the independent source owner from the proven connector behavior, not
-   by merging the stale branch into Epiphany.
-2. Define and test the v2 typed contract, multi-caller isolation, exact request
-   binding, tool-call pass-through, refusal, replay, and redacted status.
-3. Prove the pinned app-server handshake, single-writer credential refresh,
-   exact binary/home identity, and raw provider transport without linking any
-   Codex crate.
-4. Package the service process tree as an independent Idunn target without
+1. Landed: create the independent source owner from the proven connector
+   behavior without merging the stale branch into Epiphany.
+2. Landed except redacted status: define and test the v2 typed contract,
+   multi-caller isolation, exact request binding, tool-call pass-through,
+   refusal, and durable replay.
+3. Landed in focused source acceptance: prove the pinned app-server handshake,
+   single-writer credential refresh, exact binary/home identity, and raw
+   provider transport without linking any Codex crate.
+4. Publish redacted CultMesh/Odin readiness without credential, account,
+   prompt, replay, or decision cargo.
+5. Package the service process tree as an independent Idunn target without
    changing the live refresh writer.
-5. Add Epiphany's v2 client and prove transcript-free decision audit plus tool
+6. Add Epiphany's v2 client and prove transcript-free decision audit plus tool
    continuation through a fake connector.
-6. Add Ghostlight's v2 client and remove its copied wire law.
-7. Stop the old connector, transfer its auth store once under root custody,
+7. Add Ghostlight's v2 client and remove its copied wire law.
+8. Stop the old connector, transfer its auth store once under root custody,
    start the standalone release, and prove one refresh writer.
-8. Cut consumers over independently and verify exact signed health/transport
+9. Cut consumers over independently and verify exact signed health/transport
    receipts.
-9. Delete embedded Epiphany Codex transport and Ghostlight-owned connector
+10. Delete embedded Epiphany Codex transport and Ghostlight-owned connector
    deployment in the same accepted release sequence.
-10. Delete the stale connector branch only after its useful Git history is
+11. Delete the stale connector branch only after its useful Git history is
    referenced from the new repository.
 
 ## Acceptance

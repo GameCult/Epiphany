@@ -2,9 +2,10 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `a6cf9383`
-Current pass: standalone Codex transport authority mapped; source extraction
-is next; Ox17 and Atlas Gate 1 remain paused
+Latest committed Epiphany boundary document: `1ff87ab3`
+Current connector source: `9da6070faa1c4a29455b2383abfaae44d9a7b229`
+Current pass: durable standalone Codex transport core landed; redacted
+CultMesh/Odin readiness is next; Ox17 and Atlas Gate 1 remain paused
 
 ## Orientation
 
@@ -47,19 +48,30 @@ authorize the next capstone or Gate 1.
 
 `notes/standalone-codex-transport-migration.md` is the authority and deletion
 map for removing Codex transport entirely from Epiphany's process/build body.
-Yggdrasil already proves the underlying process boundary through the
-Ghostlight-only `epiphany-model-connector.service`, but that connector is
-source-owned by stale branch `codex/epiphany-model-bridge`, deployed in
-Ghostlight's Idunn transaction, limited to one caller/key/model, stateless, and
-unable to return tool calls. The target is an independent Idunn-managed daemon
-with one writable Codex refresh store, distinct authenticated callers,
-consumer-native plus daemon-verified provider-request digest receipts, typed
-tool-call pass-through, bounded
-replay/concurrency, and redacted CultMesh health. Consumers keep prompts,
-projection, tools, retries, interpretation, decisions, and admission. The hard
-deletion line removes Epiphany's Codex spine/dependency/auth-readiness plumbing
-and Ghostlight's copied protocol/deployment ownership. No live service,
-credential, or deployment authority moved in this mapping pass.
+Independent repository `GameCult/CodexConnector` now owns one Cargo package
+with one public daemon binary and no linked Codex crates. Exact
+`9da6070faa1c4a29455b2383abfaae44d9a7b229` admits distinct authenticated
+callers, preserves caller-native and exact provider-request digests, passes
+typed text/tool/usage/failure results, and uses a digest-pinned official
+`codex app-server` child only as the private credential writer. The connector
+performs Responses HTTP/SSE transport itself; the child never sees prompts,
+tools, model output, or consumer identity.
+
+Replay authority is now keyed CultCache over an owned Redb store rather than a
+volatile map or whole-file rewrite. The daemon seals `Active` before provider
+I/O and replaces it with the exact encrypted `Completed` response before
+socket reply. Completed retries survive restart byte-for-byte; a restart-era
+active identity returns explicit `Indeterminate` and never re-executes. A
+non-secret connection-key epoch detects rotation without persisting a
+secret-derived verifier. Focused native acceptance passes 22/22 plus exact
+library/binary checks and Clippy. The disposable target peaked at 625 MiB and
+was removed completely.
+
+Redacted CultMesh/Odin publication, Epiphany and Ghostlight shared-client cuts,
+the independent Idunn target, and deletion of the old embedded/copied paths
+remain open. Consumers keep prompts, projections, tools, retries,
+interpretation, decisions, and admission. No live service, credential, or
+deployment authority has moved.
 
 Exact `a6cf9383` quarantines concrete Codex/OpenRouter authentication,
 credential reading, and network transport at the two release entrypoints that

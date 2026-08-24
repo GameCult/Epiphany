@@ -243,18 +243,22 @@ behavior, not as cleanup chores. A narrower OpenAI auth/refresh boundary must
 preserve exact provider capability and refresh-token authority; a core split
 must expose an existing semantic owner rather than invent a package taxonomy.
 
-The provider decision is now a service extraction, specified by
-`notes/standalone-codex-transport-migration.md`. Promote the already-proven
-Ghostlight connector seam into an independently source-owned and Idunn-managed
-Codex transport daemon. Its v2 contract must admit distinct callers, bind the
-consumer's native-request digest to the exact daemon-verified provider-request
-bytes, return typed tool calls and terminal transport receipts, and preserve
-one credential-refresh writer. Only after Epiphany and
-Ghostlight pass that contract may the old paths be deleted. The completed cut
-removes Epiphany's Codex spine and auth/readiness plumbing, Ghostlight's copied
-wire types and connector deployment authority, and the stale bridge branch as
-a production source. No dual daemon or refresh writer is an acceptable
-transition state.
+The provider decision is a service extraction specified by
+`notes/standalone-codex-transport-migration.md`. Independent
+`GameCult/CodexConnector` exact
+`9da6070faa1c4a29455b2383abfaae44d9a7b229` owns the v2 multi-caller contract,
+exact native/provider digest binding, typed tool and terminal receipts, the
+pinned official Codex credential child, raw Responses transport, and durable
+keyed replay. It links no Codex crate. Active replay identity is written before
+network access; the exact encrypted completion is durable before reply;
+restart ambiguity refuses rather than re-executing. Redacted CultMesh/Odin
+readiness is the remaining daemon source cut before consumer work.
+
+Then Epiphany and Ghostlight must pass their shared-client contracts before the
+old paths are deleted. The completed migration removes Epiphany's Codex spine
+and auth/readiness plumbing, Ghostlight's copied wire types and connector
+deployment authority, and the stale bridge branch as a production source. No
+dual daemon or refresh writer is an acceptable transition state.
 
 Model Atlas has component proofs but no live inter-swarm collaboration run.
 Preserve its publication, trust, transport, projection, Soul verification, Self
