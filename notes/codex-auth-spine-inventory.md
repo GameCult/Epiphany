@@ -137,10 +137,11 @@ skew. Do not paper over that with random version pins.
 
 The first workspace-verified wrapper now exists as
 `epiphany-openai-codex-spine`. It depends on the pure typed adapter plus the
-keeper Codex auth types and projects `AuthManager` / `CodexAuth` into a typed
-`EpiphanyOpenAiAdapterStatus`. `epiphany-codex-bridge` re-exports this spine so
-the current app-server compatibility shell can compile it without making the
-pure document crate depend on Codex.
+keeper Codex auth types. It uses `AuthManager` / `CodexAuth` only at provider
+transport construction and request authentication; no unread adapter-status
+document mirrors that live boundary. `epiphany-codex-bridge` re-exports this
+spine so the current app-server compatibility shell can compile it without
+making the pure document crate depend on Codex.
 
 The transport wrapper is now also in that spine. It maps typed
 `EpiphanyOpenAiModelRequest` documents into a local serializable Responses
@@ -153,8 +154,8 @@ longer imports Codex `ResponsesApiRequest`, `ResponsesClient`,
 workflow. Its narrow direct imports preserve Codex-compatible auth identity
 without letting Codex own Epiphany request/state shape.
 
-`schemas/cultnet/` contains publication schemas for OpenAI adapter status,
-model request, stream event, and terminal receipt. Live providers own their
+`schemas/cultnet/` contains publication schemas for OpenAI model request,
+stream event, and terminal receipt. Live providers own their
 CultMesh/CultNet catalogs. The native runtime accepts the document types
 registered by the actual CultCache runtime schema; there is no standalone
 hello/catalog CLI or hand-maintained mutation-contract mirror.
@@ -162,7 +163,7 @@ hello/catalog CLI or hand-maintained mutation-contract mirror.
 The native runtime route is the operator and daemon edge.
 `epiphany-openai-adapter` documents
 derive CultCache `DatabaseEntry`, `epiphany-core::runtime_spine_cache`
-registers OpenAI adapter status/request/stream-event/receipt documents, and the
+registers OpenAI request/stream-event/receipt documents, and the
 outside-vendor `epiphany-openai-runtime` crate records typed OpenAI model-turn
 requests, stream events, terminal receipts, runtime sessions, jobs, and job
 results into the native runtime spine. Its `model-turn` command opens the

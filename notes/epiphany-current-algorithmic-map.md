@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `3140d305` on `codex/epiphany-shakedown-live`
-Current worktree cut: documentation/evidence for dead Resident Self contract deletion;
+Latest committed implementation cut: `0091e0e1` on `codex/epiphany-shakedown-live`
+Current worktree cut: documentation/evidence for unread adapter-status deletion;
 Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -324,6 +324,15 @@ refuses v1 stores without mutation. The unrelated definition-only coordinator
 result-status enum is also gone; current role-board status remains the one live
 display projection. Session and worker retention continue through their actual
 runtime-spine owners.
+
+Model inference no longer writes mutable adapter-status shadows. Exact
+`0091e0e1` removes both generic and OpenAI-specific status documents, their
+constructors/writers, runtime registrations, published schemas, and the test
+that only restated the synthetic OpenRouter status fields. Provider/model
+identity remains in the exact native and provider requests; credential and
+transport attachment is proved where the transport is constructed and used.
+Runtime epoch v23 refuses v22 stores. The local published catalog now contains
+twenty live or portable contracts.
 
 Bifrost owns its private feedback-signing identity. Exact `94098223` deletes
 Epiphany's host-identity executable and the private signer, persisted identity,
