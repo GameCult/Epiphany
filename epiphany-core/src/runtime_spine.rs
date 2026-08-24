@@ -2627,17 +2627,6 @@ pub(crate) struct AuthenticatedPublicSourceLookup {
     pub source_ref: String,
 }
 
-pub(crate) fn runtime_authenticated_public_source_lookups_for_worker(
-    store_path: impl AsRef<Path>,
-    worker_job_id: &str,
-) -> Result<Vec<AuthenticatedPublicSourceLookup>> {
-    validate_non_empty(worker_job_id, "public source worker job id")?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    require_identity(&cache)?;
-    authenticated_requested_public_source_lookups_for_worker(&cache, worker_job_id)
-}
-
 fn authenticated_public_source_lookup_receipts_for_worker(
     cache: &CultCache,
     worker_job_id: &str,
@@ -5546,10 +5535,8 @@ fn frontier_item_is_actionable_for_organ(
 /// admitted exactly once and contains an item the route committer can hand to
 /// Hands. Status projection must use this instead of assuming that a clear
 /// CRRC lane implies implementation authority.
-pub(crate) fn runtime_has_actionable_hands_frontier(
-    runtime_store: impl AsRef<Path>,
-) -> Result<bool> {
-    runtime_has_actionable_frontier_for_organ(runtime_store, "Hands")
+pub(crate) fn has_actionable_hands_frontier(cache: &CultCache) -> Result<bool> {
+    has_actionable_frontier_for_organ(cache, "Hands")
 }
 
 fn frontier_authority_documents(
@@ -5942,20 +5929,17 @@ impl RepoFrontierResearchLifecycle {
 /// review, and accepted Mind-commit lifecycle. This is the launch-currency owner:
 /// an uncovered frontier is not launchable while its current attempt is still
 /// running or awaiting review.
-pub(crate) fn runtime_repo_frontier_research_lifecycle(
-    runtime_store: impl AsRef<Path>,
+pub(crate) fn repo_frontier_research_lifecycle(
+    cache: &CultCache,
 ) -> Result<RepoFrontierResearchLifecycle> {
-    let runtime_store = runtime_store.as_ref();
-    let mut cache = runtime_spine_cache(runtime_store)?;
-    cache.pull_all_backing_stores()?;
-    require_identity(&cache)?;
+    require_identity(cache)?;
     let launches = cache.get_all::<EpiphanyRuntimeWorkerLaunchRequest>()?;
     let jobs = cache.get_all::<EpiphanyRuntimeJob>()?;
     let role_results = cache.get_all::<EpiphanyRuntimeRoleWorkerResult>()?;
-    let (view, _basis) = current_keyed_repo_model(&cache)?;
+    let (view, _basis) = current_keyed_repo_model(cache)?;
     let model = view.memory_context_projection();
 
-    let work = next_repo_frontier_research_work(&cache, &model, &launches)?;
+    let work = next_repo_frontier_research_work(cache, &model, &launches)?;
     let request = match work {
         Some(NextRepoFrontierResearchWork::Unrequested(item)) => {
             return Ok(RepoFrontierResearchLifecycle {
@@ -5988,7 +5972,7 @@ pub(crate) fn runtime_repo_frontier_research_lifecycle(
         .collect::<Result<Vec<_>>>()?
         .into_iter()
         .map(|launch| {
-            let carried_request = frontier_research_request_for_launch(&cache, launch)?
+            let carried_request = frontier_research_request_for_launch(cache, launch)?
                 .ok_or_else(|| anyhow!("frontier Research launch lost its typed request"))?;
             if carried_request != request {
                 return Err(anyhow!(
@@ -6246,7 +6230,9 @@ pub fn review_repo_frontier_planning_failure(
     chrono::DateTime::parse_from_rfc3339(reviewed_at)
         .map_err(|_| anyhow!("planning failure review time must be RFC3339"))?;
     let runtime_store = runtime_store.as_ref();
-    let lifecycle = runtime_repo_frontier_planning_lifecycle(runtime_store)?;
+    let mut cache = runtime_spine_cache(runtime_store)?;
+    cache.pull_all_backing_stores()?;
+    let lifecycle = repo_frontier_planning_lifecycle(&cache)?;
     let (pass_kind, expected_job_id) = match lifecycle.stage {
         RepoFrontierPlanningLifecycleStage::ImaginationFailed => {
             ("imagination", lifecycle.imagination_job_id.as_deref())
@@ -6262,8 +6248,6 @@ pub fn review_repo_frontier_planning_failure(
     let planning_request_id = lifecycle
         .planning_request_id
         .ok_or_else(|| anyhow!("planning failure review lost its request"))?;
-    let mut cache = runtime_spine_cache(runtime_store)?;
-    cache.pull_all_backing_stores()?;
     let result = cache
         .get::<EpiphanyRuntimeRoleWorkerResult>(job_id)?
         .ok_or_else(|| anyhow!("planning failure review lost its typed result"))?;
@@ -6338,7 +6322,13 @@ pub fn runtime_repo_frontier_planning_lifecycle(
     let runtime_store = runtime_store.as_ref();
     let mut cache = runtime_spine_cache(runtime_store)?;
     cache.pull_all_backing_stores()?;
-    require_identity(&cache)?;
+    repo_frontier_planning_lifecycle(&cache)
+}
+
+pub(crate) fn repo_frontier_planning_lifecycle(
+    cache: &CultCache,
+) -> Result<RepoFrontierPlanningLifecycle> {
+    require_identity(cache)?;
     let empty = |stage| RepoFrontierPlanningLifecycle {
         stage,
         planning_request_id: None,
@@ -6387,7 +6377,7 @@ pub fn runtime_repo_frontier_planning_lifecycle(
                 ..empty(RepoFrontierPlanningLifecycleStage::Terminal)
             });
         }
-        if runtime_has_actionable_frontier_for_organ(runtime_store, "Imagination")? {
+        if has_actionable_frontier_for_organ(cache, "Imagination")? {
             return Ok(empty(RepoFrontierPlanningLifecycleStage::Ready));
         }
         let latest_terminal = decisions.iter().max_by(|a, b| {
@@ -6607,15 +6597,9 @@ pub fn runtime_repo_frontier_planning_lifecycle(
     Ok(lifecycle)
 }
 
-fn runtime_has_actionable_frontier_for_organ(
-    runtime_store: impl AsRef<Path>,
-    organ: &str,
-) -> Result<bool> {
-    let runtime_store = runtime_store.as_ref();
-    let mut cache = runtime_spine_cache(runtime_store)?;
-    cache.pull_all_backing_stores()?;
-    require_identity(&cache)?;
-    let Ok((view, _basis)) = current_keyed_repo_model(&cache) else {
+fn has_actionable_frontier_for_organ(cache: &CultCache, organ: &str) -> Result<bool> {
+    require_identity(cache)?;
+    let Ok((view, _basis)) = current_keyed_repo_model(cache) else {
         return Ok(false);
     };
     let model = view.memory_context_projection();

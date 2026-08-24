@@ -478,9 +478,9 @@ pub(crate) fn body_modeling_decision_envelope(
 
 pub fn project_current_work(store_path: impl AsRef<Path>) -> Result<EpiphanyCurrentWorkProjection> {
     let store_path = store_path.as_ref();
-    let mind = crate::assemble_mind_view(store_path)?;
     let mut cache = crate::runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
+    let mind = crate::mind_documents::assemble_mind_view_from_cache(&cache)?;
     let body_modeling = match (
         mind.repository_body_observation.clone(),
         mind.repo_model.as_ref(),
@@ -522,15 +522,15 @@ pub fn project_current_work(store_path: impl AsRef<Path>) -> Result<EpiphanyCurr
     Ok(EpiphanyCurrentWorkProjection {
         mind_projection_digest: mind.projection_digest,
         body_modeling,
-        research: crate::runtime_repo_frontier_research_lifecycle(store_path)?,
-        frontier_planning: crate::runtime_repo_frontier_planning_lifecycle(store_path)?,
+        research: crate::runtime_spine::repo_frontier_research_lifecycle(&cache)?,
+        frontier_planning: crate::runtime_spine::repo_frontier_planning_lifecycle(&cache)?,
         proposal_modeling: current_proposal_modeling_work(&cache)?,
         frontier_verdict_modeling: current_frontier_verdict_modeling_work(&cache)?,
         verification: current_verification_work(&cache)?,
         reorientation: crate::reorientation_work::current_reorientation_work(&cache)?,
         imagination_considerations,
         admitted_model_direction_consideration,
-        hands_frontier_ready: crate::runtime_has_actionable_hands_frontier(store_path)?,
+        hands_frontier_ready: crate::runtime_spine::has_actionable_hands_frontier(&cache)?,
     })
 }
 
@@ -1071,7 +1071,9 @@ pub fn current_frontier_verdict_modeling_review_job_id(
 pub fn current_frontier_research_review_job_id(
     store_path: impl AsRef<Path>,
 ) -> Result<Option<String>> {
-    let lifecycle = crate::runtime_repo_frontier_research_lifecycle(store_path)?;
+    let mut cache = crate::runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let lifecycle = crate::runtime_spine::repo_frontier_research_lifecycle(&cache)?;
     Ok(
         (lifecycle.stage == crate::RepoFrontierResearchLifecycleStage::ResultReady)
             .then_some(lifecycle.worker_job_id)
@@ -1113,15 +1115,15 @@ pub fn launch_current_frontier_planning_work(
     let store_path = store_path.as_ref();
     chrono::DateTime::parse_from_rfc3339(created_at)
         .map_err(|_| anyhow!("frontier Planning launch time is invalid"))?;
-    let lifecycle = crate::runtime_repo_frontier_planning_lifecycle(store_path)?;
+    let mut cache = crate::runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let lifecycle = crate::runtime_spine::repo_frontier_planning_lifecycle(&cache)?;
     if lifecycle.stage != RepoFrontierPlanningLifecycleStage::ImaginationLaunchReady {
         return Err(anyhow!("Mind has no launchable frontier Planning work"));
     }
     let request_id = lifecycle
         .planning_request_id
         .ok_or_else(|| anyhow!("frontier Planning work lost its request"))?;
-    let mut cache = crate::runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
     let request = cache
         .get::<crate::RepoFrontierPlanningRequest>(&request_id)?
         .ok_or_else(|| anyhow!("frontier Planning request disappeared"))?;
@@ -1261,7 +1263,9 @@ pub fn launch_current_frontier_plan_mind_work(
     let store_path = store_path.as_ref();
     chrono::DateTime::parse_from_rfc3339(created_at)
         .map_err(|_| anyhow!("frontier plan Mind launch time is invalid"))?;
-    let lifecycle = crate::runtime_repo_frontier_planning_lifecycle(store_path)?;
+    let mut cache = crate::runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let lifecycle = crate::runtime_spine::repo_frontier_planning_lifecycle(&cache)?;
     if lifecycle.stage != RepoFrontierPlanningLifecycleStage::MindLaunchReady {
         return Err(anyhow!("Mind has no launchable frontier plan review"));
     }
@@ -1271,8 +1275,6 @@ pub fn launch_current_frontier_plan_mind_work(
     let request_id = lifecycle
         .mind_request_id
         .ok_or_else(|| anyhow!("frontier plan Mind launch lost its request"))?;
-    let mut cache = crate::runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
     let request = cache
         .get::<crate::RepoFrontierPlanMindRequest>(&request_id)?
         .ok_or_else(|| anyhow!("frontier plan Mind request disappeared"))?;
@@ -1576,7 +1578,9 @@ pub fn launch_current_frontier_research_work(
     let store_path = store_path.as_ref();
     chrono::DateTime::parse_from_rfc3339(created_at)
         .map_err(|_| anyhow!("frontier Research launch time is invalid"))?;
-    if crate::runtime_repo_frontier_research_lifecycle(store_path)?.stage
+    let mut current = crate::runtime_spine_cache(store_path)?;
+    current.pull_all_backing_stores()?;
+    if crate::runtime_spine::repo_frontier_research_lifecycle(&current)?.stage
         != crate::RepoFrontierResearchLifecycleStage::LaunchReady
     {
         return Err(anyhow!("Mind has no launchable frontier Research work"));
@@ -1728,7 +1732,10 @@ pub fn accept_frontier_research_result(
             return Ok(receipt);
         }
     }
-    if current_frontier_research_review_job_id(store_path)?.as_deref() != Some(job_id) {
+    let research_lifecycle = crate::runtime_spine::repo_frontier_research_lifecycle(&cache)?;
+    if research_lifecycle.stage != crate::RepoFrontierResearchLifecycleStage::ResultReady
+        || research_lifecycle.worker_job_id.as_deref() != Some(job_id)
+    {
         return Err(anyhow!(
             "frontier Research result is not current review work"
         ));
@@ -1764,8 +1771,9 @@ pub fn accept_frontier_research_result(
         .research_decision()?
         .ok_or_else(|| anyhow!("frontier Research result has no typed decision"))?;
     decision.validate()?;
-    let lookups =
-        crate::runtime_authenticated_public_source_lookups_for_worker(store_path, job_id)?;
+    let lookups = crate::runtime_spine::authenticated_requested_public_source_lookups_for_worker(
+        &cache, job_id,
+    )?;
     for lookup in &lookups {
         if !result.evidence_ids.contains(&lookup.receipt_id)
             || !result.files_inspected.contains(&lookup.source_ref)
@@ -1923,7 +1931,13 @@ pub fn accept_frontier_verification_result(
             return Ok(EpiphanyAgentPassAdmissionOutcome::Committed(receipt));
         }
     }
-    if current_frontier_verification_review_job_id(store_path)?.as_deref() != Some(job_id) {
+    let verification = current_verification_work(&cache)?;
+    if verification
+        .filter(|work| work.attempt.action == EpiphanyAgentPassContinuationAction::Review)
+        .and_then(|work| work.attempt.job_id)
+        .as_deref()
+        != Some(job_id)
+    {
         return Err(anyhow!(
             "frontier Verification result is not current review work"
         ));
@@ -2840,7 +2854,9 @@ pub fn launch_current_body_modeling_work(
     let store_path = store_path.as_ref();
     chrono::DateTime::parse_from_rfc3339(created_at)
         .map_err(|_| anyhow!("Body Modeling launch time is invalid"))?;
-    let mind = crate::assemble_mind_view(store_path)?;
+    let mut cache = crate::runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let mind = crate::mind_documents::assemble_mind_view_from_cache(&cache)?;
     let body_basis = mind
         .repository_body_observation
         .clone()
@@ -2854,8 +2870,6 @@ pub fn launch_current_body_modeling_work(
         body_basis,
         repo_model.reasoning_basis(),
     )?;
-    let mut cache = crate::runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
     if resolve_body_modeling_work(
         work.clone(),
         cache.get::<EpiphanyBodyModelingDecisionReceipt>(&work.work_id)?,
@@ -3013,7 +3027,7 @@ pub fn launch_current_proposal_modeling_work(
     {
         return Err(anyhow!("proposal Modeling launch provenance mismatch"));
     }
-    let mind = crate::assemble_mind_view(store_path)?;
+    let mind = crate::mind_documents::assemble_mind_view_from_cache(&cache)?;
     let body_basis = mind
         .repository_body_observation
         .clone()
@@ -3146,7 +3160,7 @@ pub fn launch_current_frontier_verdict_modeling_work(
         .get::<crate::EpiphanyRepoModelFrontierDocument>(&request.frontier_item_id)?
         .ok_or_else(|| anyhow!("frontier verdict Modeling launch lost its frontier document"))?;
     let frontier_item = frontier_document.value()?;
-    let mind = crate::assemble_mind_view(store_path)?;
+    let mind = crate::mind_documents::assemble_mind_view_from_cache(&cache)?;
     let body_basis = mind
         .repository_body_observation
         .clone()

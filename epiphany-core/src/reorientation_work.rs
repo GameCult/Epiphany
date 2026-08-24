@@ -114,7 +114,9 @@ pub fn request_current_reorientation(
     chrono::DateTime::parse_from_rfc3339(requested_at)
         .map_err(|_| anyhow!("reorientation request time is invalid"))?;
     let store_path = store_path.as_ref();
-    let mind = crate::assemble_mind_view(store_path)?;
+    let mut cache = crate::runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let mind = crate::mind_documents::assemble_mind_view_from_cache(&cache)?;
     let mut source_documents = mind
         .source_documents
         .iter()
@@ -168,8 +170,6 @@ pub fn request_current_reorientation(
         requested_at: requested_at.into(),
     };
     validate_reorientation_request_intrinsic(&request)?;
-    let mut cache = crate::runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
     if let Some(existing) = cache.get::<EpiphanyReorientationRequest>(&request_id)? {
         validate_reorientation_request_current(&cache, &existing)?;
         return Ok(existing);

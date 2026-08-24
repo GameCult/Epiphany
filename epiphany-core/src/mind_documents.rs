@@ -495,6 +495,10 @@ pub(crate) fn validate_mind_write_envelope(envelope: &CultCacheEnvelope) -> Resu
 pub fn assemble_mind_view(store_path: impl AsRef<Path>) -> Result<EpiphanyMindView> {
     let mut cache = runtime_spine_cache(store_path.as_ref())?;
     cache.pull_all_backing_stores()?;
+    assemble_mind_view_from_cache(&cache)
+}
+
+pub(crate) fn assemble_mind_view_from_cache(cache: &CultCache) -> Result<EpiphanyMindView> {
     let identity = cache
         .get::<EpiphanyMindIdentity>(MIND_SCHEMA_EPOCH)?
         .ok_or_else(|| anyhow!("writable Mind store has no v1 identity"))?;
@@ -554,7 +558,7 @@ pub fn assemble_mind_view(store_path: impl AsRef<Path>) -> Result<EpiphanyMindVi
         .get::<crate::EpiphanyRepoModelIdentityDocument>(crate::REPO_MODEL_IDENTITY_KEY)?
         .is_some()
     {
-        Some(crate::assemble_repo_model_view(store_path.as_ref())?)
+        Some(crate::repo_model_documents::assemble_repo_model_view_from_cache(cache)?)
     } else {
         None
     };

@@ -1041,7 +1041,7 @@ pub fn worker_reasoning_basis(
     let launch_document = launch.launch_document()?;
     let (source_documents, projection) = match launch_document {
         EpiphanyWorkerLaunchDocument::Role(document) => {
-            let mind = crate::assemble_mind_view(store_path)?;
+            let mind = crate::mind_documents::assemble_mind_view_from_cache(&cache)?;
             let source_documents = mind.source_documents.clone();
             let authority: EpiphanyRolePassAuthorityProjection = document.into();
             let modeling_body = if authority.role_id.eq_ignore_ascii_case("modeling") {
@@ -1149,7 +1149,7 @@ pub fn put_reasoning_basis(
             let EpiphanyWorkerLaunchDocument::Role(document) = launch.launch_document()? else {
                 return Err(anyhow!("role reasoning basis cites a non-role launch"));
             };
-            let current_mind = crate::assemble_mind_view(store_path)?;
+            let current_mind = crate::mind_documents::assemble_mind_view_from_cache(&cache)?;
             let current_modeling_body = if projection
                 .authority
                 .role_id
