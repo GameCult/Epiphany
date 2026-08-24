@@ -363,7 +363,7 @@ Cut in this order:
    projection assembled from exact keyed Mind document versions. The final
    model request must render that projection; citing keyed sources while
    rendering the old thread snapshot is explicitly forbidden.
-2. **Body admission landed at `2eb95df6`; current-work projection landed at `e42788c9`, consumes one exact snapshot at `7374be5e`, and typed fulfillment reuses it at `5f1bea39`:** one pure typed projection derives Body Modeling, Eyes continuation, proposal Modeling, frontier planning, and Hands readiness from one pulled keyed Mind/runtime cache. Immutable result replay, family admission, PlanMind continuation, worker archival, and Resident Self completion validate against the caller's same snapshot rather than reopening runtime state.
+2. **Body admission landed at `2eb95df6`; current-work projection landed at `e42788c9`, consumes one exact snapshot at `7374be5e`, typed fulfillment reuses it at `5f1bea39`, and coordinator scheduling becomes its sole consumer projection at `2bcbf268`:** one pure typed projection derives Body Modeling, Eyes continuation, proposal Modeling, frontier planning, Hands readiness, and accepted manual-regather obligation from one pulled keyed Mind/runtime cache. Immutable result replay, family admission, PlanMind continuation, worker archival, Resident Self completion, and operator status validate or route against that same projection rather than reopening runtime state or accepting a parallel CRRC action.
    Modeling must derive from the current Body/RepoModel obligation; Eyes only
    from explicit external-evidence obligations. Body-generation Modeling
    identity, typed Body-to-Mind admission, sealed reasoning, and atomic decision

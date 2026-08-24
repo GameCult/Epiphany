@@ -2,10 +2,10 @@
 
 Updated: 2026-08-25
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany source cut: `5f1bea39`
+Latest committed Epiphany source cut: `2bcbf268`
 Current connector source: `6dc80f6d266db4d82566d2434adcc55a48e8ecad`
-Current pass: current work and typed fulfillment use one exact Mind snapshot;
-continue the coordinator-status/runtime-reader audit; Ox17 and Atlas Gate 1 remain paused
+Current pass: current work solely owns coordinator scheduling; continue the
+reorientation-result/runtime-reader audit; Ox17 and Atlas Gate 1 remain paused
 
 ## Orientation
 
@@ -101,6 +101,19 @@ without warnings; the deterministic keyed-Mind and repository-path proofs pass.
 Whole-Core Clippy exposes 58 pre-existing lints outside this cut. Verification
 generated 1.842 GB across 2,718 files; cleanup restored only the exact state
 inspector.
+
+Exact `2bcbf268` removes coordinator status's parallel scheduling mouth. The
+same current-work projection now carries the accepted manual-regather
+obligation to operator status and Resident Self; status no longer assembles
+Mind separately, and Resident Self no longer injects a counterfeit Continue.
+The six-state `EpiphanyCrrcAction` enum and coordinator-input field are gone.
+The existing decision-auditable Reorientation lifecycle now proves a durable
+regather decision reaches the user-visible `regatherManually` action. The cut
+removes 12 maintained lines net and adds no persisted schema, dependency,
+target, or process. Core check, current-work 3/3, Reorientation 1/1,
+operator-sanitization 1/1, and the release-owned coordinator compile pass. The
+focused build produced 1.6 GiB across 2,924 files; cleanup restored only the
+exact authenticated state inspector.
 
 Exact `edb5c3a3` deletes the duplicate pass-family authority from runtime
 physiology. Eight optional request-ID fields are gone from

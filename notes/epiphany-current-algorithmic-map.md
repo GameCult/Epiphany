@@ -1,9 +1,9 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-25
-Latest committed implementation cut: `5f1bea39` on `codex/epiphany-shakedown-live`
-Current pass: current work and typed fulfillment consume one exact Mind
-snapshot; coordinator-status/runtime-reader audit is next; Ox17 remains paused
+Latest committed implementation cut: `2bcbf268` on `codex/epiphany-shakedown-live`
+Current pass: current work solely owns coordinator scheduling;
+reorientation-result/runtime-reader audit is next; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke
@@ -677,6 +677,14 @@ not reopen runtime state while validating the result they just selected. The
 provider runtime retains one path-based role-result CAS writer; read-only
 replay consumes an explicit `&CultCache` and cannot silently rebase model
 output against a newer store head.
+
+Exact `2bcbf268` makes that projection the sole coordinator scheduling input.
+The accepted manual-regather obligation lives beside the other current work;
+operator status and Resident Self derive from the same value. Status has no
+second Mind assembly, Resident Self has no hard-coded Continue override, and
+the deleted `EpiphanyCrrcAction` enum cannot impersonate a parallel state
+machine. Reorientation decisions remain durable Mind documents; the boolean is
+only their deterministic scheduling projection.
 
 The target boundary is independent `GameCult/CodexConnector`; exact
 `6dc80f6d266db4d82566d2434adcc55a48e8ecad` owns one typed multi-caller
