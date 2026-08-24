@@ -8,7 +8,7 @@ members = [
     "epiphany-tool-adapter",
     "epiphany-tool-mcp-runtime",
 ]
-exclude = ["vendor/codex", "vendor/cultcache-rs"]
+exclude = ["vendor/cultcache-rs"]
 resolver = "3"
 
 [package]

@@ -25,8 +25,8 @@ transport belong to the independent CodexConnector daemon, not Epiphany's body.
   evidence sources until a typed reasoning consumer earns them.
 - CultCache stores typed state and receipts; CultMesh/CultNet carry typed local
   and federated projections.
-- Vendored Codex exposes no Epiphany route, DTO, thread-state field, rollout
-  migration, scheduler, watcher, or bridge crate.
+- Codex implementation source is absent from Epiphany. The typed Connector
+  contract is the only Codex-facing compile dependency.
 
 ## Invariants
 

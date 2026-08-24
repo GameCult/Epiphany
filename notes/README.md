@@ -10,7 +10,6 @@ contract docs.
 - `epiphany-anatomy.md`: current organ/sub-agent/substrate/protocol split.
 - `fresh-workspace-handoff.md`: compact re-entry orientation and current live state.
 - `epiphany-current-algorithmic-map.md`: broad source-grounded machine map.
-- `codex-auth-spine-inventory.md`: retained Codex auth/model transport keeper list.
 - `epiphany-fork-implementation-plan.md`: current campaign plan.
 - `epiphany-safety-architecture.md`: capability, autonomy, and governance boundaries.
 

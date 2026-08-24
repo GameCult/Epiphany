@@ -102,7 +102,6 @@ machine-spirit awake.
 ## Important Paths
 
 - Project root: `F:\Projects\Epiphany`
-- Vendored Codex repo: `F:\Projects\Epiphany\vendor\codex`
 - Fork implementation plan: `F:\Projects\Epiphany\notes\epiphany-fork-implementation-plan.md`
 - Handoff summary: `F:\Projects\Epiphany\notes\fresh-workspace-handoff.md`
 - Epiphany algorithmic map: `F:\Projects\Epiphany\notes\epiphany-current-algorithmic-map.md`
@@ -121,14 +120,6 @@ name the shared target explicitly:
 & 'C:\Users\Meta\.cargo-target-codex\debug\epiphany-state.exe' status
 $env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'
 cargo run --manifest-path .\Cargo.toml --bin epiphany-state -- add-evidence --type research --status ok --note '...'
-```
-
-Useful Codex repo searches:
-
-```powershell
-rg -n "pub enum ModeKind|TUI_VISIBLE_COLLABORATION_MODES" .\vendor\codex\codex-rs\protocol\src\config_types.rs
-rg -n "builtin_collaboration_mode_presets|fn plan_preset|fn default_preset" .\vendor\codex\codex-rs\models-manager\src\collaboration_mode_presets.rs
-rg -n "collaboration_mode_label|collaboration_mode_indicator|set_collaboration_mask" .\vendor\codex\codex-rs\tui\src\chatwidget.rs
 ```
 
 ## Session Bootstrap And Re-entry Rite
