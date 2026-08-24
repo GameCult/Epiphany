@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `5a047944` on `codex/epiphany-shakedown-live`
-Current worktree cut: documentation/evidence for callerless helper deletion;
+Latest committed implementation cut: `6ccaf937` on `codex/epiphany-shakedown-live`
+Current worktree cut: documentation/evidence for unowned projection deletion;
 Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -293,6 +293,14 @@ preserving API because it looks reusable: JSON ledger status, role binding and
 owner lookups, unique-string accumulation, and a successful-coordinator
 receipt wrapper. Typed owners and the exact coordinator binding validator stay
 where live callers use them. No replacement utility layer exists.
+
+Exact `6ccaf937` removes three more unowned mouths. Repository Body consumers
+read the assembled typed Mind view rather than a one-field forwarding helper.
+Persona quarantine remains keyed typed state rather than gaining a second
+sorted-list projection. Substrate Gate no longer exposes a generic repo-work
+planning grant that no admission or actuator consumed; exact coordinator and
+worker grant constructors remain with their live authority paths. Nothing is
+inserted between those owners and their consumers.
 
 Bifrost owns its private feedback-signing identity. Exact `94098223` deletes
 Epiphany's host-identity executable and the private signer, persisted identity,

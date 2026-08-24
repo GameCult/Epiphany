@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `5a047944`
-Current worktree: documentation/evidence for callerless helper deletion;
+Latest committed implementation cut: `6ccaf937`
+Current worktree: documentation/evidence for unowned projection deletion;
 Ox17 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `5a047944` is the current
+production symlink body and is inactive. Exact `6ccaf937` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,17 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `6ccaf937` deletes three public surfaces with no live consumer. The
+repository Body alias merely unwrapped `assemble_mind_view`; its proof now
+reads the typed Mind view directly. The Persona blocked-pressure helper rebuilt
+a sorted list already owned by keyed quarantine documents. The generic
+repo-work planning grant could mint read/snapshot Hands authority but no
+admission or actuator consumed it; exact coordinator and worker grant owners
+remain. Core checks, the read-only Body-basis proof, the fixed governed-tool
+operation proof, and coordinator 5/5 pass. The cut removes 41 net maintained
+lines without a schema, target, or Atlas change. Live inter-swarm collaboration
+remains unproven.
 
 Exact `5a047944` deletes ninety pure lines of callerless helper API: a
 JSON-shaped state-ledger status projection and its dead label, generic role
@@ -99,7 +110,7 @@ the live resident fields. Runtime writable state advances to v20. JSON schemas
 parse; core check, old-epoch refusal, coordinator 5/5, and swarm 4/4 pass. The
 cut removes 59 maintained lines and leaves `runtime_spine.rs` at 9,807 lines.
 
-Continue the public-API/test-liability audit after exact `5a047944`. Model Atlas remains protected
+Continue the public-API/test-liability audit after exact `6ccaf937`. Model Atlas remains protected
 for its first live inter-swarm collaboration trial.
 
 Exact `3ed1d564` deletes the public
