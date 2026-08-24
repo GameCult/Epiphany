@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `d9a196a0` on `codex/epiphany-shakedown-live`
+Latest committed implementation cut: `6f5d6600` on `codex/epiphany-shakedown-live`
 Current worktree cut: documentation/evidence for autonomous proposal origin collapse;
 Ox17 remains paused
 
@@ -123,6 +123,19 @@ pair; launch, fulfillment, and archival validate the same request-owned chain.
 Runtime advances to v30. The full keyed lifecycle and old-store refusal pass;
 package cleanup removes 677.6 MiB. The cut removes 53 net maintained lines and
 does not touch the unrun Atlas crossing.
+
+Repository-domain identity is one small typed receipt, not a second Body.
+Exact `6f5d6600` retains the canonical organizational repository name and exact
+authenticated Body hash, then deletes the copied runtime, swarm, workspace,
+fixed envelope identity/schema prose, and binding timestamp. CultCache and the
+authenticated Body route already own those facts. Bootstrap still validates
+the live Body and atomically strong-reads runtime identity plus the Body route;
+proposal promotion and fulfillment still refuse repository or Body-hash
+substitution. Runtime advances to v31. The full keyed lifecycle and old-store
+refusal pass; package cleanup removes 677.2 MiB. The cut removes 50 net
+maintained lines. Atlas remains protected until a real inter-swarm exchange
+exercises publication, trust, transport, projection, verification, admission,
+wake, brake, and re-entry together.
 
 CultMesh contains no JSON-derived operator snapshot, coordinator receipt,
 Hands gate, role-review event, unauthenticated Odin/Eve provider row, or daemon
@@ -1066,7 +1079,7 @@ Accepted through the local `5b799b12` source boundary:
 
 Open before Model Atlas Gate 1 resumes:
 
-1. let Idunn compile, test, and seal exact build-affecting source `d9a196a0`;
+1. let Idunn compile, test, and seal exact build-affecting source `6f5d6600`;
 2. use that exact package in private fresh-store Ox17; stop after three
    provider failures total, and prove direct Body Modeling, typed
    refusal-to-retry if exercised, Hands through Verification, exact context

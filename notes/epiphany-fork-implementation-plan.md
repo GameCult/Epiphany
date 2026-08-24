@@ -224,7 +224,7 @@ Delete or demote:
 
 Keep the five-day shakedown, Ox17 deployment, and Model Atlas operational Gate
 1 paused. Continue the source-subtraction and test-authority audit from exact
-`d9a196a0`. The current sequence has deleted the semantic-memory/workspace-coverage
+`6f5d6600`. The current sequence has deleted the semantic-memory/workspace-coverage
 projection system, its local daemon supervisor, and the surviving generic
 RepoModel profile, impossible lifecycle, producerless receipt/summary, and
 decorative scoring axes. Modeling consumes typed Body and keyed RepoModel state
@@ -240,6 +240,12 @@ Preserve its publication, trust, transport, projection, Soul verification, Self
 admission, wake, brake, and Eve path until Gate 1 exercises the complete crossing.
 Streamlining may remove duplicate authors and process shells; it may not spend
 the only end-to-end collaboration path before it has carried real traffic.
+
+Exact `6f5d6600` reduces the immutable repository-domain receipt to the
+canonical organizational repository name and exact authenticated Body hash.
+Runtime/swarm/workspace belong to the Body route; envelope type/key/schema
+belong to CultCache; binding time and fixed prose own nothing. The typed receipt
+still prevents deployment input from relabeling the Body after admission.
 
 Resident Self now solely imports authenticated Bifrost deliveries; exact
 `3dda58a5` deletes the standalone Persona feedback ingress and its old Starfire
