@@ -32,6 +32,7 @@ mod runtime_spine;
 mod runtime_store_backend;
 mod runtime_worker_attempt;
 mod soul_gateway;
+mod state_model;
 mod state_ledger;
 mod substrate_gate;
 mod surfaces;
@@ -99,11 +100,6 @@ pub use cultmesh_integration::{
 };
 
 pub use current_work::*;
-pub use epiphany_state_model::EpiphanyMemoryAnchor;
-pub use epiphany_state_model::EpiphanyMemoryDomain;
-pub use epiphany_state_model::EpiphanyMemoryEdge;
-pub use epiphany_state_model::EpiphanyMemoryLifecycle;
-pub use epiphany_state_model::EpiphanyMemoryNode;
 pub use hands_gateway::*;
 pub use idunn_provider_health::{
     EPIPHANY_IDUNN_PROVIDER_HEALTH_ADMISSION_SCHEMA, EPIPHANY_IDUNN_PROVIDER_HEALTH_ADMISSION_TYPE,
@@ -133,13 +129,7 @@ pub use imagination_consideration::{
     validate_candidate as validate_imagination_consideration_candidate,
     validate_current_request as validate_current_imagination_consideration_request,
 };
-pub use memory_graph::EpiphanyMemoryEdgeKind;
-pub use memory_graph::EpiphanyMemoryGraphSnapshot;
 pub use memory_graph::EpiphanyMemoryGraphValidationError;
-pub use memory_graph::EpiphanyMemoryNodeKind;
-pub use memory_graph::RepoFrontierAdoptedPlan;
-pub use memory_graph::RepoFrontierItem;
-pub use memory_graph::RepoFrontierStatus;
 pub use memory_graph::validate_memory_graph_snapshot;
 pub use mind_documents::*;
 pub use packaged_release::{
@@ -301,6 +291,7 @@ pub use runtime_spine::select_and_commit_repo_frontier_route;
 pub use runtime_spine::terminalize_model_pass_failure_session;
 pub(crate) use runtime_worker_attempt::{RuntimeTypedRequestRef, WorkerProcessStatus};
 pub use soul_gateway::*;
+pub use state_model::*;
 pub use state_ledger::EpiphanyBranchRecord;
 pub use state_ledger::EpiphanyLedgerEvidenceRecord;
 pub use state_ledger::EpiphanyStateLedgerEntry;

@@ -77,7 +77,7 @@ conflicts, or a consequential judgment cannot be derived honestly.
 
 The current native Epiphany body includes:
 
-- typed Rust domain organs in `epiphany-core` and `epiphany-state-model`
+- typed Rust domain organs owned by `epiphany-core`
 - keyed Mind state with typed projection and promotion paths
 - RepoModel and Model Atlas surfaces for source-grounded architectural belief
 - CultCache `.cc` state and CultMesh/CultNet contracts
@@ -86,7 +86,7 @@ The current native Epiphany body includes:
 - runtime-spine job and worker-result documents
 - Mind, Modeling, Substrate Gate, Eyes, Hands, Soul, Continuity, Persona, and
   heartbeat authority surfaces
-- local operator status, coordinator, smoke, and Verse-context commands
+- local operator status, coordinator, and Verse-context commands
 
 Codex is retained only for OpenAI authentication and model transport. Epiphany
 does not publish Codex app-server state as its project Mind.

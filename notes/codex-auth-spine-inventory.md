@@ -188,11 +188,11 @@ application. `codex-core` re-exports the contract only as a compatibility
 alias, and `CodexThread` now calls native state-update functions around its
 remaining revision check, persistence validation, and rollout/session writeback.
 
-The credential extraction overcut has been corrected. Codex file/keyring/auto
-auth, env API key handling, ChatGPT token refresh, account metadata parsing,
-and header-client setup remain in vendored `codex-login`. The redundant
-Epiphany re-export crate is gone; the root workspace carries the Codex
-`tokio-tungstenite` / `tungstenite` patches required for standalone builds.
+This paragraph describes the superseded embedded-auth phase. Exact `ed7357a2`
+later removed Codex credential and transport anatomy from Epiphany entirely;
+the independent CodexConnector owns that boundary. The unused root
+`tokio-tungstenite` / `tungstenite` patches are gone with the compiled Codex
+graph.
 
 The point is ownership: Epiphany calls a model adapter; it does not live inside
 the Codex host brain.

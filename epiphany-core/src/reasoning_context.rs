@@ -68,10 +68,10 @@ impl From<EpiphanyRoleWorkerLaunchDocument> for EpiphanyRolePassAuthorityProject
 pub struct EpiphanyRepoModelPromptProjection {
     pub identity: crate::EpiphanyRepoModelIdentityDocument,
     pub projection_digest: String,
-    pub domains: Vec<epiphany_state_model::EpiphanyMemoryDomain>,
-    pub nodes: Vec<epiphany_state_model::EpiphanyMemoryNode>,
-    pub edges: Vec<epiphany_state_model::EpiphanyMemoryEdge>,
-    pub frontier: Vec<epiphany_state_model::RepoFrontierItem>,
+    pub domains: Vec<crate::EpiphanyMemoryDomain>,
+    pub nodes: Vec<crate::EpiphanyMemoryNode>,
+    pub edges: Vec<crate::EpiphanyMemoryEdge>,
+    pub frontier: Vec<crate::RepoFrontierItem>,
     pub claim_obligations: Vec<crate::EpiphanyRepoModelClaimObligationsDocument>,
     pub surface_offers: Vec<crate::AtlasSurfaceOffer>,
     pub dependency_claims: Vec<crate::AtlasDependencyClaim>,
@@ -104,16 +104,16 @@ pub struct EpiphanyMindPromptProjection {
     pub projection_digest: String,
     pub objective: Option<String>,
     pub active_subgoal_id: Option<String>,
-    pub subgoals: Vec<epiphany_state_model::EpiphanySubgoal>,
-    pub invariants: Vec<epiphany_state_model::EpiphanyInvariant>,
-    pub observations: Vec<epiphany_state_model::EpiphanyObservation>,
-    pub evidence: Vec<epiphany_state_model::EpiphanyEvidenceRecord>,
+    pub subgoals: Vec<crate::EpiphanySubgoal>,
+    pub invariants: Vec<crate::EpiphanyInvariant>,
+    pub observations: Vec<crate::EpiphanyObservation>,
+    pub evidence: Vec<crate::EpiphanyEvidenceRecord>,
     pub verification_audits: Vec<crate::EpiphanyMindVerificationAuditDocument>,
     pub reorientation_decisions: Vec<crate::EpiphanyMindReorientationDecisionDocument>,
     pub reorientation_failures: Vec<crate::EpiphanyMindReorientationPassFailureDocument>,
     pub agent_pass_admission_refusals: Vec<crate::EpiphanyAgentPassAdmissionRefusal>,
-    pub investigation_checkpoint: Option<epiphany_state_model::EpiphanyInvestigationCheckpoint>,
-    pub mode: Option<epiphany_state_model::EpiphanyModeState>,
+    pub investigation_checkpoint: Option<crate::EpiphanyInvestigationCheckpoint>,
+    pub mode: Option<crate::EpiphanyModeState>,
     pub repository_body_observation: Option<crate::RepositoryBodyObservationBasis>,
     pub repo_model: Option<EpiphanyRepoModelPromptProjection>,
 }
@@ -2627,7 +2627,7 @@ mod tests {
         let make = |key: &str, summary: &str| -> Result<CultCacheEnvelope> {
             let cache = runtime_spine_cache(&store)?;
             let document = crate::EpiphanyMindObservationDocument {
-                value: epiphany_state_model::EpiphanyObservation {
+                value: crate::EpiphanyObservation {
                     id: key.into(),
                     summary: summary.into(),
                     source_kind: "test".into(),

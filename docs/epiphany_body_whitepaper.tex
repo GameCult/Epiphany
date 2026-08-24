@@ -48,7 +48,7 @@ The practical definition in this repository is:
 
 \begin{itemize}
   \item the root checkout at \code{F:\Projects\Epiphany};
-  \item Epiphany Rust crates such as \code{epiphany-core}, \code{epiphany-state-model}, model/tool adapters, and OpenAI transport crates;
+  \item Epiphany Rust crates such as \code{epiphany-core}, model/tool adapters, and provider runtimes;
   \item vendored substrate in \code{vendor/codex}, \code{vendor/cultcache-rs}, \code{vendor/cultnet-rs}, and \code{vendor/cultmesh-rs};
   \item typed state stores under \code{state/};
   \item schemas under \code{schemas/cultnet/};
@@ -59,20 +59,19 @@ The practical definition in this repository is:
 
 \section{Executive Map}
 
-Epiphany's current Body is a hybrid machine in transition. Its center of gravity
-has moved into typed Rust/CultCache organs, but compatibility arteries still
-run through vendored Codex. The live target is not a cleaner pile of Codex
-routes. The target is an Epiphany-native CultCache/CultMesh/CultNet body with a
-relatively vanilla Codex-derived reliquary retained for OpenAI subscription
-auth and model transport.
+Epiphany's current Body is a typed Rust/CultCache organism with provider
+transport outside its cognition boundary. Codex requests cross a lean client
+ABI into the independent CodexConnector daemon, which owns subscription
+credential refresh, transport, and replay. Epiphany owns prompts, tools,
+reasoning context, decisions, and Mind admission; it compiles no Codex crate.
 
 \begin{longtable}{>{\raggedright\arraybackslash}p{0.23\linewidth}>{\raggedright\arraybackslash}p{0.32\linewidth}>{\raggedright\arraybackslash}p{0.35\linewidth}}
 \textbf{Body Region} & \textbf{Current Owner} & \textbf{Invariant} \\
 \hline
 Durable Mind state & keyed CultCache documents assembled by \code{epiphany-core} & Prompt rendering consumes sealed typed projections; no persisted thread aggregate or global authority revision exists. \\
 Domain policy & \code{epiphany-core} & Verdicts, launch policy, acceptance rules, runtime lifecycle, and mutation law live here, not in bridge DTOs. \\
-Vendored Codex & \code{vendor/codex} & Retain host/app-server/auth/model compatibility where useful; do not let Codex own Epiphany prompts, scheduler, or state. \\
-Runtime spine & \code{epiphany-core/src/runtime_spine.rs} and \code{state/runtime-spine.cc} & Runtime identity, jobs, events, receipts, tool/model documents are typed CultCache records. \\
+Codex transport & independent \code{GameCult/CodexConnector} daemon & Own subscription credentials, provider transport, and exact replay only; never own Epiphany prompts, scheduler, decisions, or state. \\
+Runtime spine & \code{epiphany-core/src/runtime_spine.rs} and \code{state/runtime-spine.cc} & Runtime identity, jobs, receipts, and tool/model documents are typed CultCache records. \\
 Persona memory & keyed Mind Persona-memory documents & Persona decisions admit bounded memories by semantic identity; no parallel role-memory aggregate or generation head exists. \\
 Resident Self physiology & Resident Self CultCache documents via \code{epiphany-swarm} & Typed pressure, exact grant creation, launch exclusion, leases, terminal receipts, retry, and bounded retention have one owner. No scheduler singleton or acknowledgement loop exists. \\
 Local Verse & CultMesh over \code{state/local-verse.cc} & Local Verse context is compact prompt/operator context; private state does not become public by flipping a flag. \\
@@ -82,27 +81,21 @@ Operator artifacts & \code{.epiphany-*}, \code{tools/epiphany_local_run.ps1} & A
 
 \section{Repository Body}
 
-The checkout has nine primary Epiphany Rust crates:
+The checkout has eight primary Epiphany Rust packages:
 
 \begin{itemize}
-  \item \code{epiphany-core}: the main domain organ. It owns state-update
-  validation, launch documents, runtime spine, Resident Self, Persona
-  projection, Substrate Gate, Mind, Eyes, Hands, Soul, Continuity, CultMesh
-  integration, surface derivation, smokes, and local operator binaries.
-  \item \code{epiphany-state-model}: the durable \code{EpiphanyThreadState}
-  type plus \code{render_epiphany_state}. This is the typed Mind surface that
-  prompt fragments and views read.
+  \item \code{epiphany-core}: the main domain organ. It owns semantic state
+  contracts, keyed Mind admission, launch documents, runtime spine, Resident
+  Self, Persona projection, Substrate Gate, Eyes, Hands, Soul, Continuity,
+  CultMesh integration, and surface derivation.
   \item \code{epiphany-model-adapter}: provider-neutral model request, stream
   event, receipt, and status documents.
   \item \code{epiphany-openai-adapter}: OpenAI-shaped request/event/receipt and
   status documents.
-  \item \code{epiphany-openai-auth-spine}: Codex-derived auth boundary over
-  \code{codex-login}. It preserves honest Codex-compatible credential and token
-  behavior rather than impersonating it from scratch.
-  \item \code{epiphany-openai-codex-spine}: model transport over vendored Codex
-  client machinery.
   \item \code{epiphany-openai-runtime}: executable model runtime, including
   \code{epiphany-model-runtime}.
+  \item \code{epiphany-release-construction}: exact package construction and
+  release-witness verification.
   \item \code{epiphany-tool-adapter}: typed tool capability, invocation intent,
   and invocation receipt documents.
   \item \code{epiphany-tool-mcp-runtime}: first-party tool executor. Native
@@ -114,8 +107,8 @@ The checkout has nine primary Epiphany Rust crates:
 The vendored region contains:
 
 \begin{itemize}
-  \item \code{vendor/codex}: the Codex-derived host and compatibility substrate.
-  It is tracked directly, not as a submodule.
+  \item \code{vendor/codex}: retained Codex-fork source history. It is not in
+  Epiphany's compiled runtime graph.
   \item \code{vendor/cultcache-rs}, \code{vendor/cultnet-rs}, and
   \code{vendor/cultmesh-rs}: repo-contained Rust Cult substrate.
 \end{itemize}

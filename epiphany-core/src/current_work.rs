@@ -3406,7 +3406,7 @@ fn resolve_body_modeling_work(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use epiphany_state_model::{
+    use crate::state_model::{
         EpiphanyMemoryDomain, EpiphanyMemoryLifecycle, EpiphanyMemoryNode, EpiphanyMemoryNodeKind,
         RepoFrontierItem, RepoFrontierStatus,
     };
@@ -5792,12 +5792,12 @@ mod tests {
         research_cache.put(&research_context.context_id, &research_context)?;
         let stale_research_store = temp.path().join("stale-research-output.cc");
         std::fs::copy(&store, &stale_research_store)?;
-        let evidence = epiphany_state_model::EpiphanyEvidenceRecord {
+        let evidence = crate::EpiphanyEvidenceRecord {
             id: "research-evidence-1".into(),
             kind: "external-source".into(),
             status: "ok".into(),
             summary: "The bounded external claim is supported.".into(),
-            code_refs: vec![epiphany_state_model::EpiphanyCodeRef {
+            code_refs: vec![crate::EpiphanyCodeRef {
                 path: "epiphany-core/src/current_work.rs".into(),
                 start_line: Some(1),
                 end_line: None,
@@ -5805,7 +5805,7 @@ mod tests {
                 note: None,
             }],
         };
-        let observation = epiphany_state_model::EpiphanyObservation {
+        let observation = crate::EpiphanyObservation {
             id: "research-observation-1".into(),
             summary: "External evidence answers the exact frontier question.".into(),
             source_kind: "research".into(),

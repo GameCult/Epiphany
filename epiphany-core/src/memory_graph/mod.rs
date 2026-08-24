@@ -1,16 +1,5 @@
 pub mod validation;
 
-pub use epiphany_state_model::EpiphanyMemoryDomain;
-pub use epiphany_state_model::EpiphanyMemoryEdge;
-pub use epiphany_state_model::EpiphanyMemoryEdgeKind;
-pub use epiphany_state_model::EpiphanyMemoryGraphSnapshot;
-pub use epiphany_state_model::EpiphanyMemoryLifecycle;
-pub use epiphany_state_model::EpiphanyMemoryNode;
-pub use epiphany_state_model::EpiphanyMemoryNodeKind;
-pub use epiphany_state_model::RepoFrontierAdoptedPlan;
-pub use epiphany_state_model::RepoFrontierItem;
-pub use epiphany_state_model::RepoFrontierStatus;
-
 pub use validation::EpiphanyMemoryGraphValidationError;
 pub(crate) use validation::frontier_item_has_routeable_repository_scope;
 pub(crate) use validation::repo_paths_are_canonical_and_safe;

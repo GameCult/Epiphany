@@ -2,7 +2,7 @@ use std::path::Path;
 
 use anyhow::{Result, anyhow};
 use cultcache_rs::{CultCache, CultCacheEnvelope, DatabaseEntry};
-use epiphany_state_model::{
+use crate::state_model::{
     EpiphanyEvidenceRecord, EpiphanyInvariant, EpiphanyInvestigationCheckpoint,
     EpiphanyModeState, EpiphanyObservation, EpiphanySubgoal,
 };

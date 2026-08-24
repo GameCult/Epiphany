@@ -7,14 +7,13 @@ of app-server routes.
 ## Objective
 
 Build an inspectable native organism whose typed state, runtime, organ gates,
-memory, scheduling, interfaces, and social crossings can operate without Codex
-owning Epiphany cognition. Retain Codex-derived code only where it provides an
-earned OpenAI-compatible authentication or model-transport capability.
+memory, scheduling, interfaces, and social crossings operate without Codex
+owning Epiphany cognition. OpenAI subscription authentication and model
+transport belong to the independent CodexConnector daemon, not Epiphany's body.
 
 ## Current Mechanism
 
-- `epiphany-state-model` owns shared typed semantic contracts; durable Mind is keyed CultCache owned by `epiphany-core`.
-- `epiphany-core` owns keyed Mind admission, runtime spine, organ gates,
+- `epiphany-core` owns the semantic contracts, keyed Mind admission, runtime spine, organ gates,
   Resident Self physiology, Persona, and CultMesh integration. Coordinator policy,
   status, and every migrated work family consume keyed Mind plus exact runtime
   receipts. Persisted `EpiphanyThreadStateEntry`, the in-memory

@@ -19,10 +19,10 @@ pub struct EpiphanyReorientationStateProjection {
     pub runtime_id: String,
     pub objective: Option<String>,
     pub active_subgoal_id: Option<String>,
-    pub investigation_checkpoint: Option<epiphany_state_model::EpiphanyInvestigationCheckpoint>,
-    pub mode: Option<epiphany_state_model::EpiphanyModeState>,
+    pub investigation_checkpoint: Option<crate::EpiphanyInvestigationCheckpoint>,
+    pub mode: Option<crate::EpiphanyModeState>,
     pub repository_body_observation: Option<crate::RepositoryBodyObservationBasis>,
-    pub frontier: Vec<epiphany_state_model::RepoFrontierItem>,
+    pub frontier: Vec<crate::RepoFrontierItem>,
     pub projection_digest: String,
 }
 
@@ -1060,7 +1060,7 @@ mod tests {
         cache.put(
             "unrelated-observation",
             &crate::EpiphanyMindObservationDocument {
-                value: epiphany_state_model::EpiphanyObservation {
+                value: crate::EpiphanyObservation {
                     id: "unrelated-observation".into(),
                     summary: "Persona observed an unrelated social fact.".into(),
                     ..Default::default()

@@ -418,7 +418,7 @@ pub struct RepoFrontierRoute {
     #[cultcache(key = 11)]
     pub authorized_paths: Vec<String>,
     #[cultcache(key = 12, default)]
-    pub adopted_plan: Option<epiphany_state_model::RepoFrontierAdoptedPlan>,
+    pub adopted_plan: Option<crate::RepoFrontierAdoptedPlan>,
     #[cultcache(key = 13)]
     pub selected_at: String,
 }

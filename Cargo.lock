@@ -508,12 +508,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 
 [[package]]
-name = "dyn-clone"
-version = "1.0.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
-
-[[package]]
 name = "ed25519"
 version = "2.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -551,7 +545,6 @@ dependencies = [
  "epiphany-model-adapter",
  "epiphany-openai-adapter",
  "epiphany-release-construction",
- "epiphany-state-model",
  "epiphany-tool-adapter",
  "ghostlight-persona-projection",
  "ignore",
@@ -647,15 +640,6 @@ dependencies = [
  "sha2",
  "tempfile",
  "uuid",
-]
-
-[[package]]
-name = "epiphany-state-model"
-version = "0.1.0"
-dependencies = [
- "schemars",
- "serde",
- "ts-rs",
 ]
 
 [[package]]
@@ -1868,30 +1852,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "schemars"
-version = "0.8.22"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fbf2ae1b8bc8e02df939598064d22402220cd5bbcca1c76f7d6a310974d5615"
-dependencies = [
- "dyn-clone",
- "schemars_derive",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "schemars_derive"
-version = "0.8.22"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32e265784ad618884abaea0600a9adf15393368d840e0222d101a072f3f7534d"
-dependencies = [
- "proc-macro2",
- "quote",
- "serde_derive_internals",
- "syn 2.0.119",
-]
-
-[[package]]
 name = "security-framework"
 version = "3.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1962,17 +1922,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.3",
-]
-
-[[package]]
-name = "serde_derive_internals"
-version = "0.29.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18d26a20a969b9e3fdf2fc2d9f21eda6c40e2de84c9408bb5d3b05d499aae711"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.119",
 ]
 
 [[package]]
@@ -2175,15 +2124,6 @@ dependencies = [
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "termcolor"
-version = "1.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755"
-dependencies = [
- "winapi-util",
 ]
 
 [[package]]
@@ -2413,30 +2353,6 @@ name = "try-lock"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
-
-[[package]]
-name = "ts-rs"
-version = "11.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4994acea2522cd2b3b85c1d9529a55991e3ad5e25cdcd3de9d505972c4379424"
-dependencies = [
- "serde_json",
- "thiserror",
- "ts-rs-macros",
- "uuid",
-]
-
-[[package]]
-name = "ts-rs-macros"
-version = "11.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee6ff59666c9cbaec3533964505d39154dc4e0a56151fdea30a09ed0301f62e2"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.119",
- "termcolor",
-]
 
 [[package]]
 name = "typenum"
@@ -3047,18 +2963,3 @@ name = "zmij"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
-
-[[patch.unused]]
-name = "tungstenite"
-version = "0.27.0"
-source = "git+https://github.com/openai-oss-forks/tungstenite-rs?rev=9200079d3b54a1ff51072e24d81fd354f085156f#9200079d3b54a1ff51072e24d81fd354f085156f"
-
-[[patch.unused]]
-name = "tokio-tungstenite"
-version = "0.28.0"
-source = "git+https://github.com/openai-oss-forks/tokio-tungstenite?rev=132f5b39c862e3a970f731d709608b3e6276d5f6#132f5b39c862e3a970f731d709608b3e6276d5f6"
-
-[[patch.unused]]
-name = "tungstenite"
-version = "0.27.0"
-source = "git+https://github.com/openai-oss-forks/tungstenite-rs?rev=9200079d3b54a1ff51072e24d81fd354f085156f#9200079d3b54a1ff51072e24d81fd354f085156f"

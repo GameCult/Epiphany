@@ -1,9 +1,9 @@
-use super::EpiphanyMemoryDomain;
-use super::EpiphanyMemoryEdge;
-use super::EpiphanyMemoryGraphSnapshot;
-use super::EpiphanyMemoryLifecycle;
-use super::EpiphanyMemoryNode;
-use super::RepoFrontierStatus;
+use crate::EpiphanyMemoryDomain;
+use crate::EpiphanyMemoryEdge;
+use crate::EpiphanyMemoryGraphSnapshot;
+use crate::EpiphanyMemoryLifecycle;
+use crate::EpiphanyMemoryNode;
+use crate::RepoFrontierStatus;
 use std::collections::{HashMap, HashSet};
 
 pub(crate) fn repo_paths_are_canonical_and_safe(paths: &[String]) -> bool {
@@ -23,7 +23,7 @@ pub(crate) fn repo_paths_are_canonical_and_safe(paths: &[String]) -> bool {
 }
 
 pub(crate) fn frontier_item_has_routeable_repository_scope(
-    item: &epiphany_state_model::RepoFrontierItem,
+    item: &crate::RepoFrontierItem,
 ) -> bool {
     !item.repository_scope.is_empty() && repo_paths_are_canonical_and_safe(&item.repository_scope)
 }

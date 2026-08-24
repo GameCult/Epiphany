@@ -120,15 +120,15 @@ Epiphany is a native GameCult runtime that began as an opinionated Codex fork.
 
 Her body is made of:
 
-- typed Rust domain organs in `epiphany-core` and `epiphany-state-model`
+- typed Rust domain organs owned by `epiphany-core`
 - CultCache `.cc` stores for runtime, heartbeat, agent state, local Verse,
   memory graph, and thread state
 - CultMesh and CultNet contracts for local and distributed state
 - provider-neutral model and tool request/receipt documents
 - Mind, Substrate Gate, Eyes, Hands, Soul, Continuity, Persona, and heartbeat
   authority surfaces
-- Codex retained only for honest OpenAI subscription auth and model transport;
-  Epiphany does not publish a Codex-owned project-state surface
+- a narrow standalone CodexConnector process for OpenAI subscription auth and
+  model transport; Epiphany compiles no Codex crate and keeps cognition local
 
 That last clause matters. Codex and other frontier agents can be excellent
 workers. They do not decide which organizational state is authoritative, who

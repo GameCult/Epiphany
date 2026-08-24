@@ -3,7 +3,7 @@ use std::path::Path;
 
 use anyhow::{Result, anyhow};
 use cultcache_rs::{CultCache, CultCacheEnvelope, DatabaseEntry};
-use epiphany_state_model::{
+use crate::state_model::{
     EpiphanyMemoryDomain, EpiphanyMemoryEdge, EpiphanyMemoryGraphSnapshot, EpiphanyMemoryNode,
     RepoFrontierItem,
 };
@@ -835,7 +835,7 @@ pub fn plan_repo_model_mutation(
                 {
                     insert_strong_envelope(&mut strong, existing)?;
                 }
-                node.lifecycle = epiphany_state_model::EpiphanyMemoryLifecycle::Retired;
+                node.lifecycle = crate::EpiphanyMemoryLifecycle::Retired;
                 nodes.insert(node_id.clone(), node.clone());
                 insert_envelope(
                     &mut writes,
@@ -879,7 +879,7 @@ pub fn plan_repo_model_mutation(
                     .get_envelope::<EpiphanyRepoModelEdgeDocument>(edge_id)?
                     .ok_or_else(|| anyhow!("RepoModel edge lost its envelope"))?;
                 insert_strong_envelope(&mut strong, existing)?;
-                edge.lifecycle = epiphany_state_model::EpiphanyMemoryLifecycle::Retired;
+                edge.lifecycle = crate::EpiphanyMemoryLifecycle::Retired;
                 edges.insert(edge_id.clone(), edge.clone());
                 insert_envelope(
                     &mut writes,
@@ -1319,9 +1319,9 @@ fn require_semantic_id(value: &str, label: &str) -> Result<()> {
 fn frontier_is_unresolved(item: &RepoFrontierItem) -> bool {
     matches!(
         item.status,
-        epiphany_state_model::RepoFrontierStatus::Proposed
-            | epiphany_state_model::RepoFrontierStatus::Active
-            | epiphany_state_model::RepoFrontierStatus::Blocked
+        crate::RepoFrontierStatus::Proposed
+            | crate::RepoFrontierStatus::Active
+            | crate::RepoFrontierStatus::Blocked
     )
 }
 
@@ -1509,9 +1509,9 @@ fn validate_claim_obligations(
             if !item.target_claim_ids.contains(&obligation.node_id)
                 || !matches!(
                     item.status,
-                    epiphany_state_model::RepoFrontierStatus::Proposed
-                        | epiphany_state_model::RepoFrontierStatus::Active
-                        | epiphany_state_model::RepoFrontierStatus::Blocked
+                    crate::RepoFrontierStatus::Proposed
+                        | crate::RepoFrontierStatus::Active
+                        | crate::RepoFrontierStatus::Blocked
                 )
             {
                 return Err(anyhow!("RepoModel claim obligation is not live"));
@@ -1521,9 +1521,9 @@ fn validate_claim_obligations(
     for item in frontier.iter().filter(|item| {
         matches!(
             item.status,
-            epiphany_state_model::RepoFrontierStatus::Proposed
-                | epiphany_state_model::RepoFrontierStatus::Active
-                | epiphany_state_model::RepoFrontierStatus::Blocked
+            crate::RepoFrontierStatus::Proposed
+                | crate::RepoFrontierStatus::Active
+                | crate::RepoFrontierStatus::Blocked
         )
     }) {
         for node_id in &item.target_claim_ids {
@@ -1542,7 +1542,7 @@ fn validate_claim_obligations(
 mod tests {
     use super::*;
     use crate::{RuntimeSpineInitOptions, initialize_runtime_spine};
-    use epiphany_state_model::{
+    use crate::state_model::{
         EpiphanyMemoryEdgeKind, EpiphanyMemoryLifecycle, EpiphanyMemoryNodeKind, RepoFrontierStatus,
     };
 
