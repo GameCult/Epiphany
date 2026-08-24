@@ -16,20 +16,17 @@ verbs.
 - `index.json`: publication manifest for providers that expose these contracts.
 - `*.schema.json`: top-level JSON Schema receipts for payload/document shapes.
 
-The payload receipts are deliberately practical rather than religiously
-exhaustive. They publish the stable top-level structure Aquarium needs for
-inspection, visualization, and control without pretending every nested app
-server object deserves to be duplicated into a second baroque schema maze.
+The catalog contains only contracts that cross an owned boundary. Runtime-local
+CultCache documents are discovered from the runtime's native registration and
+projected by their owning CultMesh provider. They are not copied into a second
+hand-maintained JSON registry.
 
 ## Main Families
 
-- `epiphany.runtime.*`: native runtime-spine identity, session, job, job
-  result, and event documents.
-- keyed Mind documents and `epiphany.state-ledger`: durable typed state and
-  exact decision/commit receipts the runtime lives on.
-- model, tool, and provider-boundary contracts used by the native runtime.
-- `gamecult.persona_state.v0` and `epiphany.work_organ_state.v0`: portable
-  state contracts whose owners may live outside this repository.
+- `epiphany.openai_model_request.v1`: the exact provider request crossing the
+  OpenAI-compatible transport boundary.
+- `gamecult.persona_state.v0`: portable public Persona state.
+- `epiphany.work_organ_state.v0`: portable state for lean work organs.
 
 The catalog publishes contracts the executable body actually produces or
 consumes. Editor capabilities are provider-owned CultMesh/Eve surfaces, not
