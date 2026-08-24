@@ -25,7 +25,9 @@
     },
     "output_schema_json": { "type": ["string", "null"] },
     "provider_id": { "enum": ["openai-codex", "openai", "openrouter"] },
-    "wire_dialect": { "enum": ["Responses", "ChatCompletionsTerminalTool"] }
+    "wire_dialect": { "enum": ["Responses", "ChatCompletionsTerminalTool"] },
+    "max_output_tokens": { "type": ["integer", "null"], "minimum": 1 },
+    "prompt_cache_key": { "type": ["string", "null"], "minLength": 1 }
   },
   "additionalProperties": false,
   "$defs": {

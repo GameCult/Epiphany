@@ -13,7 +13,8 @@
     "input_tokens": { "type": ["integer", "null"], "minimum": 0 },
     "output_tokens": { "type": ["integer", "null"], "minimum": 0 },
     "reasoning_output_tokens": { "type": ["integer", "null"], "minimum": 0 },
-    "transport": { "type": ["string", "null"] }
+    "transport": { "type": ["string", "null"] },
+    "cached_input_tokens": { "type": ["integer", "null"], "minimum": 0 }
   },
   "additionalProperties": false
 }

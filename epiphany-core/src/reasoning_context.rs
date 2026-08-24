@@ -2052,6 +2052,8 @@ mod tests {
             output_schema_json: None,
             provider_id: native.provider.clone(),
             wire_dialect: epiphany_openai_adapter::EpiphanyOpenAiWireDialect::Responses,
+            max_output_tokens: native.max_output_tokens,
+            prompt_cache_key: native.prompt_cache_key.clone(),
         };
         (native, provider)
     }

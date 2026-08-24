@@ -34,7 +34,10 @@
       }
     },
     "output_schema_json": { "type": ["string", "null"] },
-    "source_worker_job_id": { "type": ["string", "null"] }
+    "source_worker_job_id": { "type": ["string", "null"] },
+    "reasoning_basis_id": { "type": ["string", "null"] },
+    "max_output_tokens": { "type": ["integer", "null"], "minimum": 1 },
+    "prompt_cache_key": { "type": ["string", "null"], "minLength": 1 }
   },
   "additionalProperties": false,
   "$defs": {

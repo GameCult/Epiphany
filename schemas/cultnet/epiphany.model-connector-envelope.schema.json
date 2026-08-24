@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.model-connector-envelope.schema.json",
+  "title": "Epiphany Model Connector Encrypted Envelope",
+  "type": "object",
+  "required": ["schema_id", "request_id", "message_kind", "nonce", "ciphertext"],
+  "properties": {
+    "schema_id": { "const": "epiphany.model_connector_envelope.v1" },
+    "request_id": { "type": "string", "minLength": 1 },
+    "message_kind": { "enum": ["model_request", "model_result"] },
+    "nonce": {
+      "type": "array",
+      "items": { "type": "integer", "minimum": 0, "maximum": 255 },
+      "minItems": 12,
+      "maxItems": 12
+    },
+    "ciphertext": {
+      "type": "array",
+      "items": { "type": "integer", "minimum": 0, "maximum": 255 },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": false
+}

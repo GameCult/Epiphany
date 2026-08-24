@@ -56,6 +56,8 @@ use sha2::Digest;
 
 mod persona_executor;
 pub use persona_executor::*;
+mod model_connector;
+pub use model_connector::*;
 
 pub const OPENAI_RUNTIME_ROLE: &str = "openai-model-adapter";
 pub const DEFAULT_PROVIDER_REQUEST_TIMEOUT: Duration = Duration::from_secs(90);
@@ -1321,6 +1323,7 @@ pub fn model_receipt_from_openai_receipt(
         output_tokens: receipt.output_tokens,
         reasoning_output_tokens: receipt.reasoning_output_tokens,
         transport: receipt.transport.clone(),
+        cached_input_tokens: receipt.cached_input_tokens,
     }
 }
 

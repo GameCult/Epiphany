@@ -25,6 +25,9 @@ outside the working notes.
 - [Fork implementation plan](../notes/epiphany-fork-implementation-plan.md)
   records the current architecture and cut lines.
 - [Project map](../state/map.yaml) is the canonical slow machine map.
+- [Model provider connector](./model-provider-connector.md) records the typed
+  loopback boundary that lends Epiphany's Codex transport without lending her
+  Mind, credentials, or swarm runtime.
 
 For historical GameCult-level investor context, the sibling site dossier lives
 at `F:\Projects\gamecult-site\docs\gamecult_integrated_dossier.tex`. It is a

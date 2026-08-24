@@ -9,6 +9,11 @@ use codex_client::Request;
 use codex_client::ReqwestTransport;
 use codex_client::TransportError;
 use codex_client::sse_stream;
+use codex_login::AuthCredentialsStoreMode;
+use codex_login::AuthManager;
+use codex_login::AuthMode;
+use codex_login::CodexAuth;
+use codex_login::default_client::build_reqwest_client;
 use epiphany_openai_adapter::EpiphanyOpenAiAdapterStatus;
 use epiphany_openai_adapter::EpiphanyOpenAiAuthMode;
 use epiphany_openai_adapter::EpiphanyOpenAiInputItem;
@@ -18,11 +23,6 @@ use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
 use epiphany_openai_adapter::EpiphanyOpenAiWireDialect;
 use epiphany_openai_adapter::OPENAI_ADAPTER_STATUS_SCHEMA_ID;
-use codex_login::AuthCredentialsStoreMode;
-use codex_login::AuthManager;
-use codex_login::AuthMode;
-use codex_login::CodexAuth;
-use codex_login::default_client::build_reqwest_client;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
@@ -391,6 +391,9 @@ pub fn chat_completions_body_from_epiphany(
     if let Some(effort) = request.reasoning_effort.as_deref() {
         body["reasoning"] = serde_json::json!({"effort": effort});
     }
+    if let Some(max_output_tokens) = request.max_output_tokens {
+        body["max_tokens"] = serde_json::json!(max_output_tokens);
+    }
     Ok(body)
 }
 
@@ -440,6 +443,12 @@ struct OpenRouterChatUsage {
     prompt_tokens: Option<u64>,
     completion_tokens: Option<u64>,
     completion_tokens_details: Option<OpenRouterCompletionTokenDetails>,
+    prompt_tokens_details: Option<OpenRouterPromptTokenDetails>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenRouterPromptTokenDetails {
+    cached_tokens: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -529,6 +538,10 @@ fn openrouter_events_from_chat_completion(
         .as_ref()
         .and_then(|item| item.completion_tokens_details.as_ref())
         .and_then(|item| item.reasoning_tokens);
+    receipt.cached_input_tokens = usage
+        .as_ref()
+        .and_then(|item| item.prompt_tokens_details.as_ref())
+        .and_then(|item| item.cached_tokens);
     receipt.transport = Some("openrouter-chat-completions".to_string());
     push_openrouter_event(
         &mut events,
@@ -600,7 +613,8 @@ pub fn responses_body_from_epiphany(
         include: Vec::new(),
         service_tier: parse_service_tier(request.service_tier.as_deref())?,
         previous_response_id: request.previous_response_id,
-        prompt_cache_key: None,
+        prompt_cache_key: request.prompt_cache_key,
+        max_output_tokens: request.max_output_tokens,
         text,
         client_metadata: None,
     };
@@ -1011,6 +1025,8 @@ struct EpiphanyResponsesBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     prompt_cache_key: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    max_output_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     text: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     client_metadata: Option<std::collections::HashMap<String, String>>,
@@ -1113,7 +1129,13 @@ struct EpiphanyResponseCompleted {
 struct EpiphanyResponseCompletedUsage {
     input_tokens: i64,
     output_tokens: i64,
+    input_tokens_details: Option<EpiphanyResponseCompletedInputTokensDetails>,
     output_tokens_details: Option<EpiphanyResponseCompletedOutputTokensDetails>,
+}
+
+#[derive(Debug, Deserialize)]
+struct EpiphanyResponseCompletedInputTokensDetails {
+    cached_tokens: i64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1257,6 +1279,9 @@ impl EpiphanyResponsesStreamState {
             receipt.reasoning_output_tokens = usage
                 .output_tokens_details
                 .and_then(|details| nonnegative_i64_to_u64(details.reasoning_tokens));
+            receipt.cached_input_tokens = usage
+                .input_tokens_details
+                .and_then(|details| nonnegative_i64_to_u64(details.cached_tokens));
         }
         self.push_payload(EpiphanyOpenAiStreamPayload::Completed { receipt });
     }
@@ -1547,11 +1572,13 @@ mod tests {
             })
             .to_string(),
         );
+        request.max_output_tokens = Some(768);
 
         let body = chat_completions_body_from_epiphany(&request).expect("request should map");
 
         assert!(body.get("response_format").is_none());
         assert_eq!(body["tool_choice"], "required");
+        assert_eq!(body["max_tokens"], 768);
         assert_eq!(body["tools"].as_array().expect("tools").len(), 1);
         assert_eq!(
             body["tools"][0]["function"]["name"],
@@ -1650,6 +1677,9 @@ mod tests {
                 completion_tokens_details: Some(OpenRouterCompletionTokenDetails {
                     reasoning_tokens: Some(1),
                 }),
+                prompt_tokens_details: Some(OpenRouterPromptTokenDetails {
+                    cached_tokens: Some(8),
+                }),
             }),
         };
 
@@ -1665,6 +1695,7 @@ mod tests {
             EpiphanyOpenAiStreamPayload::Completed { receipt }
                 if receipt.transport.as_deref() == Some("openrouter-chat-completions")
                     && receipt.input_tokens == Some(12)
+                    && receipt.cached_input_tokens == Some(8)
                     && receipt.reasoning_output_tokens == Some(1)
         ));
     }
@@ -1693,6 +1724,8 @@ mod tests {
         request.reasoning_summary = Some("concise".to_string());
         request.service_tier = Some("flex".to_string());
         request.previous_response_id = Some("resp-1".to_string());
+        request.max_output_tokens = Some(1_024);
+        request.prompt_cache_key = Some("ghostlight:narrator:v1".to_string());
         request
             .tools
             .push(epiphany_openai_adapter::EpiphanyOpenAiToolDefinition {
@@ -1721,6 +1754,8 @@ mod tests {
         assert_eq!(responses["stream"], true);
         assert_eq!(responses["store"], false);
         assert_eq!(responses["service_tier"], "flex");
+        assert_eq!(responses["max_output_tokens"], 1_024);
+        assert_eq!(responses["prompt_cache_key"], "ghostlight:narrator:v1");
         assert_eq!(responses["tools"].as_array().expect("tools").len(), 1);
         assert_eq!(
             responses["tools"][0]["name"],

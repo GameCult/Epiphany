@@ -82,6 +82,10 @@ pub struct EpiphanyOpenAiModelRequest {
     pub provider_id: String,
     #[cultcache(key = 14)]
     pub wire_dialect: EpiphanyOpenAiWireDialect,
+    #[cultcache(key = 15, default)]
+    pub max_output_tokens: Option<u32>,
+    #[cultcache(key = 16, default)]
+    pub prompt_cache_key: Option<String>,
 }
 
 impl EpiphanyOpenAiModelRequest {
@@ -107,6 +111,8 @@ impl EpiphanyOpenAiModelRequest {
             output_schema_json: None,
             provider_id: "openai-codex".to_string(),
             wire_dialect: EpiphanyOpenAiWireDialect::Responses,
+            max_output_tokens: None,
+            prompt_cache_key: None,
         }
     }
 }
@@ -143,6 +149,8 @@ pub fn request_from_native(request: &EpiphanyModelRequest) -> EpiphanyOpenAiMode
         } else {
             EpiphanyOpenAiWireDialect::Responses
         },
+        max_output_tokens: request.max_output_tokens,
+        prompt_cache_key: request.prompt_cache_key.clone(),
     }
 }
 
@@ -257,6 +265,8 @@ pub struct EpiphanyOpenAiModelReceipt {
     pub reasoning_output_tokens: Option<u64>,
     #[cultcache(key = 7, default)]
     pub transport: Option<String>,
+    #[cultcache(key = 8, default)]
+    pub cached_input_tokens: Option<u64>,
 }
 
 impl EpiphanyOpenAiModelReceipt {
@@ -270,6 +280,7 @@ impl EpiphanyOpenAiModelReceipt {
             output_tokens: None,
             reasoning_output_tokens: None,
             transport: None,
+            cached_input_tokens: None,
         }
     }
 }
@@ -280,13 +291,14 @@ mod tests {
 
     #[test]
     fn native_provider_identity_selects_one_exact_wire_dialect() {
-        let openai = EpiphanyModelRequest::new(
+        let mut openai = EpiphanyModelRequest::new(
             "openai-request",
             "conversation",
             "openai-codex",
             "gpt-test",
             "decide",
         );
+        openai.max_output_tokens = Some(512);
         let openrouter = EpiphanyModelRequest::new(
             "openrouter-request",
             "conversation",
@@ -298,6 +310,7 @@ mod tests {
         let openai = request_from_native(&openai);
         let openrouter = request_from_native(&openrouter);
         assert_eq!(openai.provider_id, "openai-codex");
+        assert_eq!(openai.max_output_tokens, Some(512));
         assert_eq!(openai.wire_dialect, EpiphanyOpenAiWireDialect::Responses);
         assert_eq!(openrouter.provider_id, "openrouter");
         assert_eq!(

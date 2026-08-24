@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.model-connector-invocation.schema.json",
+  "title": "Epiphany Model Connector Invocation",
+  "type": "object",
+  "required": ["schema_id", "request_id", "caller_runtime_id", "expires_at_unix_ms", "request"],
+  "properties": {
+    "schema_id": { "const": "epiphany.model_connector_invocation.v1" },
+    "request_id": { "type": "string", "minLength": 1 },
+    "caller_runtime_id": { "type": "string", "minLength": 1 },
+    "expires_at_unix_ms": { "type": "integer", "minimum": 1 },
+    "request": { "$ref": "epiphany.model-request.schema.json" }
+  },
+  "additionalProperties": false
+}

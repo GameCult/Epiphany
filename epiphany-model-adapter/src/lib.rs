@@ -6,6 +6,10 @@ pub const MODEL_ADAPTER_REQUEST_SCHEMA_ID: &str = "epiphany.model_request.v0";
 pub const MODEL_ADAPTER_EVENT_SCHEMA_ID: &str = "epiphany.model_stream_event.v0";
 pub const MODEL_ADAPTER_RECEIPT_SCHEMA_ID: &str = "epiphany.model_receipt.v0";
 pub const MODEL_ADAPTER_STATUS_SCHEMA_ID: &str = "epiphany.model_adapter_status.v0";
+pub const MODEL_CONNECTOR_ENVELOPE_SCHEMA_ID: &str = "epiphany.model_connector_envelope.v1";
+pub const MODEL_CONNECTOR_INVOCATION_SCHEMA_ID: &str = "epiphany.model_connector_invocation.v1";
+pub const MODEL_CONNECTOR_RESULT_SCHEMA_ID: &str = "epiphany.model_connector_result.v1";
+pub const MODEL_CONNECTOR_STATUS_SCHEMA_ID: &str = "epiphany.model_connector_status.v1";
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
@@ -62,6 +66,10 @@ pub struct EpiphanyModelRequest {
     pub source_worker_job_id: Option<String>,
     #[cultcache(key = 15, default)]
     pub reasoning_basis_id: Option<String>,
+    #[cultcache(key = 16, default)]
+    pub max_output_tokens: Option<u32>,
+    #[cultcache(key = 17, default)]
+    pub prompt_cache_key: Option<String>,
 }
 
 impl EpiphanyModelRequest {
@@ -89,8 +97,93 @@ impl EpiphanyModelRequest {
             output_schema_json: None,
             source_worker_job_id: None,
             reasoning_basis_id: None,
+            max_output_tokens: None,
+            prompt_cache_key: None,
         }
     }
+}
+
+/// Encrypted CultNet cargo. The correlation fields are deliberately repeated
+/// inside the authenticated plaintext and must match after decryption.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EpiphanyModelConnectorEnvelope {
+    pub schema_id: String,
+    pub request_id: String,
+    pub message_kind: String,
+    pub nonce: Vec<u8>,
+    pub ciphertext: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.model_connector_invocation.v1",
+    schema = "EpiphanyModelConnectorInvocation"
+)]
+pub struct EpiphanyModelConnectorInvocation {
+    #[cultcache(key = 0)]
+    pub schema_id: String,
+    #[cultcache(key = 1)]
+    pub request_id: String,
+    #[cultcache(key = 2)]
+    pub caller_runtime_id: String,
+    #[cultcache(key = 3)]
+    pub expires_at_unix_ms: u64,
+    #[cultcache(key = 4)]
+    pub request: EpiphanyModelRequest,
+}
+
+#[derive(Debug, Clone, PartialEq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.model_connector_result.v1",
+    schema = "EpiphanyModelConnectorResult"
+)]
+pub struct EpiphanyModelConnectorResult {
+    #[cultcache(key = 0)]
+    pub schema_id: String,
+    #[cultcache(key = 1)]
+    pub request_id: String,
+    #[cultcache(key = 2)]
+    pub accepted: bool,
+    #[cultcache(key = 3, default)]
+    pub events: Vec<EpiphanyModelStreamEvent>,
+    #[cultcache(key = 4, default)]
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.model_connector_status.v1",
+    schema = "EpiphanyModelConnectorStatus"
+)]
+pub struct EpiphanyModelConnectorStatus {
+    #[cultcache(key = 0)]
+    pub schema_id: String,
+    #[cultcache(key = 1)]
+    pub provider_id: String,
+    #[cultcache(key = 2)]
+    pub capability_id: String,
+    #[cultcache(key = 3)]
+    pub request_schema_id: String,
+    #[cultcache(key = 4)]
+    pub result_schema_id: String,
+    #[cultcache(key = 5)]
+    pub envelope_schema_id: String,
+    #[cultcache(key = 6)]
+    pub transport_protocol: String,
+    #[cultcache(key = 7)]
+    pub host: String,
+    #[cultcache(key = 8)]
+    pub port: u16,
+    #[cultcache(key = 9)]
+    pub max_payload_bytes: u32,
+    #[cultcache(key = 10)]
+    pub max_parallel_requests: u32,
+    #[cultcache(key = 11)]
+    pub model: String,
+    #[cultcache(key = 12)]
+    pub ready: bool,
+    #[cultcache(key = 13)]
+    pub updated_at_utc: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -179,6 +272,8 @@ pub struct EpiphanyModelReceipt {
     pub reasoning_output_tokens: Option<u64>,
     #[cultcache(key = 8, default)]
     pub transport: Option<String>,
+    #[cultcache(key = 9, default)]
+    pub cached_input_tokens: Option<u64>,
 }
 
 impl EpiphanyModelReceipt {
@@ -197,6 +292,7 @@ impl EpiphanyModelReceipt {
             output_tokens: None,
             reasoning_output_tokens: None,
             transport: None,
+            cached_input_tokens: None,
         }
     }
 }

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.model-connector-result.schema.json",
+  "title": "Epiphany Model Connector Result",
+  "type": "object",
+  "required": ["schema_id", "request_id", "accepted", "events"],
+  "properties": {
+    "schema_id": { "const": "epiphany.model_connector_result.v1" },
+    "request_id": { "type": "string", "minLength": 1 },
+    "accepted": { "type": "boolean" },
+    "events": {
+      "type": "array",
+      "items": { "$ref": "epiphany.model-stream-event.schema.json" }
+    },
+    "error": { "type": ["string", "null"] }
+  },
+  "additionalProperties": false
+}

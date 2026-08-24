@@ -103,6 +103,11 @@ path = "epiphany-openai-runtime/src/bin/epiphany-model-runtime.rs"
 required-features = ["openai-runtime"]
 
 [[bin]]
+name = "epiphany-model-connector"
+path = "epiphany-openai-runtime/src/bin/epiphany-model-connector.rs"
+required-features = ["openai-runtime"]
+
+[[bin]]
 name = "epiphany-tool-mcp-runtime"
 path = "epiphany-tool-mcp-runtime/src/main.rs"
 required-features = ["tool-mcp-runtime"]

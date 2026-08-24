@@ -129,6 +129,10 @@ Her body is made of:
   authority surfaces
 - Codex retained only for honest OpenAI subscription auth and model transport;
   Epiphany does not publish a Codex-owned project-state surface
+- an independently supervised, loopback-only
+  [model provider connector](docs/model-provider-connector.md) can lend that
+  transport to an admitted GameCult service without lending Epiphany's Mind or
+  credentials
 
 That last clause matters. Codex and other frontier agents can be excellent
 workers. They do not decide which organizational state is authoritative, who
