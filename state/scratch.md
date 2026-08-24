@@ -245,13 +245,18 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    metadata map. Session closure, tool ownership, and retention derive exact
    joins; duplicate results refuse instead of sorting by time. Runtime is v42;
    73 maintained lines are removed net.
-43. Next: audit generic terminal-result summary, next-move, evidence, and
-   artifact cargo separately for structured outcomes, typed model failures,
+43. Done: exact `53e869c0` removes evidence/artifact mirrors from generic
+   runtime job results and completion options. Structured role/reorientation
+   outcomes remain their sole owners; failure physiology retains its terse
+   summary, next move, completion time, verdict, and optional context. Runtime
+   is v43; 51 maintained lines are removed net.
+44. Next: audit the remaining generic summary, next-move, completion-time, and
+   context cargo separately for structured outcomes, typed model failures,
    transport completion, and process death. Preserve the only typed failure
    account; delete mirrors where an exact owner already exists.
-44. Continue the public runtime-spine and test-liability audit by live owner
+45. Continue the public runtime-spine and test-liability audit by live owner
    and consequential invariant. Do not subtract the unrun Atlas vertical slice;
    no inter-swarm collaboration has yet been exercised. Streamline it only
    around its one end-to-end authority map.
-45. Run focused tests after each cut. Only after source subtraction stabilizes
+46. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.

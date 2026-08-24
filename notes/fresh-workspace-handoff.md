@@ -166,6 +166,17 @@ release model-runtime checks pass. The cut removes 73 maintained lines net.
 Verification generated 3.7 GiB across 4,764 files; cleanup restored only the
 authenticated 1,776,640-byte state inspector.
 
+Exact `53e869c0` removes generic terminal-result evidence and artifact mirrors.
+Structured role and reorientation outcomes remain their sole typed owners;
+transport and process-death physiology retain only verdict, terse summary/next
+move, completion time, and optional decision-context identity. Reorientation
+failure display no longer manufactures empty generic provenance. Runtime
+advances to v43. Keyed lifecycle, auditable model failure, epoch refusal,
+reorientation, typed worker admission, Persona replay, OpenAI runtime, release
+coordinator, and release model-runtime checks pass. The cut removes 51
+maintained lines net. Verification generated 3.654 GiB across 4,759 files;
+Cargo cleanup restored only the authenticated 1,776,640-byte state inspector.
+
 Exact `a6cf9383` quarantines concrete Codex/OpenRouter authentication,
 credential reading, and network transport at the two release entrypoints that
 perform inference. `epiphany-openai-runtime` now owns only exact native-request

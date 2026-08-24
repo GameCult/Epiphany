@@ -1097,6 +1097,12 @@ role/session and lose their always-empty metadata map. A job snapshot requires
 zero or one exact terminal result and refuses multiplicity rather than choosing
 by completion time. Runtime writable state is v42.
 
+Exact `53e869c0` removes evidence and artifact cargo from the generic terminal
+job result. Those values belong only to the structured role or reorientation
+outcome that authored them. Generic transport/process physiology retains
+verdict, terse summary and next move, completion time, and optional exact
+decision-context identity. Runtime writable state is v43.
+
 The sealed typed launch owns exact live request association. The terminal role
 result owns only semantic decision cargo or typed failure. The archived attempt
 owns historical request kind/ID and typed terminal classification after the

@@ -837,6 +837,13 @@ Cut in this order:
    maintained lines are removed net. Next audit generic result cargo by terminal
    family so structured mirrors disappear without deleting the only failure
    account.
+51. **Generic job results do not own decision evidence at `53e869c0`:** evidence
+   and artifact mirrors are deleted from the result contract and completion
+   API. Typed role/reorientation outcomes remain their sole owners. The generic
+   result retains only terminal physiology and the terse failure/display account
+   needed where no structured outcome exists. Runtime is v43; 51 maintained
+   lines are removed net. Next audit remaining summary, next-move, time, and
+   context cargo by terminal family.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,
