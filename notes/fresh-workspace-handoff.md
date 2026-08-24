@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `695af6c6`
-Current worktree: documentation/evidence for release dependency ownership;
+Latest committed implementation cut: `65bf044f`
+Current worktree: documentation/evidence for Hands receipt authority subtraction;
 Ox17 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `695af6c6` is the current
+production symlink body and is inactive. Exact `65bf044f` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,18 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `65bf044f` removes fixed schema-version strings and unread contract prose
+from Hands patch, command, and commit receipts. CultCache already owns their
+type/schema identity; exact intent, review, Substrate Gate grant, runtime job,
+paths or command, consequence summary, time, and immutable envelope remain the
+admission proof. Fourteen definition-only shadow type constants and one
+callerless reorient display enum are also gone. Runtime advances to v29 and old
+writable state refuses. The existing keyed lifecycle proof passes Hands through
+concurrent Persona admission into exact Verification work (1/1); epoch refusal
+passes (1/1). Package cleanup removes the generated 678.6 MiB. The cut removes
+67 net maintained lines. Model Atlas is untouched: component proofs are not
+collaboration acceptance, and no live inter-swarm exchange has run.
 
 Exact `695af6c6` removes thirteen Cargo dependency declarations with no
 consumer in their owning package, the tracked `.gitignore` that kept the
@@ -956,7 +968,7 @@ coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 ## Immediate next action
 
 The Ox17 deployment lane is paused. Continue the registered-document and test-
-liability audit from exact `695af6c6`; do not compile or deploy through Idunn
+liability audit from exact `65bf044f`; do not compile or deploy through Idunn
 yet. Delete an abstraction with tests that merely animate it when it has no
 decision-bearing consumer. Preserve keyed Mind, sealed reasoning, direct Body-
 to-Modeling flow, family admission owners, Persona social state, provider

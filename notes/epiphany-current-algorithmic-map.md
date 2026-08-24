@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `695af6c6` on `codex/epiphany-shakedown-live`
-Current worktree cut: documentation/evidence for release dependency ownership;
+Latest committed implementation cut: `65bf044f` on `codex/epiphany-shakedown-live`
+Current worktree cut: documentation/evidence for Hands receipt authority subtraction;
 Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -100,6 +100,18 @@ entrypoints and the affected library/test targets compile individually. The
 cut removes 284 net manifest, lock, and source lines. Package-scoped cleanup of
 the five compiled packages removed 124.2 GiB of disposable historical build
 artifacts without removing the prebuilt state tool. Atlas is untouched.
+
+Hands consequence receipts carry consequence, not doctrine commentary. Exact
+`65bf044f` removes fixed schema-version strings and unread contract prose from
+the patch, command, and commit documents. CultCache owns their type/schema
+identity; admission still proves exact intent, review, Substrate Gate grant,
+runtime job, affected paths or command, immutable receipt identity, and the
+resulting consequence. Fourteen unused shadow type constants and one callerless
+reorient display enum are also gone. Runtime advances to v29; old writable
+state refuses. The existing lifecycle proof carries Hands concurrently with a
+Persona admission and creates exact Verification work, while package cleanup
+removes the 678.6 MiB it generated. The cut removes 67 net maintained lines.
+Atlas remains the untouched, unaccepted collaboration slice.
 
 CultMesh contains no JSON-derived operator snapshot, coordinator receipt,
 Hands gate, role-review event, unauthenticated Odin/Eve provider row, or daemon
@@ -1043,7 +1055,7 @@ Accepted through the local `5b799b12` source boundary:
 
 Open before Model Atlas Gate 1 resumes:
 
-1. let Idunn compile, test, and seal exact build-affecting source `b0a4978d`;
+1. let Idunn compile, test, and seal exact build-affecting source `65bf044f`;
 2. use that exact package in private fresh-store Ox17; stop after three
    provider failures total, and prove direct Body Modeling, typed
    refusal-to-retry if exercised, Hands through Verification, exact context
