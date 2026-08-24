@@ -330,7 +330,7 @@ pub fn build_worker_model_request(
         .context("failed to render sealed worker reasoning projection for model input")?;
     let mut instructions = worker_instructions(launch_request, &launch_document);
     if launch_request.binding_id == epiphany_core::EPIPHANY_VERIFICATION_ROLE_BINDING_ID {
-        instructions.push_str("\n\nTool mandate: before returning `needs-evidence` because source files, artifact directories, command artifacts, commit diffs, Hands receipt bodies, or resident grant lifecycle are not inspectable, call the governed read-only tools available on this request. Use `mcp__epiphany_source__read_file` for cited source/artifact files, `mcp__epiphany_source__directory_inventory` for bounded workspace directory counts and bytes, `mcp__epiphany_source__git_show` for commit diffs, `mcp__epiphany_source__read_hands_receipt` for Hands patch/command/commit receipts, and `mcp__epiphany_state__resident_grant_lifecycle` for exact or bounded recent grant-owned lifecycle state. Directory totals are authoritative only when the tool reports `complete=true`. Grant launchability is authoritative only from the typed state projection, never artifact names or acknowledgement presence. If a tool fails, cite that failed tool result and the exact remaining blocker.");
+        instructions.push_str("\n\nTool mandate: before returning `needs-evidence` because source files, artifact directories, command artifacts, commit diffs, or resident grant lifecycle are not inspectable, call the governed read-only tools available on this request. Use `mcp__epiphany_source__read_file` for cited source/artifact files, `mcp__epiphany_source__directory_inventory` for bounded workspace directory counts and bytes, `mcp__epiphany_source__git_show` for commit diffs, and `mcp__epiphany_state__resident_grant_lifecycle` for exact or bounded recent grant-owned lifecycle state. The sealed Verification projection already contains the exact Hands patch, command, and commit receipts. Directory totals are authoritative only when the tool reports `complete=true`. Grant launchability is authoritative only from the typed state projection, never artifact names or acknowledgement presence. If a tool fails, cite that failed tool result and the exact remaining blocker.");
     } else if launch_request.binding_id == epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID {
         instructions.push_str("\n\nEvidence mandate: the runtime obtains every immutable public GitHub source named by the typed Research request before this model turn and supplies the exact tool calls and receipts in the input. Cite each requested sourceRef in filesInspected and its evidenceReceiptId in evidence, preserve its contentSha256 in the finding, and report a source gap if any supplied lookup failed. Use the remaining bounded tools only for additional repository or resident-state inspection appropriate to the claim. Never substitute a branch, tag, arbitrary URL, or model memory for immutable public evidence. Directory totals are authoritative only when the inventory reports `complete=true`; grant launchability is authoritative only from the typed lifecycle projection.");
     } else if launch_request.binding_id == epiphany_core::EPIPHANY_MODELING_ROLE_BINDING_ID {
@@ -818,20 +818,6 @@ fn repository_source_tools() -> Vec<EpiphanyModelToolDefinition> {
                     "maxBytes": {"type": "integer", "minimum": 512, "maximum": 24000}
                 },
                 "required": ["revision"]
-            })
-            .to_string(),
-        },
-        EpiphanyModelToolDefinition {
-            name: "mcp__epiphany_source__read_hands_receipt".to_string(),
-            description: "Read a typed Hands patch, command, or commit receipt body from the runtime-spine store for Soul verification.".to_string(),
-            parameters_json: serde_json::json!({
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                    "receiptId": {"type": "string"},
-                    "kind": {"type": "string", "enum": ["patch", "command", "commit"]}
-                },
-                "required": ["receiptId", "kind"]
             })
             .to_string(),
         },
@@ -3207,7 +3193,6 @@ mod tests {
         assert!(tool_names.contains(&"mcp__epiphany_source__read_file"));
         assert!(tool_names.contains(&"mcp__epiphany_source__directory_inventory"));
         assert!(tool_names.contains(&"mcp__epiphany_source__git_show"));
-        assert!(tool_names.contains(&"mcp__epiphany_source__read_hands_receipt"));
         assert!(tool_names.contains(&"mcp__epiphany_state__resident_grant_lifecycle"));
         assert!(!tool_names.contains(&"mcp__epiphany_public__github_file"));
         assert!(

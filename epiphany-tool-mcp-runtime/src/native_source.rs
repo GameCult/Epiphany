@@ -9,7 +9,6 @@ use std::thread;
 
 pub fn execute_epiphany_source(
     intent: &EpiphanyToolInvocationIntent,
-    store: &Path,
     cwd: &Path,
 ) -> Result<Value> {
     let arguments: Value =
@@ -21,7 +20,6 @@ pub fn execute_epiphany_source(
         "read_file" => read_file(cwd, &arguments),
         "directory_inventory" => directory_inventory(cwd, &arguments),
         "git_show" => git_show(cwd, &arguments),
-        "read_hands_receipt" => read_hands_receipt(store, &arguments),
         other => Err(anyhow!("unknown epiphany_source tool {other:?}")),
     }
 }
@@ -220,28 +218,6 @@ fn read_retained(mut input: impl Read, limit: usize) -> Result<String> {
     Ok(text)
 }
 
-fn read_hands_receipt(store: &Path, arguments: &Value) -> Result<Value> {
-    let id = required_string(arguments, "receiptId")?;
-    match required_string(arguments, "kind")? {
-        "patch" => {
-            let r = epiphany_core::runtime_hands_patch_receipt(store, id)?
-                .ok_or_else(|| anyhow!("Hands patch receipt {id:?} not found"))?;
-            serde_json::to_value(r).context("encoding Hands patch receipt")
-        }
-        "command" => {
-            let r = epiphany_core::runtime_hands_command_receipt(store, id)?
-                .ok_or_else(|| anyhow!("Hands command receipt {id:?} not found"))?;
-            serde_json::to_value(r).context("encoding Hands command receipt")
-        }
-        "commit" => {
-            let r = epiphany_core::runtime_hands_commit_receipt(store, id)?
-                .ok_or_else(|| anyhow!("Hands commit receipt {id:?} not found"))?;
-            serde_json::to_value(r).context("encoding Hands commit receipt")
-        }
-        other => Err(anyhow!("unsupported Hands receipt kind {other:?}")),
-    }
-}
-
 fn confined_path(cwd: &Path, requested: &str) -> Result<PathBuf> {
     let root = cwd
         .canonicalize()
@@ -313,13 +289,11 @@ mod tests {
                 r#"{"path":"body.txt","startLine":2,"maxLines":2}"#,
             ),
             dir.path(),
-            dir.path(),
         )?;
         assert_eq!(value["content"], "2: two\n3: three");
         assert!(
             execute_epiphany_source(
                 &intent("read_file", r#"{"path":"../escape"}"#),
-                dir.path(),
                 dir.path()
             )
             .is_err()
@@ -347,7 +321,6 @@ mod tests {
                 r#"{"path":"artifacts","maxDepth":2,"maxEntries":10,"maxSamples":10}"#,
             ),
             dir.path(),
-            dir.path(),
         )?;
         assert_eq!(value["complete"], true);
         assert_eq!(value["entryCount"], 4);
@@ -358,7 +331,6 @@ mod tests {
         assert!(
             execute_epiphany_source(
                 &intent("directory_inventory", r#"{"path":"../escape"}"#),
-                dir.path(),
                 dir.path(),
             )
             .is_err()
@@ -379,7 +351,6 @@ mod tests {
                 r#"{"path":"artifacts","maxEntries":2}"#,
             ),
             dir.path(),
-            dir.path(),
         )?;
         assert_eq!(value["complete"], false);
         assert_eq!(value["entryCount"], 2);
@@ -392,7 +363,6 @@ mod tests {
                 "directory_inventory",
                 r#"{"path":"nested","maxDepth":0,"maxEntries":10}"#,
             ),
-            dir.path(),
             dir.path(),
         )?;
         assert_eq!(depth_limited["complete"], false);

@@ -78,7 +78,7 @@ async fn execute_to_receipt(
                 Some(path) => path.clone(),
                 None => std::env::current_dir()?,
             };
-            execute_epiphany_source(intent, &options.store, &cwd)
+            execute_epiphany_source(intent, &cwd)
         } else if intent.server == "epiphany_public" {
             execute_epiphany_public(intent).await
         } else if intent.server == "epiphany_state" {

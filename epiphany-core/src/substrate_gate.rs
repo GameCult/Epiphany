@@ -71,7 +71,7 @@ pub fn substrate_gate_operation_for_governed_tool(
     match (server, tool_name) {
         (
             "epiphany_source",
-            "read_file" | "directory_inventory" | "git_show" | "read_hands_receipt",
+            "read_file" | "directory_inventory" | "git_show",
         )
         | ("epiphany_state", "resident_grant_lifecycle") => {
             Some(SUBSTRATE_GATE_SOURCE_READ_OPERATION)

@@ -7596,16 +7596,6 @@ pub fn put_hands_patch_receipt(
     }
 }
 
-pub fn runtime_hands_patch_receipt(
-    store_path: impl AsRef<Path>,
-    receipt_id: &str,
-) -> Result<Option<HandsPatchReceipt>> {
-    validate_non_empty(receipt_id, "Hands patch receipt id")?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    cache.get::<HandsPatchReceipt>(receipt_id)
-}
-
 pub fn put_hands_command_receipt(
     store_path: impl AsRef<Path>,
     receipt: &HandsCommandReceipt,
@@ -7647,16 +7637,6 @@ pub fn put_hands_command_receipt(
         Some(existing) if existing == *receipt => Ok(()),
         _ => Err(anyhow!("Hands command receipt ids are immutable")),
     }
-}
-
-pub fn runtime_hands_command_receipt(
-    store_path: impl AsRef<Path>,
-    receipt_id: &str,
-) -> Result<Option<HandsCommandReceipt>> {
-    validate_non_empty(receipt_id, "Hands command receipt id")?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    cache.get::<HandsCommandReceipt>(receipt_id)
 }
 
 pub fn put_hands_commit_receipt(
@@ -7766,16 +7746,6 @@ pub fn put_hands_commit_receipt(
         }
         _ => Err(anyhow!("Hands commit receipt ids are immutable")),
     }
-}
-
-pub fn runtime_hands_commit_receipt(
-    store_path: impl AsRef<Path>,
-    receipt_id: &str,
-) -> Result<Option<HandsCommitReceipt>> {
-    validate_non_empty(receipt_id, "Hands commit receipt id")?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    cache.get::<HandsCommitReceipt>(receipt_id)
 }
 
 fn validate_coordinator_run_receipt(receipt: &EpiphanyCoordinatorRunReceipt) -> Result<()> {
