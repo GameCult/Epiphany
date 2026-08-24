@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `be611f24` on `codex/epiphany-shakedown-live`
-Current worktree cut: documentation/evidence for dead Imagination contract deletion;
+Latest committed implementation cut: `3140d305` on `codex/epiphany-shakedown-live`
+Current worktree cut: documentation/evidence for dead Resident Self contract deletion;
 Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -316,6 +316,14 @@ constant, export, and runtime registry entry. The retained candidate remains a
 typed proposal-only outcome; a real adopted Modeling proposal follows the
 separate proposal lifecycle rather than this unread document. Runtime epoch
 v22 refuses v21 stores instead of silently carrying the retired type forward.
+
+Resident Self no longer admits a receipt family that no process could produce
+or consume. Exact `3140d305` removes `ResidentSelfRuntimeReceipt`, its schema
+constant, and its registration/decoding branches. Resident Self state v2
+refuses v1 stores without mutation. The unrelated definition-only coordinator
+result-status enum is also gone; current role-board status remains the one live
+display projection. Session and worker retention continue through their actual
+runtime-spine owners.
 
 Bifrost owns its private feedback-signing identity. Exact `94098223` deletes
 Epiphany's host-identity executable and the private signer, persisted identity,
