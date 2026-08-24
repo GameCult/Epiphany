@@ -2,17 +2,6 @@
   "schemaVersion": "epiphany.cultnet_catalog.v0",
   "schemas": [
     {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.openai-model-request.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.openai_model_request.v1",
-      "documentType": "epiphany.openai_model_request.v1",
-      "title": "Epiphany OpenAI Model Request",
-      "path": "epiphany.openai-model-request.schema.json"
-    },
-    {
       "schemaId": "https://gamecult.dev/cultnet/gamecult.persona_state.v0.schema.json",
       "kind": "document_payload",
       "wireContracts": [

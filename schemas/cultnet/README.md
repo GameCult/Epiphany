@@ -23,10 +23,12 @@ hand-maintained JSON registry.
 
 ## Main Families
 
-- `epiphany.openai_model_request.v1`: the exact provider request crossing the
-  OpenAI-compatible transport boundary.
 - `gamecult.persona_state.v0`: portable public Persona state.
 - `epiphany.work_organ_state.v0`: portable state for lean work organs.
+
+Provider request contracts are owned by their provider boundary. The shared
+Codex contract lives in `GameCult/CodexConnector`; Epiphany's closed durable
+provider-request document is private Mind state, not a public CultNet promise.
 
 The catalog publishes contracts the executable body actually produces or
 consumes. Editor capabilities are provider-owned CultMesh/Eve surfaces, not

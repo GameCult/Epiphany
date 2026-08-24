@@ -242,7 +242,7 @@ dependencies = [
 [[package]]
 name = "codex-connector"
 version = "0.1.0"
-source = "git+https://github.com/GameCult/CodexConnector?rev=89d965b0495ba817a1e48adda0a28509d6637d31#89d965b0495ba817a1e48adda0a28509d6637d31"
+source = "git+https://github.com/GameCult/CodexConnector?rev=6dc80f6d266db4d82566d2434adcc55a48e8ecad#6dc80f6d266db4d82566d2434adcc55a48e8ecad"
 dependencies = [
  "aes-gcm",
  "base64 0.23.1",
