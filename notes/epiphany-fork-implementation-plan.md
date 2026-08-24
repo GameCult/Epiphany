@@ -828,6 +828,15 @@ Cut in this order:
    successful authorities, and never selects work by timestamp order. Runtime
    is v41; the cut removes 67 maintained lines net. The remaining audit target
    is duplicated role/session identity and generic terminal-result cargo.
+50. **Runtime job ownership is derived at `10a70afc`:** the generic job is only
+   job identity plus Queued/Completed/Failed status. Sealed launches own
+   outer-worker role, model bindings own model-session membership, and root
+   membership is structural. Jobs/results lose role/session mirrors, result
+   metadata disappears, launch options lose three unused fields, and duplicate
+   terminal results refuse instead of sorting by time. Runtime is v42; 73
+   maintained lines are removed net. Next audit generic result cargo by terminal
+   family so structured mirrors disappear without deleting the only failure
+   account.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,

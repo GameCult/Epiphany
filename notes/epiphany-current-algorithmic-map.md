@@ -1087,6 +1087,16 @@ their exact job result before retry. Runtime writable state is v41. The next
 audit boundary is the remaining job role/session join and generic terminal-result
 cargo, not another lifecycle layer.
 
+Exact `10a70afc` removes the remaining generic job ownership mirrors.
+`EpiphanyRuntimeJob` now owns only its semantic identity and the mutable
+Queued/Completed/Failed latch. The sealed outer-worker launch owns role;
+`EpiphanyRuntimeModelExecutionBinding` owns model-session membership; outer
+workers belong to the root session by construction. Session closure, retention,
+and tool admission derive those exact joins. Generic job results no longer copy
+role/session and lose their always-empty metadata map. A job snapshot requires
+zero or one exact terminal result and refuses multiplicity rather than choosing
+by completion time. Runtime writable state is v42.
+
 The sealed typed launch owns exact live request association. The terminal role
 result owns only semantic decision cargo or typed failure. The archived attempt
 owns historical request kind/ID and typed terminal classification after the

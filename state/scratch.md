@@ -238,13 +238,20 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    authority from the exact attempt set and refuses multiple live or successful
    authorities instead of choosing the newest timestamp. Runtime is v41; 67
    maintained lines are removed net.
-42. Next: audit the remaining job `role`/`session_id` joins and generic terminal
-   job-result cargo against sealed worker launches, model bindings, structured
-   outcomes, typed failures, process claims, and archives. Preserve only facts
-   that prevent an invalid consequence.
-43. Continue the public runtime-spine and test-liability audit by live owner
+42. Done: exact `10a70afc` reduces `EpiphanyRuntimeJob` to identity plus status.
+   Sealed launches own outer-worker role, model bindings own model-session
+   membership, and outer workers belong structurally to the root session. Jobs
+   and generic results lose role/session mirrors; results also lose their empty
+   metadata map. Session closure, tool ownership, and retention derive exact
+   joins; duplicate results refuse instead of sorting by time. Runtime is v42;
+   73 maintained lines are removed net.
+43. Next: audit generic terminal-result summary, next-move, evidence, and
+   artifact cargo separately for structured outcomes, typed model failures,
+   transport completion, and process death. Preserve the only typed failure
+   account; delete mirrors where an exact owner already exists.
+44. Continue the public runtime-spine and test-liability audit by live owner
    and consequential invariant. Do not subtract the unrun Atlas vertical slice;
    no inter-swarm collaboration has yet been exercised. Streamline it only
    around its one end-to-end authority map.
-44. Run focused tests after each cut. Only after source subtraction stabilizes
+45. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.

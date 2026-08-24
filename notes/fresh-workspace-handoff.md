@@ -152,6 +152,20 @@ model-runtime checks pass. The cut removes 67 maintained lines net. Verification
 generated 3.2 GiB across 4,498 files; cleanup restored only the authenticated
 1,776,640-byte state inspector.
 
+Exact `10a70afc` makes the generic runtime job an identity/status latch only.
+The sealed worker launch owns outer-worker role; the model execution binding
+owns model-session membership; outer workers belong structurally to the root
+session. Jobs and generic results lose role/session mirrors, results lose their
+empty metadata map, and heartbeat launch options lose constant root-session plus
+unused objective/note cargo. Session closure, retention, and tool admission
+derive exact joins. Job snapshots refuse multiple terminal results instead of
+selecting one by completion time. Runtime advances to v42. Keyed lifecycle,
+model-failure audit, transcript-free binding, tool continuation, Persona replay,
+coordinator terminality, epoch refusal, OpenAI runtime, release coordinator, and
+release model-runtime checks pass. The cut removes 73 maintained lines net.
+Verification generated 3.7 GiB across 4,764 files; cleanup restored only the
+authenticated 1,776,640-byte state inspector.
+
 Exact `a6cf9383` quarantines concrete Codex/OpenRouter authentication,
 credential reading, and network transport at the two release entrypoints that
 perform inference. `epiphany-openai-runtime` now owns only exact native-request
@@ -1237,13 +1251,13 @@ coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 ## Immediate next action
 
 The Ox17 deployment lane remains paused. Continue subtraction from exact
-`a46725a1`: map every producer and consumer of `EpiphanyRuntimeJob.role` and
-`session_id` plus generic terminal job-result role/session/summary cargo against
-sealed worker launches, model bindings, structured role results, typed pass
-failures, process claims, and archived attempts. Delete mirrors whose exact
-owner already exists; preserve only the minimal join or terminal latch that
-prevents an invalid consequence. Do not replace them with a registry, adapter,
-compatibility reader, or latest head. The Connector CultMesh/Idunn/Yggdrasil proof and
+`10a70afc`: partition `EpiphanyRuntimeJobResult` consumers by structured
+role/reorientation success, typed model-pass failure, transport completion, and
+process-death recovery. Delete summary, next-move, evidence, and artifact mirrors
+where the exact structured owner already exists; preserve the minimal
+verdict/time/context or failure account needed for physiology, audit, replay,
+and retention. Do not replace removed cargo with metadata, a summary DTO,
+compatibility reader, or latest selector. The Connector CultMesh/Idunn/Yggdrasil proof and
 Ghostlight adoption remain queued behind source stabilization. Preserve keyed
 Mind, direct Body-to-Modeling flow, consequence receipts, and the complete
 Model Atlas vertical slice; no live inter-swarm collaboration has run.
