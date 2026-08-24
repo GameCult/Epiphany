@@ -696,7 +696,7 @@ open.
 | concrete family admission owners | sealed decision context, exact family request/result chain, affected semantic documents | one family-specific `MindMutation` | The model cannot choose which stale state is safe to ignore. |
 | `current_work.rs` | keyed Mind view and exact runtime request/job/result/decision families | pure family scheduling and continuation projections | Events, timestamps, role lanes, and thread provenance cannot create or suppress work. |
 | coordinator policy/status | keyed Mind presence, exact current work, and the accepted continuity decision | one action/reason pair plus operator-readable role lanes | Coordinator presence is derived; no mutable coordinator head, pressure tableau, or duplicate policy wrapper exists. |
-| runtime worker attempt owner | immutable launch, exact process claim, typed result, job result, archival evidence | one terminal attempt authority | Scheduling, process liveness, and semantic admission remain distinct authorities. |
+| runtime worker attempt owner | sealed typed launch, exact process claim, semantic result or typed failure, job result, archival evidence | one terminal attempt authority | The launch document solely owns live family identity. The result cannot repeat routing identity; after live deletion the archive owns exact request kind/ID beside the preserved structured decision. Scheduling, process liveness, and semantic admission remain distinct authorities. |
 | model-provider boundary | sealed native model request plus explicit provider configuration | exact internally derived provider request and transport result | OpenRouter remains a release-owned direct boundary. Codex crosses the lean CodexConnector client ABI; the daemon owns only caller admission, credential refresh, exact transport, and durable replay. Provider selection cannot author a second request truth or admit Mind state. |
 | OpenAI Responses schema projector | full native typed output schema | one provider-legal strict generation schema | Provider formatting preserves useful supported constraints but never replaces native decoding or Mind admission. |
 | model-pass terminal owner | sealed reasoning basis/context and typed failure class | exact transport closure plus `EpiphanyModelPassFailure` and terminal session/job result in one batch CAS | The caller cannot nominate a job/session; the context-derived binding closes role, reorient, and Persona failures without granting generic transport results decision authority. |
@@ -1016,6 +1016,16 @@ flowchart TD
 Eyes may create evidence that creates Modeling work. Eyes acceptance never
 suppresses or authorizes ordinary Body Modeling.
 
+Exact `edb5c3a3` deletes the eight optional family request-ID mirrors from the
+generic worker launch and heartbeat options, plus their terminal-result echoes,
+the copied Body basis, and the copied frontier route. Every current-work,
+admission, retry, schema, and tool path derives live family identity from the
+sealed typed launch. A successful terminal result must contain the semantic
+payload required by that context; a typed failure contains one nonempty error
+and no success cargo. Retained attempts carry request kind/ID explicitly because
+retention deletes the live launch. Runtime is v39 and the role-result contract
+is v5; no old-store reader exists.
+
 Each simple unresolved model-pass family embeds one
 `EpiphanyAgentPassAttemptProjection`: continuation action plus the exact latest
 runtime job identity when one exists. Body, proposal and frontier-verdict
@@ -1051,11 +1061,14 @@ worker, and reasoning basis are read from the exact native model request. A
 tool binding contains only intent, session, and job identity; its optional
 model ancestry is read from the exact typed tool intent. Validation and
 retention reload those owners. No binding timestamp participates in causality.
-Runtime writable state is v37.
+Runtime writable state is v39.
 
-The attempt aggregate centralizes exact request association and typed terminal
-classification. Archived fulfilled attempts must retain recoverable decision
-authority, not merely an ID/digest tombstone.
+The sealed typed launch owns exact live request association. The terminal role
+result owns only semantic decision cargo or typed failure. The archived attempt
+owns historical request kind/ID and typed terminal classification after the
+live launch is deleted. Archived fulfilled attempts retain the structured role
+result, exact generic result family, and decision context—not an ID/digest
+tombstone.
 
 The heartbeat scheduler does not exist. Resident Self directly selects the
 oldest pending pressure when no grant, prepared launch, or active lease exists.
@@ -1121,11 +1134,21 @@ receipts, and their direct context links.
 Runtime retention may remove SSE frames, deltas, intermediate requests,
 provider events, and tool scaffolding only after the terminal context is sealed
 and the retained decision can still reach its basis/context without them.
-The v1 worker-attempt archive embeds the exact typed role result and its
-context-bound generic result family. The read-only decision audit consumes the
-same durable records before and after archival.
+The v1 worker-attempt archive embeds exact request kind/ID, the typed role
+result, and its context-bound generic result family. The read-only decision
+audit consumes the same durable records before and after archival; it never
+reconstructs family identity from terminal-result echoes.
 
 ## Verification and open gates
+
+Focused acceptance at exact `edb5c3a3` proves the complete keyed state-flow
+across Body and both frontier Modeling families, Planning/PlanMind,
+Hands/Verification, and Eyes/Research without thread-state or result-echo
+authority. Content-addressed basis/context substitution, exact provider/tool
+bytes, transcript-free audit, typed failure, disjoint merge, same-identity
+conflict, and v38 writable-store refusal all pass. Core/OpenAI libraries and the
+release-owned model binary compile natively. The cut removes 443 maintained
+lines net; it does not claim a fresh package, Atlas Gate, or live collaboration.
 
 Accepted through the local `5b799b12` source boundary:
 

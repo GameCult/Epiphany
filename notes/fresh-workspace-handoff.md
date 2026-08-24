@@ -2,11 +2,11 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany source cut: `07529fb5`
+Latest committed Epiphany source cut: `edb5c3a3`
 Current connector source: `54d8bc2525b7e7fa1b9dd26b95871247ff4c7566`
-Current pass: source subtraction continues after collapsing semantic state into
-Core; duplicate family request identities on generic worker launch/result
-records are next; Ox17 and Atlas Gate 1 remain paused
+Current pass: source subtraction continues after making the sealed typed worker
+launch the sole live owner of pass-family identity; the generic runtime session
+aggregate is next; Ox17 and Atlas Gate 1 remain paused
 
 ## Orientation
 
@@ -17,7 +17,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `07529fb5` is the current
+production symlink body and is inactive. Exact `edb5c3a3` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -103,6 +103,26 @@ without warnings; the deterministic keyed-Mind and repository-path proofs pass.
 Whole-Core Clippy exposes 58 pre-existing lints outside this cut. Verification
 generated 1.842 GB across 2,718 files; cleanup restored only the exact state
 inspector.
+
+Exact `edb5c3a3` deletes the duplicate pass-family authority from runtime
+physiology. Eight optional request-ID fields are gone from
+`EpiphanyRuntimeWorkerLaunchRequest` and its heartbeat options. The terminal
+role result no longer repeats those family identities, the Body observation
+basis, or the frontier route. Live current-work, admission, retry, provider
+schema selection, and tool setup decode the one sealed typed launch document.
+After retention deletes that live launch, the archived attempt retains exact
+request kind/ID beside the full structured decision and decision context.
+
+Terminal success now requires the semantic payload named by the sealed family
+context; a typed failure requires one nonempty error and may carry no successful
+semantic cargo. Runtime advances to v39 and the role-result output contract to
+v5 with no old-store reader. The committed delta is 742 additions and 1,185
+deletions: 443 maintained lines removed. Core and OpenAI runtime libraries and
+the release-owned model binary compile. The complete keyed state-flow test,
+content-addressed/context substitution tests, transcript-free decision audit,
+model-failure audit, concurrent disjoint/same-identity CAS proof, old-epoch
+refusal, and focused proposal/Verification/Planning/consideration/Mind/provider
+completion tests pass.
 
 Exact `a6cf9383` quarantines concrete Codex/OpenRouter authentication,
 credential reading, and network transport at the two release entrypoints that
@@ -1189,13 +1209,13 @@ coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 ## Immediate next action
 
 The Ox17 deployment lane remains paused. Continue subtraction from exact
-`07529fb5`: remove the optional family request-ID mirrors on the generic worker
-launch and their role-result echoes wherever the exact typed launch document or
-structured decision already owns identity. Delete their validators,
-constructor defaults, and fixture assertions rather than replacing them with a
-registry. Then audit whether the generic runtime session aggregate protects any
-invariant not already owned by jobs, decision contexts, coordinator receipts,
-and retention tombstones. The Connector CultMesh/Idunn/Yggdrasil proof and
+`edb5c3a3`: map every reader and writer of `EpiphanyRuntimeSession` and
+`EpiphanyArchivedRuntimeSession`. Determine whether session identity, objective,
+coordinator note, lifecycle status, and archive membership protect an invariant
+not already owned by exact jobs, native requests, decision contexts,
+coordinator receipts, and retention tombstones. Delete the aggregate or reduce
+it to the smallest earned physiology; do not replace it with a registry,
+adapter, compatibility reader, or latest head. The Connector CultMesh/Idunn/Yggdrasil proof and
 Ghostlight adoption remain queued behind source stabilization. Preserve keyed
 Mind, direct Body-to-Modeling flow, consequence receipts, and the complete
 Model Atlas vertical slice; no live inter-swarm collaboration has run.

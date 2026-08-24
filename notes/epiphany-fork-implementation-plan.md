@@ -803,6 +803,15 @@ Cut in this order:
    run summary loses its fixed adapter/schema catalogue and caller-supplied
    store echo. Exact authority remains the typed receipt; stdout returns only
    intent ID, receipt ID, and terminal status.
+47. **The sealed launch owns pass-family identity at `edb5c3a3`:** eight
+   optional request-ID mirrors are deleted from worker launch/runtime options,
+   and terminal role results lose the same family echoes plus copied Body basis
+   and frontier route. Live routing decodes the typed launch; retained history
+   uses archived request kind/ID beside the preserved structured decision.
+   Success requires the family semantic payload and typed failure forbids
+   success cargo. Runtime is v39 and role-result output is v5 with no legacy
+   reader. The next subtraction target is the generic runtime session
+   aggregate, not a replacement launch registry.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,

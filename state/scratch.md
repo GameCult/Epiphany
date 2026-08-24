@@ -217,13 +217,19 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    re-exports, stale WebSocket patch pins, and 99 lockfile lines are gone. The
    commit removes 201 maintained lines net and one Cargo package without a
    schema-epoch change.
-39. Next: apply the same ownership test to Body Modeling, Planning, PlanMind,
-   Imagination consideration, and Reorientation launch bindings. Delete the
-   family when the worker launch and typed request already own its facts; do not
-   create generic launch authority.
-40. Continue the public runtime-spine and test-liability audit by live owner
+39. Done: exact `edb5c3a3` deletes the eight optional family request-ID mirrors
+   from the generic worker launch and heartbeat options, then deletes the same
+   echoes plus Body-basis and route echoes from terminal role results. The
+   sealed typed launch owns live family identity; archived attempts own retained
+   request identity. Runtime is v39, the role-result contract is v5, and 443 net
+   maintained lines are gone.
+40. Next: map every `EpiphanyRuntimeSession` and
+   `EpiphanyArchivedRuntimeSession` reader/writer. Delete or reduce the session
+   aggregate if exact jobs, native requests, decision contexts, coordinator
+   receipts, and retention tombstones already own its claimed invariants.
+41. Continue the public runtime-spine and test-liability audit by live owner
    and consequential invariant. Do not subtract the unrun Atlas vertical slice;
    no inter-swarm collaboration has yet been exercised. Streamline it only
    around its one end-to-end authority map.
-41. Run focused tests after each cut. Only after source subtraction stabilizes
+42. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.
