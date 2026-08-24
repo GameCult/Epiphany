@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `a602fbdc` on `codex/epiphany-shakedown-live`
-Current worktree cut: documentation/evidence for dormant state-vocabulary deletion;
+Latest committed implementation cut: `9abadfe7` on `codex/epiphany-shakedown-live`
+Current worktree cut: documentation/evidence for provider-frame observer deletion;
 Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -35,6 +35,15 @@ sealed reasoning passes. Two callerless OpenAI-runtime mouths and eight
 definition-only type constants are also gone. The cut is 291 pure deletions;
 the state-model crate is 398 lines. It does not touch the still-unrun Atlas
 inter-swarm path.
+
+Provider observability is typed consequence, not a no-op callback shelf. Exact
+`9abadfe7` removes the frame-observation DTO, sequence/preview bookkeeping, and
+observer methods from both provider transports because every live caller threw
+the observation away. Codex SSE and OpenRouter responses still lower into the
+same typed model events and receipts. A provider-specific transcript reader
+used only by a test assertion is also absent; decision audit continues to use
+sealed native/provider requests, structured terminal records, governed tool
+receipts, and Mind commit receipts rather than stream text.
 
 CultMesh contains no JSON-derived operator snapshot, coordinator receipt,
 Hands gate, role-review event, unauthenticated Odin/Eve provider row, or daemon

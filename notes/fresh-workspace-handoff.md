@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `a602fbdc`
-Current worktree: documentation/evidence for dormant state-vocabulary deletion;
+Latest committed implementation cut: `9abadfe7`
+Current worktree: documentation/evidence for provider-frame observer deletion;
 Ox17 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `a602fbdc` is the current
+production symlink body and is inactive. Exact `9abadfe7` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,18 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `9abadfe7` deletes the provider-frame observation DTO and callback APIs
+from both Codex Responses and OpenRouter transports. No runtime, binary, test,
+or operator surface consumed an observation; both live transport callers
+supplied a no-op closure. The SSE parser and OpenRouter response path still emit
+the same typed model stream events and receipts. A provider-specific transcript
+reader used only by one empty-text assertion, a callerless checkpoint
+constructor, a definition-only MCP label, and a historical constant-spelling
+health test are also gone. Provider spine 14/14, OpenAI runtime 23/23, tool MCP
+8/8, Idunn runtime health 5/5, state-model, and the packaged model-runtime
+entrypoint pass. The cut removes 140 net maintained lines; state-model is 366
+lines. Atlas is untouched and live inter-swarm collaboration remains unproven.
 
 Exact `a602fbdc` deletes fifteen public state-model DTO types with no external
 consumer, two callerless OpenAI-runtime mouths, and eight definition-only type
@@ -197,7 +209,7 @@ the live resident fields. Runtime writable state advances to v20. JSON schemas
 parse; core check, old-epoch refusal, coordinator 5/5, and swarm 4/4 pass. The
 cut removes 59 maintained lines and leaves `runtime_spine.rs` at 9,807 lines.
 
-Continue the registered-type and test-liability audit after exact `a602fbdc`. Model Atlas remains protected
+Continue the registered-type and test-liability audit after exact `9abadfe7`. Model Atlas remains protected
 for its first live inter-swarm collaboration trial.
 
 Exact `3ed1d564` deletes the public
