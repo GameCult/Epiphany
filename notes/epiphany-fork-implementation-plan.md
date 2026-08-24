@@ -224,7 +224,7 @@ Delete or demote:
 
 Keep the five-day shakedown, Ox17 deployment, and Model Atlas operational Gate
 1 paused. Continue the source-subtraction and test-authority audit from exact
-`952dcd9f`. The current sequence has deleted the semantic-memory/workspace-coverage
+`718ce9c1`. The current sequence has deleted the semantic-memory/workspace-coverage
 projection system, its local daemon supervisor, and the surviving generic
 RepoModel profile, impossible lifecycle, producerless receipt/summary, and
 decorative scoring axes. Modeling consumes typed Body and keyed RepoModel state
@@ -253,6 +253,17 @@ singleton Mind objective owns active state; the exact Mind commit receipt owns
 atomic admission. One coordinator-binary test that only repeated the library
 proof is gone, while byte-idempotency, replacement refusal, and resident-grant
 provenance remain covered.
+
+Exact `718ce9c1` applies the same ownership rule across the complete durable
+repository-frontier chain. Thirteen Proposal, Planning, Research, PlanMind,
+Hands, Verification, Soul, and Modeling documents no longer persist fixed
+schema/version labels or contract slogans already owned by CultCache and the
+runtime epoch. Their semantic identities, strong dependencies, exact source
+versions, decision contexts, evidence, dispositions, and consequences remain.
+Sealed worker contexts retain explicit schema and contract fields because they
+are exact model input. Runtime advances to v33. Atlas is untouched and remains
+protected until a real inter-swarm collaboration run exercises the complete
+crossing.
 
 Resident Self now solely imports authenticated Bifrost deliveries; exact
 `3dda58a5` deletes the standalone Persona feedback ingress and its old Starfire

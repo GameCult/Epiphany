@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `952dcd9f`
-Current pass: operator-objective intake collapse landed and documented; Ox17
+Latest committed implementation cut: `718ce9c1`
+Current pass: repository-frontier envelope duplication collapsed; Ox17
 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `952dcd9f` is the current
+production symlink body and is inactive. Exact `718ce9c1` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,20 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `718ce9c1` removes fixed schema-version fields and fixed contract prose
+from thirteen durable repository-frontier documents spanning Proposal through
+Planning, PlanMind, Hands, Verification, Soul verdict, Research, and Modeling.
+CultCache envelopes and runtime epoch v33 own their internal type/schema
+identity. Semantic IDs, exact source-document versions, strong dependencies,
+decision contexts, dispositions, evidence, and consequences remain. Sealed
+worker contexts retain explicit schema and contract fields because those bytes
+are part of the exact model input. The full keyed lifecycle, old-store refusal,
+provider candidate mapping, core library, and release-owned coordinator target
+pass. The cut removes 177 net maintained lines. Focused verification generated
+9.61 GB across 12,514 files; cleanup returned the shared target to the single
+1.78 MB state inspector. Atlas is untouched. Its first real inter-swarm
+collaboration run remains required before any narrowing of the crossing.
 
 Exact `952dcd9f` keeps the typed human objective assertion and its atomic
 singleton Mind-objective commit, but removes the fixed schema prose, stored key
@@ -1008,7 +1022,7 @@ coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 ## Immediate next action
 
 The Ox17 deployment lane is paused. Continue the registered-document and test-
-liability audit from exact `952dcd9f`; do not compile or deploy through Idunn
+liability audit from exact `718ce9c1`; do not compile or deploy through Idunn
 yet. Delete an abstraction with tests that merely animate it when it has no
 decision-bearing consumer. Preserve keyed Mind, sealed reasoning, direct Body-
 to-Modeling flow, family admission owners, Persona social state, provider
