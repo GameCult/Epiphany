@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `fed4b857` on `codex/epiphany-shakedown-live`
-Current worktree cut: documentation/evidence for duplicate continuity-receipt deletion;
+Latest committed implementation cut: `a602fbdc` on `codex/epiphany-shakedown-live`
+Current worktree cut: documentation/evidence for dormant state-vocabulary deletion;
 Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -24,6 +24,17 @@ from those contracts and no parallel CultMesh contract documents are persisted.
 The fixed three-Verse trust policy and public-room directory are also direct
 local Verse projections; they are not written into CultCache as counterfeit
 mutable state.
+
+The shared state-model vocabulary is inhabited, not aspirational. Exact
+`a602fbdc` deletes fifteen DTO types with no external consumer: aggregate
+acceptance/runtime links, a second graph/frontier/checkpoint model, global
+retrieval and scratch state, generic job bindings, and churn telemetry. Keyed
+Mind/runtime receipts own decisions and lifecycle identity; keyed RepoModel
+documents own repository structure; scratch and retrieval inputs belong to
+sealed reasoning passes. Two callerless OpenAI-runtime mouths and eight
+definition-only type constants are also gone. The cut is 291 pure deletions;
+the state-model crate is 398 lines. It does not touch the still-unrun Atlas
+inter-swarm path.
 
 CultMesh contains no JSON-derived operator snapshot, coordinator receipt,
 Hands gate, role-review event, unauthenticated Odin/Eve provider row, or daemon
