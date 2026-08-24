@@ -95,8 +95,8 @@
       "wireContracts": [
         "cultnet.schema.v0"
       ],
-      "schemaVersion": "epiphany.coordinator_run_receipt.v0",
-      "documentType": "epiphany.coordinator_run_receipt.v0",
+      "schemaVersion": "epiphany.coordinator_run_receipt.v1",
+      "documentType": "epiphany.coordinator_run_receipt.v1",
       "title": "Epiphany Coordinator Run Receipt",
       "path": "epiphany.coordinator-run-receipt.schema.json"
     },

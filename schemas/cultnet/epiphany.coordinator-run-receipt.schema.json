@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.coordinator-run-receipt.schema.json",
   "title": "Epiphany Coordinator Run Receipt",
-  "description": "Typed receipt emitted by the local coordinator after a plan/run/smoke pass. Artifact JSON may display the same facts, but this document is the durable coordinator decision receipt.",
+  "description": "Typed terminal decision and exact resident-launch provenance emitted by the local coordinator. Operator artifacts remain non-authoritative projections.",
   "type": "object",
   "required": [
     "schema_version",
@@ -12,34 +12,26 @@
     "mode",
     "status",
     "final_action",
-    "step_count",
     "created_at"
   ],
   "properties": {
-    "schema_version": { "const": "epiphany.coordinator_run_receipt.v0" },
+    "schema_version": { "const": "epiphany.coordinator_run_receipt.v1" },
     "receipt_id": { "type": "string" },
     "session_id": { "type": "string" },
     "thread_id": { "type": "string" },
-    "mode": { "enum": ["plan", "run", "smoke", "status"] },
+    "mode": { "enum": ["plan", "execute"] },
     "status": { "type": "string" },
     "final_action": { "type": "string" },
     "final_reason": { "type": ["string", "null"] },
-    "step_count": { "type": "integer", "minimum": 0 },
     "created_at": { "type": "string" },
-    "model_provider": { "type": ["string", "null"] },
-    "runtime_store": { "type": "string" },
-    "artifact_refs": {
-      "type": "array",
-      "items": { "type": "string" }
-    },
-    "sealed_artifact_refs": {
-      "type": "array",
-      "items": { "type": "string" }
-    },
-    "metadata": {
-      "type": "object",
-      "additionalProperties": { "type": "string" }
-    }
+    "resident_grant_id": { "type": ["string", "null"] },
+    "resident_launch_digest": { "type": ["string", "null"] },
+    "resident_policy_digest": { "type": ["string", "null"] },
+    "resident_argv_digest": { "type": ["string", "null"] },
+    "resident_objective_digest": { "type": ["string", "null"] },
+    "resident_release_commit": { "type": ["string", "null"] },
+    "resident_release_manifest_digest": { "type": ["string", "null"] },
+    "resident_executable_digest": { "type": ["string", "null"] }
   },
   "additionalProperties": false
 }

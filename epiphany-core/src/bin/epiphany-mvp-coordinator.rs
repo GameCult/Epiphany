@@ -246,6 +246,9 @@ impl Args {
                 "coordinator requires exact --runtime-id for local Verse authority"
             ));
         }
+        if !matches!(parsed.mode.as_str(), "plan" | "execute") {
+            return Err(anyhow!("--mode must be plan or execute"));
+        }
         if parsed.required_action.is_some() && (parsed.mode != "execute" || parsed.max_steps != 1) {
             return Err(anyhow!(
                 "--required-action requires execute mode with exactly one step"
@@ -1324,7 +1327,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             "coordinator-final-action.txt".to_string(),
             "agent-function-telemetry.json".to_string(),
         ];
-        let sealed_artifact_manifest = Vec::new();
         let receipt_created_at = now();
         let coordinator_run_receipt = EpiphanyCoordinatorRunReceipt {
             schema_version: COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.to_string(),
@@ -1339,30 +1341,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             status: coordinator_receipt_status(&args.mode, &final_action),
             final_action: final_action_name(&final_action),
             final_reason: final_action_reason(&final_action),
-            step_count: operator_steps
-                .as_array()
-                .map_or(0, |items| items.len() as u64),
             created_at: receipt_created_at,
-            model_provider: Some(args.model_provider.clone()),
-            runtime_store: runtime_store.display().to_string(),
-            artifact_refs: artifact_manifest.clone(),
-            sealed_artifact_refs: sealed_artifact_manifest.clone(),
-            metadata: BTreeMap::from([
-                (
-                    "artifactDir".to_string(),
-                    artifact_dir.display().to_string(),
-                ),
-                (
-                    "modelRuntimeBin".to_string(),
-                    model_runtime_bin.display().to_string(),
-                ),
-                (
-                    "toolAdapterBin".to_string(),
-                    tool_adapter_bin.display().to_string(),
-                ),
-                ("mcpConfig".to_string(), mcp_config.display().to_string()),
-                ("autoTools".to_string(), args.auto_tools.to_string()),
-            ]),
             resident_grant_id: args.resident_binding.get("grant-id").cloned(),
             resident_launch_digest: args.resident_binding.get("launch-digest").cloned(),
             resident_policy_digest: args.resident_binding.get("policy-digest").cloned(),
@@ -1374,7 +1353,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 .get("release-manifest-digest")
                 .cloned(),
             resident_executable_digest: args.resident_binding.get("executable-digest").cloned(),
-            final_runtime_job_id: final_action["runtimeJobId"].as_str().map(str::to_string),
         };
         finalize_coordinator_run(&runtime_store, &coordinator_run_receipt)?;
         let summary = json!({
@@ -1401,7 +1379,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 "store": runtime_store,
             },
             "artifactManifest": artifact_manifest,
-            "sealedArtifactManifest": []
         });
         write_json(&artifact_dir.join("coordinator-summary.json"), &summary)?;
         write_json(
@@ -1433,13 +1410,8 @@ fn run_coordinator(args: &Args) -> Result<Value> {
     match run_result {
         Ok(summary) => Ok(summary),
         Err(run_error) => {
-            let failure_receipt = failed_coordinator_run_receipt(
-                args,
-                &runtime_session_id,
-                &thread_id,
-                &runtime_store,
-                &run_error,
-            );
+            let failure_receipt =
+                failed_coordinator_run_receipt(args, &runtime_session_id, &thread_id, &run_error);
             match finalize_coordinator_run(&runtime_store, &failure_receipt) {
                 Ok(_) => Err(anyhow!(
                     "coordinator run failed after opening and was terminalized by receipt {:?}: {run_error:#}",
@@ -1457,7 +1429,6 @@ fn failed_coordinator_run_receipt(
     args: &Args,
     session_id: &str,
     thread_id: &str,
-    runtime_store: &Path,
     error: &anyhow::Error,
 ) -> EpiphanyCoordinatorRunReceipt {
     let created_at = now();
@@ -1474,16 +1445,7 @@ fn failed_coordinator_run_receipt(
         status: "failed".to_string(),
         final_action: "failed".to_string(),
         final_reason: Some(format!("{error:#}")),
-        step_count: 0,
         created_at,
-        model_provider: Some(args.model_provider.clone()),
-        runtime_store: runtime_store.display().to_string(),
-        artifact_refs: Vec::new(),
-        sealed_artifact_refs: Vec::new(),
-        metadata: BTreeMap::from([(
-            "terminalizationOwner".to_string(),
-            "epiphany-mvp-coordinator-error-boundary".to_string(),
-        )]),
         resident_grant_id: args.resident_binding.get("grant-id").cloned(),
         resident_launch_digest: args.resident_binding.get("launch-digest").cloned(),
         resident_policy_digest: args.resident_binding.get("policy-digest").cloned(),
@@ -1495,7 +1457,6 @@ fn failed_coordinator_run_receipt(
             .get("release-manifest-digest")
             .cloned(),
         resident_executable_digest: args.resident_binding.get("executable-digest").cloned(),
-        final_runtime_job_id: None,
     }
 }
 

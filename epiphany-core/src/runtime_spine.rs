@@ -84,11 +84,11 @@ pub const ARCHIVED_RUNTIME_WORKER_ATTEMPT_TYPE: &str =
 pub const RUNTIME_ROLE_WORKER_RESULT_TYPE: &str = "epiphany.runtime.role_worker_result";
 pub const RUNTIME_REORIENT_WORKER_RESULT_TYPE: &str = "epiphany.runtime.reorient_worker_result";
 pub const RUNTIME_JOB_RESULT_TYPE: &str = "epiphany.runtime.job_result";
-pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt.v0";
+pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt.v1";
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v19";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v20";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
@@ -105,7 +105,7 @@ pub const RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION: &str =
     "epiphany.runtime.role_worker_result.v4";
 pub const RUNTIME_REORIENT_WORKER_RESULT_SCHEMA_VERSION: &str =
     "epiphany.runtime.reorient_worker_result.v0";
-pub const COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION: &str = "epiphany.coordinator_run_receipt.v0";
+pub const COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION: &str = "epiphany.coordinator_run_receipt.v1";
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(type = "epiphany.runtime.identity", schema = "EpiphanyRuntimeIdentity")]
 pub struct EpiphanyRuntimeIdentity {
@@ -661,7 +661,7 @@ pub struct EpiphanyRuntimeJobResult {
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(
-    type = "epiphany.coordinator_run_receipt.v0",
+    type = "epiphany.coordinator_run_receipt.v1",
     schema = "EpiphanyCoordinatorRunReceipt"
 )]
 pub struct EpiphanyCoordinatorRunReceipt {
@@ -682,37 +682,23 @@ pub struct EpiphanyCoordinatorRunReceipt {
     #[cultcache(key = 7, default)]
     pub final_reason: Option<String>,
     #[cultcache(key = 8)]
-    pub step_count: u64,
-    #[cultcache(key = 9)]
     pub created_at: String,
-    #[cultcache(key = 10, default)]
-    pub model_provider: Option<String>,
-    #[cultcache(key = 11, default)]
-    pub runtime_store: String,
-    #[cultcache(key = 12, default)]
-    pub artifact_refs: Vec<String>,
-    #[cultcache(key = 13, default)]
-    pub sealed_artifact_refs: Vec<String>,
-    #[cultcache(key = 14, default)]
-    pub metadata: BTreeMap<String, String>,
-    #[cultcache(key = 15, default)]
+    #[cultcache(key = 9, default)]
     pub resident_grant_id: Option<String>,
-    #[cultcache(key = 16, default)]
+    #[cultcache(key = 10, default)]
     pub resident_launch_digest: Option<String>,
-    #[cultcache(key = 17, default)]
+    #[cultcache(key = 11, default)]
     pub resident_policy_digest: Option<String>,
-    #[cultcache(key = 18, default)]
+    #[cultcache(key = 12, default)]
     pub resident_argv_digest: Option<String>,
-    #[cultcache(key = 19, default)]
+    #[cultcache(key = 13, default)]
     pub resident_objective_digest: Option<String>,
-    #[cultcache(key = 20, default)]
+    #[cultcache(key = 14, default)]
     pub resident_release_commit: Option<String>,
-    #[cultcache(key = 21, default)]
+    #[cultcache(key = 15, default)]
     pub resident_release_manifest_digest: Option<String>,
-    #[cultcache(key = 22, default)]
+    #[cultcache(key = 16, default)]
     pub resident_executable_digest: Option<String>,
-    #[cultcache(key = 23, default)]
-    pub final_runtime_job_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -8511,7 +8497,9 @@ fn validate_coordinator_run_receipt(receipt: &EpiphanyCoordinatorRunReceipt) -> 
     validate_non_empty(&receipt.receipt_id, "coordinator run receipt id")?;
     validate_non_empty(&receipt.session_id, "coordinator run receipt session id")?;
     validate_non_empty(&receipt.thread_id, "coordinator run receipt thread id")?;
-    validate_non_empty(&receipt.mode, "coordinator run receipt mode")?;
+    if !matches!(receipt.mode.as_str(), "plan" | "execute") {
+        return Err(anyhow!("coordinator run receipt mode is invalid"));
+    }
     validate_non_empty(&receipt.status, "coordinator run receipt status")?;
     validate_non_empty(
         &receipt.final_action,
