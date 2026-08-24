@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `cd2177e8`
-Current worktree: documentation/evidence for strict runtime session ownership;
+Latest committed implementation cut: `0a97eef8`
+Current worktree: documentation/evidence for sole current-work projection ownership;
 Ox17 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `cd2177e8` is the current
+production symlink body and is inactive. Exact `0a97eef8` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,17 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `0a97eef8` makes `project_current_work` the sole assembler of current
+typed work. The callerless Body-only and unresolved-Body projectors separately
+reopened Body, RepoModel, and runtime state to derive information already in
+that slice. Three callerless per-job continuation wrappers also rebuilt the
+whole projection; the live coordinator already uses the retained family review
+selectors. All five duplicate mouths are gone. The keyed Modeling/Research
+lifecycle still proves thread-free routing and zero live Body rescans;
+coordinator 5/5 passes. The cut removes 49 net maintained lines without a
+schema, target, test, or Atlas change. Live inter-swarm collaboration remains
+unproven.
 
 Exact `cd2177e8` deletes the duplicate public `ensure_runtime_session` writer.
 Only two model-runtime test fixtures called it, and an active ID collision made
@@ -79,7 +90,7 @@ the live resident fields. Runtime writable state advances to v20. JSON schemas
 parse; core check, old-epoch refusal, coordinator 5/5, and swarm 4/4 pass. The
 cut removes 59 maintained lines and leaves `runtime_spine.rs` at 9,807 lines.
 
-Continue the runtime-spine/test-liability audit after exact `cd2177e8`. Model Atlas remains protected
+Continue the public-API/test-liability audit after exact `0a97eef8`. Model Atlas remains protected
 for its first live inter-swarm collaboration trial.
 
 Exact `3ed1d564` deletes the public

@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `cd2177e8` on `codex/epiphany-shakedown-live`
-Current worktree cut: documentation/evidence for strict runtime session ownership;
+Latest committed implementation cut: `0a97eef8` on `codex/epiphany-shakedown-live`
+Current worktree cut: documentation/evidence for sole current-work projection ownership;
 Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -279,6 +279,14 @@ objective, creation time, or coordinator note. Those fixtures now use
 `create_runtime_session`; an identity collision refuses instead of being
 treated as a replay. Runtime schema remains v21 because the serialized shape is
 unchanged.
+
+Current typed work has one assembler. Exact `0a97eef8` deletes the separate
+Body-only and unresolved-Body projectors, which reopened Body, RepoModel, and
+runtime state to reconstruct subsets already owned by `project_current_work`.
+It also deletes three unused per-job continuation wrappers that each rebuilt
+the entire projection. Live coordinator review selectors consume the one shared
+slice directly. The retained lifecycle proof confirms projection remains
+thread-free and performs no live Body scan.
 
 Bifrost owns its private feedback-signing identity. Exact `94098223` deletes
 Epiphany's host-identity executable and the private signer, persisted identity,
