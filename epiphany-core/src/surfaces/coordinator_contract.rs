@@ -14,20 +14,6 @@ pub enum EpiphanyCoordinatorRoleStatus {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum EpiphanyCoordinatorRoleResultStatus {
-    MissingState,
-    MissingBinding,
-    BackendUnavailable,
-    BackendMissing,
-    Pending,
-    Running,
-    Completed,
-    Failed,
-    Cancelled,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum EpiphanyCoordinatorAction {
     PrepareCheckpoint,
     LaunchReorientWorker,

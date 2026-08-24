@@ -8,9 +8,7 @@ use std::collections::{BTreeSet, HashSet};
 use std::path::{Path, PathBuf};
 
 pub const RESIDENT_SELF_STATE_KEY: &str = "resident-self";
-pub const RESIDENT_SELF_STATE_SCHEMA_VERSION: &str = "epiphany.resident_self.state.v1";
-pub const RESIDENT_SELF_RUNTIME_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.resident_self.runtime_receipt.v0";
+pub const RESIDENT_SELF_STATE_SCHEMA_VERSION: &str = "epiphany.resident_self.state.v2";
 pub const RESIDENT_SELF_PRESSURE_SCHEMA_VERSION: &str = "epiphany.resident_self.pressure.v0";
 pub const RESIDENT_SELF_COORDINATOR_CONTINUATION_PRESSURE_KIND: &str =
     "coordinator-internal-continuation";
@@ -530,32 +528,6 @@ impl Default for ResidentSelfState {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.resident_self.runtime_receipt.v0",
-    schema = "ResidentSelfRuntimeReceipt"
-)]
-pub struct ResidentSelfRuntimeReceipt {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub receipt_id: String,
-    #[cultcache(key = 2)]
-    pub occurred_at_millis: u64,
-    #[cultcache(key = 3)]
-    pub status: String,
-    #[cultcache(key = 4)]
-    pub reason: String,
-    #[cultcache(key = 5, default)]
-    pub turn_id: Option<String>,
-    #[cultcache(key = 6, default)]
-    pub coordinator_receipt_id: Option<String>,
-    #[cultcache(key = 7, default)]
-    pub process_id: Option<u32>,
-    #[cultcache(key = 8, default)]
-    pub private_state_exposed: bool,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ChildObservation {
     Running,
@@ -785,7 +757,6 @@ pub fn resident_prepared_launch_thread_id(prepared: &ResidentSelfPreparedLaunch)
 fn state_cache(path: &Path) -> Result<CultCache> {
     let mut cache = CultCache::new();
     cache.register_entry_type::<ResidentSelfState>()?;
-    cache.register_entry_type::<ResidentSelfRuntimeReceipt>()?;
     cache.register_entry_type::<ResidentSelfPressure>()?;
     cache.register_entry_type::<ResidentSelfGrant>()?;
     cache.register_entry_type::<ResidentSelfTerminalReceipt>()?;
@@ -802,7 +773,6 @@ fn state_cache(path: &Path) -> Result<CultCache> {
             ));
         }
         let owned = envelope.r#type == ResidentSelfState::TYPE
-            || envelope.r#type == ResidentSelfRuntimeReceipt::TYPE
             || envelope.r#type == ResidentSelfPressure::TYPE
             || envelope.r#type == ResidentSelfGrant::TYPE
             || envelope.r#type == ResidentSelfTerminalReceipt::TYPE
@@ -821,9 +791,6 @@ fn state_cache(path: &Path) -> Result<CultCache> {
         match envelope.r#type.as_str() {
             ResidentSelfState::TYPE => {
                 cache.load_envelope::<ResidentSelfState>(envelope)?;
-            }
-            ResidentSelfRuntimeReceipt::TYPE => {
-                cache.load_envelope::<ResidentSelfRuntimeReceipt>(envelope)?;
             }
             ResidentSelfPressure::TYPE => {
                 cache.load_envelope::<ResidentSelfPressure>(envelope)?;
@@ -2740,6 +2707,22 @@ mod pressure_replay_tests {
             consumed_by_grant_id: None,
             private_state_exposed: false,
         }
+    }
+
+    #[test]
+    fn obsolete_state_epoch_refuses_without_mutation() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("resident.cc");
+        let cache = state_cache(&store)?;
+        let mut state = ResidentSelfState::default();
+        state.schema_version = "epiphany.resident_self.state.v1".into();
+        SingleFileMessagePackBackingStore::new(&store)
+            .push(&cache.prepare_entry(RESIDENT_SELF_STATE_KEY, &state)?.0)?;
+        let before = std::fs::read(&store)?;
+        let error = load_resident_self_state(&store).unwrap_err();
+        assert!(error.to_string().contains("obsolete writable state epoch"));
+        assert_eq!(std::fs::read(&store)?, before);
+        Ok(())
     }
 
     #[test]

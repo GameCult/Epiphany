@@ -353,7 +353,6 @@ pub use surfaces::AdmittedModelDirectionConsiderationContextProjection;
 pub use surfaces::EpiphanyCoordinatorAction;
 pub use surfaces::EpiphanyCoordinatorDecision;
 pub use surfaces::EpiphanyCoordinatorInput;
-pub use surfaces::EpiphanyCoordinatorRoleResultStatus;
 pub use surfaces::EpiphanyCoordinatorRoleStatus;
 pub use surfaces::EpiphanyCrrcAction;
 pub use surfaces::EpiphanyCrrcResultStatus;
