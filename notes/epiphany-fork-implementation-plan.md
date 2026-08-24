@@ -382,6 +382,10 @@ Cut in this order:
    echoes. Runtime writable state is v21 and the closed session/job catalog
    schemas are v1. Model Atlas remains intact for the unrun live inter-swarm
    Gate 1.
+   Exact `cd2177e8` then deletes the duplicate `ensure_runtime_session` writer.
+   Its two test consumers now use strict session creation; a reused active ID
+   can no longer substitute a different objective, creation time, or
+   coordinator note. No persisted shape changes and runtime remains v21.
 12. **Landed at `1662a012`, `07d891ba`, and `ec1431ff`:** coordinator policy now
    projects keyed current work; persisted `EpiphanyThreadStateEntry`,
    `coordinator_state_transaction`, generic coordinator services, the

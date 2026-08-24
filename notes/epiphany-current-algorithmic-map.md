@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `196222d9` on `codex/epiphany-shakedown-live`
-Current worktree cut: documentation/evidence for runtime lifecycle-document minimization;
+Latest committed implementation cut: `cd2177e8` on `codex/epiphany-shakedown-live`
+Current worktree cut: documentation/evidence for strict runtime session ownership;
 Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -271,6 +271,14 @@ remains the sole owner of consequential summary, evidence, artifacts, and
 decision-context identity. Sessions retain objective and coordinator note;
 jobs retain exact session, role, status, and time identity. Runtime writable
 state is v21 and the closed session/job catalog schemas are v1.
+
+Standalone diagnostic session creation has one strict owner. Exact `cd2177e8`
+deletes `ensure_runtime_session`, whose only consumers were test fixtures and
+whose active-ID path returned a pre-existing session without comparing its
+objective, creation time, or coordinator note. Those fixtures now use
+`create_runtime_session`; an identity collision refuses instead of being
+treated as a replay. Runtime schema remains v21 because the serialized shape is
+unchanged.
 
 Bifrost owns its private feedback-signing identity. Exact `94098223` deletes
 Epiphany's host-identity executable and the private signer, persisted identity,
