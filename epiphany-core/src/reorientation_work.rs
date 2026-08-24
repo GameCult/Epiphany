@@ -299,7 +299,6 @@ pub(crate) fn current_reorientation_work(
                     None => EpiphanyAgentPassContinuationAction::Launch,
                 }
             }
-            EpiphanyRuntimeJobStatus::Cancelled => EpiphanyAgentPassContinuationAction::Launch,
             _ => EpiphanyAgentPassContinuationAction::Wait,
         };
         return Ok(Some(EpiphanyReorientationWorkProjection {
@@ -972,7 +971,6 @@ mod tests {
                 job_id: "reorientation-model-job".into(),
                 session_id: "reorientation-model-session".into(),
                 role: "openai-model".into(),
-                created_at: "2026-08-18T10:00:03Z".into(),
             },
             &native,
         )?;
@@ -1096,7 +1094,6 @@ mod tests {
                 job_id: "failed-reorientation-model-job".into(),
                 session_id: "failed-reorientation-model-session".into(),
                 role: "openai-model".into(),
-                created_at: "2026-08-18T10:00:10Z".into(),
             },
             &failed_native,
         )?;

@@ -55,7 +55,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v40";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v41";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(type = "epiphany.runtime.identity", schema = "EpiphanyRuntimeIdentity")]
@@ -132,10 +132,6 @@ pub struct EpiphanyRuntimeJob {
     pub role: String,
     #[cultcache(key = 4)]
     pub status: EpiphanyRuntimeJobStatus,
-    #[cultcache(key = 5)]
-    pub created_at: String,
-    #[cultcache(key = 6)]
-    pub updated_at: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -623,11 +619,8 @@ pub enum EpiphanyRuntimeSessionStatus {
 pub enum EpiphanyRuntimeJobStatus {
     #[default]
     Queued,
-    Running,
-    WaitingForReview,
     Completed,
     Failed,
-    Cancelled,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -655,7 +648,6 @@ pub struct RuntimeSpineJobOptions {
     pub job_id: String,
     pub session_id: String,
     pub role: String,
-    pub created_at: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -956,12 +948,7 @@ pub fn close_runtime_session(
         .into_iter()
         .filter(|job| {
             job.session_id == options.session_id
-                && matches!(
-                    job.status,
-                    EpiphanyRuntimeJobStatus::Queued
-                        | EpiphanyRuntimeJobStatus::Running
-                        | EpiphanyRuntimeJobStatus::WaitingForReview
-                )
+                && matches!(job.status, EpiphanyRuntimeJobStatus::Queued)
         })
         .map(|job| job.job_id)
         .collect::<Vec<_>>();
@@ -1052,12 +1039,7 @@ pub fn terminalize_model_pass_failure_session(
             "model pass failure runtime job is outside its exact session"
         ));
     }
-    let model_job_is_live = matches!(
-        model_job.status,
-        EpiphanyRuntimeJobStatus::Queued
-            | EpiphanyRuntimeJobStatus::Running
-            | EpiphanyRuntimeJobStatus::WaitingForReview
-    );
+    let model_job_is_live = matches!(model_job.status, EpiphanyRuntimeJobStatus::Queued);
     let model_job_results = cache
         .get_all::<EpiphanyRuntimeJobResult>()?
         .into_iter()
@@ -1079,12 +1061,7 @@ pub fn terminalize_model_pass_failure_session(
         .filter(|job| {
             job.session_id == binding.session_id
                 && (!model_job_is_live || job.job_id != binding.job_id)
-                && matches!(
-                    job.status,
-                    EpiphanyRuntimeJobStatus::Queued
-                        | EpiphanyRuntimeJobStatus::Running
-                        | EpiphanyRuntimeJobStatus::WaitingForReview
-                )
+                && matches!(job.status, EpiphanyRuntimeJobStatus::Queued)
         })
         .map(|job| job.job_id)
         .collect::<Vec<_>>();
@@ -1102,7 +1079,6 @@ pub fn terminalize_model_pass_failure_session(
     ];
     if model_job_is_live {
         model_job.status = EpiphanyRuntimeJobStatus::Failed;
-        model_job.updated_at = options.failed_at.clone();
         let model_result = EpiphanyRuntimeJobResult {
             result_id: format!("result-model-pass-failure-{}", failure.failure_id),
             job_id: binding.job_id.clone(),
@@ -1178,7 +1154,6 @@ pub fn open_runtime_model_execution(
     validate_non_empty(&job_options.session_id, "model execution session id")?;
     validate_non_empty(&job_options.job_id, "model execution job id")?;
     validate_non_empty(&job_options.role, "model execution job role")?;
-    validate_non_empty(&job_options.created_at, "model execution job creation time")?;
     validate_non_empty(&model_request.request_id, "model execution request id")?;
     validate_non_empty(&model_request.provider, "model execution provider")?;
     let provider_request = epiphany_openai_adapter::request_from_native(model_request);
@@ -1226,9 +1201,7 @@ pub fn open_runtime_model_execution(
             if worker_job.role != launch.role
                 || matches!(
                     worker_job.status,
-                    EpiphanyRuntimeJobStatus::Completed
-                        | EpiphanyRuntimeJobStatus::Failed
-                        | EpiphanyRuntimeJobStatus::Cancelled
+                    EpiphanyRuntimeJobStatus::Completed | EpiphanyRuntimeJobStatus::Failed
                 )
             {
                 return Err(anyhow!(
@@ -1273,8 +1246,6 @@ pub fn open_runtime_model_execution(
         session_id: session.session_id.clone(),
         role: job_options.role,
         status: EpiphanyRuntimeJobStatus::Queued,
-        created_at: job_options.created_at.clone(),
-        updated_at: job_options.created_at.clone(),
     };
     let binding_id = model_request.request_id.clone();
     if cache
@@ -1365,9 +1336,7 @@ pub fn put_runtime_tool_execution_intent(
     if job.session_id != session_id
         || matches!(
             job.status,
-            EpiphanyRuntimeJobStatus::Completed
-                | EpiphanyRuntimeJobStatus::Failed
-                | EpiphanyRuntimeJobStatus::Cancelled
+            EpiphanyRuntimeJobStatus::Completed | EpiphanyRuntimeJobStatus::Failed
         )
     {
         return Err(anyhow!(
@@ -1723,12 +1692,7 @@ fn archive_completed_model_session(
     if jobs.is_empty()
         || jobs.iter().any(|job| {
             job.role != "openai-model-adapter"
-                || matches!(
-                    job.status,
-                    EpiphanyRuntimeJobStatus::Queued
-                        | EpiphanyRuntimeJobStatus::Running
-                        | EpiphanyRuntimeJobStatus::WaitingForReview
-                )
+                || matches!(job.status, EpiphanyRuntimeJobStatus::Queued)
         })
     {
         return Err(anyhow!(
@@ -2184,8 +2148,6 @@ pub fn prepare_runtime_spine_heartbeat_job(
         session_id: options.session_id.clone(),
         role: options.role.clone(),
         status: EpiphanyRuntimeJobStatus::Queued,
-        created_at: options.created_at.clone(),
-        updated_at: options.created_at.clone(),
     };
     let request = EpiphanyRuntimeWorkerLaunchRequest {
         job_id: options.job_id.clone(),
@@ -2912,9 +2874,7 @@ fn validate_governed_source_tool_intent(
             .ok_or_else(|| anyhow!("governed source tool intent lost its source worker job"))?;
         if matches!(
             source_worker_job.status,
-            EpiphanyRuntimeJobStatus::Completed
-                | EpiphanyRuntimeJobStatus::Failed
-                | EpiphanyRuntimeJobStatus::Cancelled
+            EpiphanyRuntimeJobStatus::Completed | EpiphanyRuntimeJobStatus::Failed
         ) {
             return Err(anyhow!(
                 "governed source tool intent {:?} is outside its launch grant",
@@ -3306,14 +3266,7 @@ fn terminal_worker_request_id(cache: &CultCache, worker_job_id: &str) -> Result<
 
     let live = bindings
         .iter()
-        .filter(|(_, job, _)| {
-            matches!(
-                job.status,
-                EpiphanyRuntimeJobStatus::Queued
-                    | EpiphanyRuntimeJobStatus::Running
-                    | EpiphanyRuntimeJobStatus::WaitingForReview
-            )
-        })
+        .filter(|(_, job, _)| matches!(job.status, EpiphanyRuntimeJobStatus::Queued))
         .collect::<Vec<_>>();
     if live.len() > 1 {
         return Err(anyhow!(
@@ -3451,12 +3404,7 @@ fn commit_runtime_worker_process_death(
     let mut job = cache
         .get::<EpiphanyRuntimeJob>(job_id)?
         .ok_or_else(|| anyhow!("worker death recovery requires its runtime job"))?;
-    if !matches!(
-        job.status,
-        EpiphanyRuntimeJobStatus::Queued
-            | EpiphanyRuntimeJobStatus::Running
-            | EpiphanyRuntimeJobStatus::WaitingForReview
-    ) {
+    if !matches!(job.status, EpiphanyRuntimeJobStatus::Queued) {
         return Err(anyhow!(
             "worker death recovery found a terminal runtime job"
         ));
@@ -3481,7 +3429,6 @@ fn commit_runtime_worker_process_death(
     next.terminal_authority_id = Some(terminal_authority_id.into());
     let summary = "Runtime Continuity proved the exact worker process terminal before a structured outcome was admitted.".to_string();
     job.status = EpiphanyRuntimeJobStatus::Failed;
-    job.updated_at = terminal_at.to_string();
     let result = EpiphanyRuntimeJobResult {
         result_id: format!("result-worker-death-{job_id}"),
         job_id: job_id.to_string(),
@@ -6168,7 +6115,7 @@ pub(crate) fn runtime_repo_frontier_research_lifecycle(
             });
         }
     };
-    let mut attempts = launches
+    let attempts = launches
         .iter()
         .map(|launch| {
             Ok(
@@ -6195,59 +6142,84 @@ pub(crate) fn runtime_repo_frontier_research_lifecycle(
             Ok((launch, job))
         })
         .collect::<Result<Vec<_>>>()?;
-    attempts.sort_by(|(_, left), (_, right)| {
-        left.created_at
-            .cmp(&right.created_at)
-            .then_with(|| left.job_id.cmp(&right.job_id))
-    });
-    let Some((launch, job)) = attempts.last() else {
+    if attempts.is_empty() {
         return Ok(RepoFrontierResearchLifecycle {
             stage: RepoFrontierResearchLifecycleStage::LaunchReady,
             frontier_item_id: Some(request.frontier_item_id.clone()),
             request_id: Some(request.request_id.clone()),
             worker_job_id: None,
         });
-    };
-    let stage = match job.status {
-        EpiphanyRuntimeJobStatus::Queued
-        | EpiphanyRuntimeJobStatus::Running
-        | EpiphanyRuntimeJobStatus::WaitingForReview => {
-            RepoFrontierResearchLifecycleStage::WorkerRunning
-        }
-        EpiphanyRuntimeJobStatus::Completed => {
-            let result = role_results
-                .iter()
-                .find(|result| result.job_id == job.job_id)
-                .ok_or_else(|| anyhow!("completed frontier Research job lost its typed result"))?;
-            if !result.role_id.eq_ignore_ascii_case("research") {
-                return Err(anyhow!(
-                    "frontier Research result crossed request-family authority"
-                ));
+    }
+    let live = attempts
+        .iter()
+        .filter(|(_, job)| job.status == EpiphanyRuntimeJobStatus::Queued)
+        .collect::<Vec<_>>();
+    if live.len() > 1 {
+        return Err(anyhow!(
+            "frontier Research request has multiple live worker attempts"
+        ));
+    }
+    if let Some((launch, _)) = live.first() {
+        return Ok(RepoFrontierResearchLifecycle {
+            stage: RepoFrontierResearchLifecycleStage::WorkerRunning,
+            frontier_item_id: Some(request.frontier_item_id.clone()),
+            request_id: Some(request.request_id.clone()),
+            worker_job_id: Some(launch.job_id.clone()),
+        });
+    }
+
+    let mut successful = Vec::new();
+    for (launch, job) in &attempts {
+        match job.status {
+            EpiphanyRuntimeJobStatus::Completed => {
+                let result = role_results
+                    .iter()
+                    .find(|result| result.job_id == job.job_id)
+                    .ok_or_else(|| {
+                        anyhow!("completed frontier Research job lost its typed result")
+                    })?;
+                if !result.role_id.eq_ignore_ascii_case("research") {
+                    return Err(anyhow!(
+                        "frontier Research result crossed request-family authority"
+                    ));
+                }
+                if result.item_error.is_none() {
+                    successful.push(*launch);
+                }
             }
-            if result.item_error.is_some() {
-                RepoFrontierResearchLifecycleStage::LaunchReady
-            } else {
-                RepoFrontierResearchLifecycleStage::ResultReady
+            EpiphanyRuntimeJobStatus::Failed => {
+                let terminal = job_results
+                    .iter()
+                    .filter(|result| result.job_id == job.job_id)
+                    .count();
+                if terminal != 1 {
+                    return Err(anyhow!(
+                        "failed frontier Research attempt lost its exact terminal result"
+                    ));
+                }
             }
+            EpiphanyRuntimeJobStatus::Queued => unreachable!("live attempts returned above"),
         }
-        EpiphanyRuntimeJobStatus::Failed | EpiphanyRuntimeJobStatus::Cancelled => {
-            let terminal = job_results
-                .iter()
-                .filter(|result| result.job_id == job.job_id)
-                .count();
-            if terminal != 1 {
-                return Err(anyhow!(
-                    "failed frontier Research attempt lost its exact terminal result"
-                ));
-            }
-            RepoFrontierResearchLifecycleStage::LaunchReady
-        }
-    };
+    }
+    if successful.len() > 1 {
+        return Err(anyhow!(
+            "frontier Research request has multiple successful worker authorities"
+        ));
+    }
+    let (stage, worker_job_id) = successful.first().map_or(
+        (RepoFrontierResearchLifecycleStage::LaunchReady, None),
+        |launch| {
+            (
+                RepoFrontierResearchLifecycleStage::ResultReady,
+                Some(launch.job_id.clone()),
+            )
+        },
+    );
     Ok(RepoFrontierResearchLifecycle {
         stage,
         frontier_item_id: Some(request.frontier_item_id.clone()),
         request_id: Some(request.request_id.clone()),
-        worker_job_id: Some(launch.job_id.clone()),
+        worker_job_id,
     })
 }
 
@@ -8166,10 +8138,7 @@ fn archive_runtime_worker_attempt(
     let valid_job = if fulfilled {
         job.status == EpiphanyRuntimeJobStatus::Completed
     } else {
-        matches!(
-            job.status,
-            EpiphanyRuntimeJobStatus::Failed | EpiphanyRuntimeJobStatus::Cancelled
-        )
+        matches!(job.status, EpiphanyRuntimeJobStatus::Failed)
     };
     if !valid_job {
         return Err(anyhow!(
@@ -8361,10 +8330,7 @@ pub fn retain_failed_runtime_worker_attempts(
         .filter(|(status, _)| status.is_failed_terminal())
         .filter_map(|(_, claim)| {
             let job = jobs.get(&claim.job_id)?;
-            if !matches!(
-                job.status,
-                EpiphanyRuntimeJobStatus::Failed | EpiphanyRuntimeJobStatus::Cancelled
-            ) {
+            if !matches!(job.status, EpiphanyRuntimeJobStatus::Failed) {
                 return None;
             }
             let request_id = typed_requests.get(&claim.job_id)?.as_ref()?.1.as_str();
@@ -8770,9 +8736,7 @@ pub fn complete_runtime_job(
         .ok_or_else(|| anyhow!("runtime job {:?} does not exist", options.job_id))?;
     if matches!(
         job.status,
-        EpiphanyRuntimeJobStatus::Completed
-            | EpiphanyRuntimeJobStatus::Failed
-            | EpiphanyRuntimeJobStatus::Cancelled
+        EpiphanyRuntimeJobStatus::Completed | EpiphanyRuntimeJobStatus::Failed
     ) {
         return Err(anyhow!(
             "runtime job {:?} is already terminal",
@@ -8796,7 +8760,6 @@ pub fn complete_runtime_job(
         .ok_or_else(|| anyhow!("runtime job lost its exact envelope"))?;
     let terminal_status = terminal_status_for_verdict(&options.verdict);
     job.status = terminal_status;
-    job.updated_at = options.completed_at.clone();
     let result = EpiphanyRuntimeJobResult {
         result_id: options.result_id.clone(),
         job_id: options.job_id.clone(),

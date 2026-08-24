@@ -1145,7 +1145,6 @@ mod tests {
                 job_id: job_id.clone(),
                 session_id: session_id.clone(),
                 role: OPENAI_RUNTIME_ROLE.to_string(),
-                created_at: chrono::Utc::now().to_rfc3339(),
             },
             &model_request,
         )?;
@@ -1384,7 +1383,6 @@ mod tests {
                 job_id: "openai-job-runtime-error".into(),
                 session_id: "openai-runtime-error".into(),
                 role: OPENAI_RUNTIME_ROLE.into(),
-                created_at: now(),
             },
             &request,
         )?;

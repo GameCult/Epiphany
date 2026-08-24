@@ -119,15 +119,11 @@ fn interpret_reorient_lifecycle_failure(
 fn reorient_result_status(snapshot: &EpiphanyRuntimeJobSnapshot) -> EpiphanyCrrcResultStatus {
     match snapshot.job.status {
         EpiphanyRuntimeJobStatus::Queued => EpiphanyCrrcResultStatus::Pending,
-        EpiphanyRuntimeJobStatus::Running | EpiphanyRuntimeJobStatus::WaitingForReview => {
-            EpiphanyCrrcResultStatus::Running
-        }
         EpiphanyRuntimeJobStatus::Completed if snapshot.result.is_some() => {
             EpiphanyCrrcResultStatus::Completed
         }
         EpiphanyRuntimeJobStatus::Completed => EpiphanyCrrcResultStatus::Pending,
         EpiphanyRuntimeJobStatus::Failed => EpiphanyCrrcResultStatus::Failed,
-        EpiphanyRuntimeJobStatus::Cancelled => EpiphanyCrrcResultStatus::Cancelled,
     }
 }
 

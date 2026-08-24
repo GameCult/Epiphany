@@ -118,7 +118,6 @@ pub fn open_model_turn(
             job_id: options.job_id.clone(),
             session_id: options.session_id.clone(),
             role: OPENAI_RUNTIME_ROLE.to_string(),
-            created_at: now(),
         },
         model_request,
     )?;
@@ -2963,7 +2962,6 @@ mod tests {
                 job_id: options.job_id.clone(),
                 session_id: options.session_id.clone(),
                 role: OPENAI_RUNTIME_ROLE.to_string(),
-                created_at: now(),
             },
             &native_request,
         )?;
@@ -3060,7 +3058,6 @@ mod tests {
                 job_id: "openai-worker-worker-job-1".into(),
                 session_id: "openai-worker-session-modeling-checkpoint-worker".into(),
                 role: "openai-model-adapter".into(),
-                created_at: "2026-08-14T00:00:00Z".into(),
             },
             &model_request,
         )?;
@@ -3426,7 +3423,6 @@ mod tests {
                 job_id: options.job_id.clone(),
                 session_id: options.session_id.clone(),
                 role: OPENAI_RUNTIME_ROLE.to_string(),
-                created_at: now(),
             },
             &native_request,
         )?;

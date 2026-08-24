@@ -161,10 +161,7 @@ impl EpiphanyAgentPassAttemptProjection {
 
     fn from_job(job: &crate::EpiphanyRuntimeJob, completed_is_reviewable: bool) -> Self {
         let action = match job.status {
-            crate::EpiphanyRuntimeJobStatus::Failed
-            | crate::EpiphanyRuntimeJobStatus::Cancelled => {
-                EpiphanyAgentPassContinuationAction::Launch
-            }
+            crate::EpiphanyRuntimeJobStatus::Failed => EpiphanyAgentPassContinuationAction::Launch,
             crate::EpiphanyRuntimeJobStatus::Completed if completed_is_reviewable => {
                 EpiphanyAgentPassContinuationAction::Review
             }
@@ -1000,11 +997,7 @@ fn current_proposal_modeling_work(
                 )?;
             }
             if *ordinal != latest_ordinal
-                && !matches!(
-                    job.status,
-                    crate::EpiphanyRuntimeJobStatus::Failed
-                        | crate::EpiphanyRuntimeJobStatus::Cancelled
-                )
+                && !matches!(job.status, crate::EpiphanyRuntimeJobStatus::Failed)
                 && !admission_refused
             {
                 return Err(anyhow!(
@@ -3698,7 +3691,6 @@ mod tests {
                 job_id: "body-failed-model-job".into(),
                 session_id: "body-failed-model-session".into(),
                 role: "openai-model".into(),
-                created_at: "2026-08-17T00:00:02.100Z".into(),
             },
             &failed_native,
         )?;
@@ -3843,7 +3835,6 @@ mod tests {
             .get::<crate::EpiphanyRuntimeJob>(&result.job_id)?
             .unwrap();
         job.status = crate::EpiphanyRuntimeJobStatus::Completed;
-        job.updated_at = "2026-08-17T00:00:04Z".into();
         cache.put(&job.job_id, &job)?;
         assert_eq!(
             project_current_work(&store)?
@@ -4673,7 +4664,6 @@ mod tests {
                 job_id: "verification-model-job".into(),
                 session_id: "verification-model-session".into(),
                 role: "openai-model".into(),
-                created_at: "2026-08-17T00:00:14.750Z".into(),
             },
             &verification_native,
         )?;
@@ -5336,7 +5326,6 @@ mod tests {
                 job_id: "planning-model-job".into(),
                 session_id: "planning-model-session".into(),
                 role: "openai-model".into(),
-                created_at: "2026-08-17T00:00:21.750Z".into(),
             },
             &planning_native,
         )?;
@@ -5465,7 +5454,6 @@ mod tests {
                 job_id: "plan-mind-model-job".into(),
                 session_id: "plan-mind-model-session".into(),
                 role: "openai-model".into(),
-                created_at: "2026-08-17T00:00:22.250Z".into(),
             },
             &mind_native,
         )?;

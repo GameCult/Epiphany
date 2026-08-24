@@ -2239,7 +2239,6 @@ mod tests {
                 job_id: "model-job-1".into(),
                 session_id: "session-1".into(),
                 role: "model-adapter".into(),
-                created_at: "2026-08-17T00:00:01Z".into(),
             },
             &initial_native,
         )?;
@@ -2286,7 +2285,6 @@ mod tests {
                 job_id: "model-job-2".into(),
                 session_id: "session-1".into(),
                 role: "model-adapter".into(),
-                created_at: "2026-08-17T00:00:04Z".into(),
             },
             &terminal_native,
         )?;
@@ -2354,7 +2352,6 @@ mod tests {
                 job_id: "failed-model-job".into(),
                 session_id: "failed-pass-session".into(),
                 role: "model-adapter".into(),
-                created_at: "2026-08-18T00:00:01Z".into(),
             },
             &native,
         )?;
@@ -2573,7 +2570,6 @@ mod tests {
                 job_id: "model-job-1".into(),
                 session_id: "session-1".into(),
                 role: "model-adapter".into(),
-                created_at: "2026-08-14T00:00:01Z".into(),
             },
             &native,
         )?;

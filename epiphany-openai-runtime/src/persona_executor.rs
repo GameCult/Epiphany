@@ -595,7 +595,6 @@ mod tests {
                         job_id: format!("persona-{stage}-{turn_id}"),
                         session_id: format!("persona-turn-{turn_id}"),
                         role: "openai-model-adapter".into(),
-                        created_at: "2026-08-14T00:00:00Z".into(),
                     },
                     &request,
                 )?;
