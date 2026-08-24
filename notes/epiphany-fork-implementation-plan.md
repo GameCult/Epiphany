@@ -224,7 +224,7 @@ Delete or demote:
 
 Keep the five-day shakedown, Ox17 deployment, and Model Atlas operational Gate
 1 paused. Continue the source-subtraction and test-authority audit from exact
-`ce6bff12`. The current sequence has deleted the semantic-memory/workspace-coverage
+`a6cf9383`. The current sequence has deleted the semantic-memory/workspace-coverage
 projection system, its local daemon supervisor, and the surviving generic
 RepoModel profile, impossible lifecycle, producerless receipt/summary, and
 decorative scoring axes. Modeling consumes typed Body and keyed RepoModel state
@@ -234,6 +234,14 @@ Epiphany-owned Rider or Unity bridge exists: Brokkr owns Unity through typed
 Eve/CultMesh capabilities, and a future Rider daemon will own Rider. Do not
 admit a fresh package until the remaining production surfaces and tests have
 earned their authority under the same audit.
+
+The immediate comparison is now explicit. The release-edge `codex-login`
+dependency still imports configuration, app-server protocol, telemetry,
+Starlark, image, and clipboard anatomy; a pure runtime consequence test still
+costs 1.869 GiB because `epiphany-core` remains broad. Audit those as owned
+behavior, not as cleanup chores. A narrower OpenAI auth/refresh boundary must
+preserve exact provider capability and refresh-token authority; a core split
+must expose an existing semantic owner rather than invent a package taxonomy.
 
 Model Atlas has component proofs but no live inter-swarm collaboration run.
 Preserve its publication, trust, transport, projection, Soul verification, Self
@@ -451,6 +459,18 @@ Cut in this order:
    net source lines. One focused OpenAI test generated 12.713 GiB across 19,134
    files, so its provider/runtime dependency boundary is the next source-shape
    audit. Atlas remains protected for its first live inter-swarm run.
+   Exact `a6cf9383` resolves that boundary: concrete Codex/OpenRouter auth,
+   credential reading, and transport move to one release-entrypoint source
+   module, while `epiphany-openai-runtime` retains pure exact-request opening,
+   event admission, tool intent emission, and durable audit with no Codex
+   dependency. Persona's concrete runner moves to the Persona service. The
+   duplicate no-tools worker route, DTOs, CLI mode, and coordinator switch are
+   deleted; one governed tool-capable path remains. Provider strict-shape tests
+   move to the release owner. The cut removes 176 net source lines with no new
+   target, process, schema, or epoch. The same runtime consequence proof now
+   uses 1.869 GiB/2,942 files instead of 12.713 GiB/19,134. The release edge
+   still reaches 10.473 GiB/16,483 files through `codex-login`, which is the
+   next provider-edge liability. Atlas remains untouched and unaccepted.
 3. **Baseline transaction landed at `9f7b164f`; operator routing at `587c56d2`; Resident continuation and keyed acceptance at `478fb923`:** baseline Body Modeling is now thread-free from unresolved Body obligation through Launch/Wait/Review and exact Mind admission. Resident and operator callers consume the same family projection and acceptance owner. Thread ID remains immutable pass provenance only.
 4. **Proposal Modeling landed at `d1b031cb`:** its immutable request, worker launch, runtime attempt/result, and `Modeling.proposal_frontier` commit now own Launch/Wait/Review and admission. The aggregate launcher refuses proposal cargo; the old selector, validator, context builder, and generic-launch hint are deleted. Body and Proposal share only the exact-envelope launch CAS invariant, not a mutable family registry. Exact `b0a4978d` deletes the later duplicate launch-binding document entirely; the worker launch is the sole launch owner.
 5. **Continuation vocabulary landed at `e404c105` and was named truthfully at `fc5d1a4a`:** concrete pass families share one pure `EpiphanyAgentPassContinuationAction`; their semantic requests, projections, validators, and admission owners remain separate.

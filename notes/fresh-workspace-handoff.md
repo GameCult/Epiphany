@@ -2,9 +2,9 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `ce6bff12`
-Current pass: execution bindings reduced to identity edges; Ox17 and Atlas Gate
-1 remain paused
+Latest committed implementation cut: `a6cf9383`
+Current pass: Codex transport quarantined at release entrypoints; Ox17 and
+Atlas Gate 1 remain paused
 
 ## Orientation
 
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `ce6bff12` is the current
+production symlink body and is inactive. Exact `a6cf9383` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,25 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `a6cf9383` quarantines concrete Codex/OpenRouter authentication,
+credential reading, and network transport at the two release entrypoints that
+perform inference. `epiphany-openai-runtime` now owns only exact native-request
+lowering, model-execution opening, typed provider-event admission, tool intent
+emission, terminal physiology, and durable audit. Its normal dependency graph
+contains no Codex crate. Persona retains its three-stage/replay owner while the
+concrete runner moves into the Persona service. The worker runtime has one
+governed tool-capable route; the duplicate no-tools route, DTOs, CLI mode, and
+coordinator switch are gone. Provider strict-shape proofs now live with the
+release-owned lowering edge. The cut removes 176 net source lines without a
+new crate, executable, process, schema, or epoch. Focused runtime, model,
+Persona, and coordinator checks pass. The pure runtime consequence-test root
+falls from 12.713 GiB/19,134 files to 1.869 GiB/2,942 files. The release-edge
+test still reaches 10.473 GiB/16,483 files because `codex-login` imports config,
+app-server protocol, telemetry, Starlark, image, and clipboard anatomy; that is
+the next named provider-edge liability. Cleanup removed 10.5 GiB and restored
+the exact 1,776,640-byte state inspector. Atlas is untouched; no live
+inter-swarm collaboration has run.
 
 Exact `ce6bff12` makes execution bindings identity edges instead of miniature
 copies of their owners. A model binding carries only request, session, and job
