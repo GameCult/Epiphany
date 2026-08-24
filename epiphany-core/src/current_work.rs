@@ -404,30 +404,6 @@ pub(crate) fn body_modeling_decision_envelope(
     Ok(cache.prepare_entry(&receipt.work_id, &receipt)?.0)
 }
 
-pub fn current_body_modeling_work(
-    store_path: impl AsRef<Path>,
-) -> Result<EpiphanyBodyModelingWorkProjection> {
-    let body_basis = crate::current_mind_repository_body_observation(store_path.as_ref())?
-        .ok_or_else(|| anyhow!("Mind has no admitted repository Body observation"))?;
-    let repo_model_basis = crate::assemble_repo_model_view(store_path.as_ref())?.reasoning_basis();
-    EpiphanyBodyModelingWorkProjection::derive(
-        body_basis.runtime_id.clone(),
-        body_basis,
-        repo_model_basis,
-    )
-}
-
-pub fn unresolved_body_modeling_work(
-    store_path: impl AsRef<Path>,
-) -> Result<Option<EpiphanyBodyModelingWorkProjection>> {
-    let store_path = store_path.as_ref();
-    let work = current_body_modeling_work(store_path)?;
-    let mut cache = crate::runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    let decision = cache.get::<EpiphanyBodyModelingDecisionReceipt>(&work.work_id)?;
-    resolve_body_modeling_work(work, decision)
-}
-
 pub fn project_current_work(store_path: impl AsRef<Path>) -> Result<EpiphanyCurrentWorkProjection> {
     let store_path = store_path.as_ref();
     let mind = crate::assemble_mind_view(store_path)?;
@@ -1038,31 +1014,11 @@ fn current_proposal_modeling_work(
     Ok(None)
 }
 
-pub fn body_modeling_continuation_action_for_job(
-    store_path: impl AsRef<Path>,
-    job_id: &str,
-) -> Result<Option<EpiphanyAgentPassContinuationAction>> {
-    Ok(project_current_work(store_path)?
-        .body_modeling
-        .filter(|work| work.attempt.job_id.as_deref() == Some(job_id))
-        .map(|work| work.attempt.action))
-}
-
 pub fn current_body_modeling_review_job_id(store_path: impl AsRef<Path>) -> Result<Option<String>> {
     Ok(crate::project_current_work(store_path)?
         .body_modeling
         .filter(|work| work.attempt.action == EpiphanyAgentPassContinuationAction::Review)
         .and_then(|work| work.attempt.job_id))
-}
-
-pub fn proposal_modeling_continuation_action_for_job(
-    store_path: impl AsRef<Path>,
-    job_id: &str,
-) -> Result<Option<EpiphanyAgentPassContinuationAction>> {
-    Ok(project_current_work(store_path)?
-        .proposal_modeling
-        .filter(|work| work.attempt.job_id.as_deref() == Some(job_id))
-        .map(|work| work.attempt.action))
 }
 
 pub fn current_proposal_modeling_review_job_id(
@@ -1072,16 +1028,6 @@ pub fn current_proposal_modeling_review_job_id(
         .proposal_modeling
         .filter(|work| work.attempt.action == EpiphanyAgentPassContinuationAction::Review)
         .and_then(|work| work.attempt.job_id))
-}
-
-pub fn frontier_verdict_modeling_continuation_action_for_job(
-    store_path: impl AsRef<Path>,
-    job_id: &str,
-) -> Result<Option<EpiphanyAgentPassContinuationAction>> {
-    Ok(project_current_work(store_path)?
-        .frontier_verdict_modeling
-        .filter(|work| work.attempt.job_id.as_deref() == Some(job_id))
-        .map(|work| work.attempt.action))
 }
 
 pub fn current_frontier_verdict_modeling_review_job_id(
@@ -3647,10 +3593,15 @@ mod tests {
             "2026-08-17T00:00:01Z",
         )?;
         crate::reset_repository_body_read_counters();
-        let projected_work = current_body_modeling_work(&store)?;
+        let current_work = project_current_work(&store)?;
+        let projected_work = current_work
+            .body_modeling
+            .as_ref()
+            .expect("current Mind projects Body Modeling work")
+            .work
+            .clone();
         assert_eq!(projected_work.body_basis, body);
         assert_eq!(crate::repository_body_read_counters(), (0, 0));
-        let current_work = project_current_work(&store)?;
         assert_eq!(
             current_work.body_modeling,
             Some(EpiphanyBodyModelingCurrentWorkProjection {
