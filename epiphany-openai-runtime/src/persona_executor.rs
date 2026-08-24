@@ -705,7 +705,6 @@ mod tests {
                         created_at: "2026-08-14T00:00:00Z".into(),
                     },
                     &request,
-                    "2026-08-14T00:00:00Z",
                 )?;
                 let output = match stage {
                 "projector" => "Epiphany feels the direct call as a live obligation, while remaining tired and sharply curious about her own machinery.".to_string(),

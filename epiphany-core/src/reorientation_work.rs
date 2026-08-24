@@ -999,7 +999,6 @@ mod tests {
                 created_at: "2026-08-18T10:00:03Z".into(),
             },
             &native,
-            "2026-08-18T10:00:03Z",
         )?;
         let context = crate::EpiphanyDecisionContext::new(&basis, native, Vec::new())?;
         crate::put_decision_context(&store, &context)?;
@@ -1130,7 +1129,6 @@ mod tests {
                 created_at: "2026-08-18T10:00:10Z".into(),
             },
             &failed_native,
-            "2026-08-18T10:00:10Z",
         )?;
         let failed_context =
             crate::EpiphanyDecisionContext::new(&failed_basis, failed_native, Vec::new())?;

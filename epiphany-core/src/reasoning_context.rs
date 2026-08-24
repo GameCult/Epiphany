@@ -1373,9 +1373,7 @@ fn validate_context_store_ownership(
     }
     let model_binding =
         crate::runtime_spine::validate_runtime_model_execution_binding(cache, &native.request_id)?;
-    if model_binding.reasoning_basis_id.as_deref() != Some(context.basis_id.as_str())
-        || model_binding.source_worker_job_id != native.source_worker_job_id
-    {
+    if native.reasoning_basis_id.as_deref() != Some(context.basis_id.as_str()) {
         return Err(anyhow!(
             "decision context terminal request has foreign runtime ownership"
         ));
@@ -1409,12 +1407,14 @@ fn validate_context_store_ownership(
             ));
         }
         if let Some(request_id) = intent.model_request_id.as_deref() {
-            let continuation = cache
-                .get::<crate::EpiphanyRuntimeModelExecutionBinding>(request_id)?
-                .ok_or_else(|| anyhow!("decision tool continuation request is absent"))?;
+            let continuation =
+                crate::runtime_spine::validate_runtime_model_execution_binding(cache, request_id)?;
+            let continuation_request = cache
+                .get::<EpiphanyModelRequest>(request_id)?
+                .ok_or_else(|| anyhow!("decision tool continuation native request is absent"))?;
             if continuation.session_id != model_binding.session_id
-                || continuation.source_worker_job_id != model_binding.source_worker_job_id
-                || continuation.reasoning_basis_id != model_binding.reasoning_basis_id
+                || continuation_request.source_worker_job_id != native.source_worker_job_id
+                || continuation_request.reasoning_basis_id != native.reasoning_basis_id
                 || tool_binding.session_id != continuation.session_id
                 || tool_binding.job_id != continuation.job_id
             {
@@ -2256,7 +2256,6 @@ mod tests {
                 created_at: "2026-08-17T00:00:01Z".into(),
             },
             &initial_native,
-            "2026-08-17T00:00:01Z",
         )?;
         let intent = EpiphanyToolInvocationIntent::new(
             "intent-1",
@@ -2269,13 +2268,7 @@ mod tests {
             "2026-08-17T00:00:02Z",
         )
         .with_model_call("call-1", &initial_native.request_id);
-        crate::put_runtime_tool_execution_intent(
-            &store,
-            "session-1",
-            "model-job-1",
-            &intent,
-            "2026-08-17T00:00:02Z",
-        )?;
+        crate::put_runtime_tool_execution_intent(&store, "session-1", "model-job-1", &intent)?;
         let mut receipt = EpiphanyToolInvocationReceipt::new(
             "receipt-1",
             &intent.intent_id,
@@ -2316,7 +2309,6 @@ mod tests {
                 created_at: "2026-08-17T00:00:04Z".into(),
             },
             &terminal_native,
-            "2026-08-17T00:00:04Z",
         )?;
         let context = seal_model_decision_context(&store, &terminal_native.request_id)?;
 
@@ -2347,7 +2339,7 @@ mod tests {
         let mut hostile_binding = cache
             .get::<crate::EpiphanyRuntimeToolExecutionBinding>(&intent.intent_id)?
             .expect("tool binding");
-        hostile_binding.bound_at = "not-a-time".into();
+        hostile_binding.session_id = "foreign-session".into();
         cache.put(&intent.intent_id, &hostile_binding)?;
         let before = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
         assert!(seal_model_decision_context(&store, &terminal_native.request_id).is_err());
@@ -2391,7 +2383,6 @@ mod tests {
                 created_at: "2026-08-18T00:00:01Z".into(),
             },
             &native,
-            "2026-08-18T00:00:01Z",
         )?;
         let context = seal_model_decision_context(&store, &native.request_id)?;
         let options = crate::ModelPassFailureTerminalOptions {
@@ -2627,7 +2618,6 @@ mod tests {
                 created_at: "2026-08-14T00:00:01Z".into(),
             },
             &native,
-            "2026-08-14T00:00:01Z",
         )?;
         let context = put_decision_context(
             &store,

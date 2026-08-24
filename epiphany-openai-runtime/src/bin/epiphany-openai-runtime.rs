@@ -957,7 +957,6 @@ mod tests {
                 created_at: chrono::Utc::now().to_rfc3339(),
             },
             &model_request,
-            &chrono::Utc::now().to_rfc3339(),
         )?;
         let mut receipt = EpiphanyOpenAiModelReceipt::new(request_id, "gpt-test");
         receipt.response_id = Some(format!("response-{request_id}"));
@@ -1216,7 +1215,6 @@ mod tests {
                 created_at: now(),
             },
             &request,
-            &now(),
         )?;
         let pass_progress = WorkerPassProgress::default();
         pass_progress.note_model_request(&request.request_id);

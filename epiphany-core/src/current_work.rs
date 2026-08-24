@@ -3744,7 +3744,6 @@ mod tests {
                 created_at: "2026-08-17T00:00:02.100Z".into(),
             },
             &failed_native,
-            "2026-08-17T00:00:02.100Z",
         )?;
         let failed_process = crate::ProcessInstanceIdentity {
             process_id: u32::MAX,
@@ -4761,7 +4760,6 @@ mod tests {
                 created_at: "2026-08-17T00:00:14.750Z".into(),
             },
             &verification_native,
-            "2026-08-17T00:00:14.750Z",
         )?;
         let verification_context = crate::EpiphanyDecisionContext::new(
             &verification_basis,
@@ -5443,7 +5441,6 @@ mod tests {
                 created_at: "2026-08-17T00:00:21.750Z".into(),
             },
             &planning_native,
-            "2026-08-17T00:00:21.750Z",
         )?;
         let planning_context =
             crate::EpiphanyDecisionContext::new(&planning_basis, planning_native, Vec::new())?;
@@ -5581,7 +5578,6 @@ mod tests {
                 created_at: "2026-08-17T00:00:22.250Z".into(),
             },
             &mind_native,
-            "2026-08-17T00:00:22.250Z",
         )?;
         let mind_context =
             crate::EpiphanyDecisionContext::new(&mind_basis, mind_native, Vec::new())?;

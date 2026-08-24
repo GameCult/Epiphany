@@ -304,7 +304,6 @@ mod tests {
             "native-tool-session",
             "native-tool-job",
             &intent,
-            "2026-08-10T01:00:03Z",
         )?;
 
         let summary = run(RunOptions {
@@ -372,7 +371,6 @@ mod tests {
             "state-tool-session",
             "state-tool-job",
             &intent,
-            "2026-08-11T00:00:02Z",
         )?;
 
         let unbound = execute_to_receipt(

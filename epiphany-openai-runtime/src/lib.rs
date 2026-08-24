@@ -161,7 +161,6 @@ async fn run_openai_model_turn_bound(
             created_at: now(),
         },
         &model_request,
-        &now(),
     )?;
     let events = match profile {
         EpiphanyProviderProfile::OpenAiCodex => {
@@ -350,7 +349,6 @@ fn record_openai_events(
             &options.session_id,
             &options.job_id,
             intent,
-            &now(),
         )?;
     }
     let mut receipt = None;
@@ -1003,7 +1001,7 @@ pub fn append_requested_public_source_receipts(
         }
         let binding =
             epiphany_core::require_runtime_tool_execution_binding(store_path, &intent.intent_id)?;
-        if binding.job_id != source_worker_job_id || binding.model_request_id.is_some() {
+        if binding.job_id != source_worker_job_id {
             return Err(anyhow!(
                 "requested public source intent {:?} is not owned by worker {:?}",
                 intent.intent_id,
@@ -3386,7 +3384,6 @@ mod tests {
                 created_at: now(),
             },
             &native_request,
-            &now(),
         )?;
         let mut receipt = EpiphanyOpenAiModelReceipt::new("req-1", "gpt-5.4");
         receipt.response_id = Some("resp-1".to_string());
@@ -3489,7 +3486,6 @@ mod tests {
                 created_at: "2026-08-14T00:00:00Z".into(),
             },
             &model_request,
-            "2026-08-14T00:00:00Z",
         )?;
         assert_eq!(
             model_request.output_contract_id.as_deref(),
@@ -3870,7 +3866,6 @@ mod tests {
                 created_at: now(),
             },
             &native_request,
-            &now(),
         )?;
         let mut receipt = EpiphanyOpenAiModelReceipt::new("req-tools", "gpt-5.4");
         receipt.response_id = Some("resp-tools".to_string());
@@ -3904,7 +3899,12 @@ mod tests {
             epiphany_core::require_runtime_tool_execution_binding(&store, &intent_id)?;
         assert_eq!(tool_binding.session_id, options.session_id);
         assert_eq!(tool_binding.job_id, options.job_id);
-        assert_eq!(tool_binding.model_request_id.as_deref(), Some("req-tools"));
+        let tool_intent = cache
+            .get::<EpiphanyToolInvocationIntent>(
+                &epiphany_tool_adapter::tool_invocation_intent_key(&intent_id),
+            )?
+            .expect("tool intent");
+        assert_eq!(tool_intent.model_request_id.as_deref(), Some("req-tools"));
         let mut tool_receipt = EpiphanyToolInvocationReceipt::new(
             "receipt-tool",
             intent_id.clone(),

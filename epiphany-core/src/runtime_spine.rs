@@ -55,7 +55,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v36";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v37";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(type = "epiphany.runtime.identity", schema = "EpiphanyRuntimeIdentity")]
@@ -135,21 +135,11 @@ pub struct EpiphanyRuntimeJob {
 )]
 pub struct EpiphanyRuntimeModelExecutionBinding {
     #[cultcache(key = 1)]
-    pub binding_id: String,
-    #[cultcache(key = 2)]
     pub request_id: String,
-    #[cultcache(key = 3)]
+    #[cultcache(key = 2)]
     pub session_id: String,
-    #[cultcache(key = 4)]
+    #[cultcache(key = 3)]
     pub job_id: String,
-    #[cultcache(key = 5)]
-    pub provider: String,
-    #[cultcache(key = 6)]
-    pub bound_at: String,
-    #[cultcache(key = 7, default)]
-    pub source_worker_job_id: Option<String>,
-    #[cultcache(key = 8, default)]
-    pub reasoning_basis_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -159,17 +149,11 @@ pub struct EpiphanyRuntimeModelExecutionBinding {
 )]
 pub struct EpiphanyRuntimeToolExecutionBinding {
     #[cultcache(key = 1)]
-    pub binding_id: String,
-    #[cultcache(key = 2)]
     pub intent_id: String,
-    #[cultcache(key = 3)]
+    #[cultcache(key = 2)]
     pub session_id: String,
-    #[cultcache(key = 4)]
+    #[cultcache(key = 3)]
     pub job_id: String,
-    #[cultcache(key = 5, default)]
-    pub model_request_id: Option<String>,
-    #[cultcache(key = 6)]
-    pub bound_at: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -1217,7 +1201,6 @@ pub fn open_runtime_model_execution(
     session_options: RuntimeSpineSessionOptions,
     job_options: RuntimeSpineJobOptions,
     model_request: &EpiphanyModelRequest,
-    bound_at: &str,
 ) -> Result<EpiphanyRuntimeModelExecutionBinding> {
     validate_non_empty(&session_options.session_id, "model execution session id")?;
     validate_non_empty(&session_options.objective, "model execution objective")?;
@@ -1235,9 +1218,6 @@ pub fn open_runtime_model_execution(
     }
     validate_non_empty(&model_request.request_id, "model execution request id")?;
     validate_non_empty(&model_request.provider, "model execution provider")?;
-    validate_non_empty(bound_at, "model execution binding time")?;
-    chrono::DateTime::parse_from_rfc3339(bound_at)
-        .map_err(|error| anyhow!("model execution binding time is invalid: {error}"))?;
     let provider_request = epiphany_openai_adapter::request_from_native(model_request);
 
     let store_path = store_path.as_ref();
@@ -1357,14 +1337,9 @@ pub fn open_runtime_model_execution(
         ));
     }
     let binding = EpiphanyRuntimeModelExecutionBinding {
-        binding_id: binding_id.clone(),
         request_id: model_request.request_id.clone(),
         session_id: session.session_id.clone(),
         job_id: job.job_id.clone(),
-        provider: model_request.provider.clone(),
-        bound_at: bound_at.to_string(),
-        source_worker_job_id: model_request.source_worker_job_id.clone(),
-        reasoning_basis_id: model_request.reasoning_basis_id.clone(),
     };
     let identity_envelope = cache
         .get_envelope::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
@@ -1410,7 +1385,6 @@ pub fn put_runtime_tool_execution_intent(
     session_id: &str,
     job_id: &str,
     intent: &EpiphanyToolInvocationIntent,
-    bound_at: &str,
 ) -> Result<EpiphanyRuntimeToolExecutionBinding> {
     validate_non_empty(session_id, "tool execution session id")?;
     validate_non_empty(job_id, "tool execution job id")?;
@@ -1418,9 +1392,6 @@ pub fn put_runtime_tool_execution_intent(
     validate_non_empty(&intent.adapter, "tool execution adapter")?;
     validate_non_empty(&intent.server, "tool execution server")?;
     validate_non_empty(&intent.tool_name, "tool execution tool name")?;
-    chrono::DateTime::parse_from_rfc3339(bound_at)
-        .map_err(|error| anyhow!("tool execution binding time is invalid: {error}"))?;
-
     let store_path = store_path.as_ref();
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
@@ -1500,21 +1471,9 @@ pub fn put_runtime_tool_execution_intent(
                     intent.intent_id
                 )
             })?;
-        if model_binding.request_id != model_request_id
-            || model_binding.session_id != session_id
-            || model_binding.job_id != job_id
-        {
+        if model_binding.session_id != session_id || model_binding.job_id != job_id {
             return Err(anyhow!(
                 "model-derived tool intent {:?} has foreign execution ownership",
-                intent.intent_id
-            ));
-        }
-        let persisted_model_request = cache
-            .get::<EpiphanyModelRequest>(model_request_id)?
-            .ok_or_else(|| anyhow!("model-derived tool intent lost its model request"))?;
-        if persisted_model_request.source_worker_job_id != model_binding.source_worker_job_id {
-            return Err(anyhow!(
-                "model-derived tool intent {:?} has substituted worker provenance",
                 intent.intent_id
             ));
         }
@@ -1534,14 +1493,11 @@ pub fn put_runtime_tool_execution_intent(
         }
     }
     let binding = EpiphanyRuntimeToolExecutionBinding {
-        binding_id: intent.intent_id.clone(),
         intent_id: intent.intent_id.clone(),
         session_id: session_id.to_string(),
         job_id: job_id.to_string(),
-        model_request_id: intent.model_request_id.clone(),
-        bound_at: bound_at.to_string(),
     };
-    replacements.push(cache.prepare_entry(&binding.binding_id, &binding)?.0);
+    replacements.push(cache.prepare_entry(&binding.intent_id, &binding)?.0);
     replacements.push(
         cache
             .prepare_entry(&tool_invocation_intent_key(&intent.intent_id), intent)?
@@ -1577,12 +1533,7 @@ pub(crate) fn validate_runtime_model_execution_binding(
     let job = cache
         .get::<EpiphanyRuntimeJob>(&binding.job_id)?
         .ok_or_else(|| anyhow!("model execution binding {request_id:?} lost its job"))?;
-    if binding.binding_id != request_id
-        || binding.request_id != request_id
-        || binding.provider != native.provider
-        || binding.source_worker_job_id != native.source_worker_job_id
-        || binding.reasoning_basis_id != native.reasoning_basis_id
-        || chrono::DateTime::parse_from_rfc3339(&binding.bound_at).is_err()
+    if binding.request_id != request_id
         || provider != epiphany_openai_adapter::request_from_native(&native)
         || session.status == EpiphanyRuntimeSessionStatus::Archived
         || job.session_id != binding.session_id
@@ -1591,8 +1542,8 @@ pub(crate) fn validate_runtime_model_execution_binding(
             "model execution binding {request_id:?} is not one exact request family"
         ));
     }
-    if let Some(worker_job_id) = binding.source_worker_job_id.as_deref() {
-        let basis_id = binding
+    if let Some(worker_job_id) = native.source_worker_job_id.as_deref() {
+        let basis_id = native
             .reasoning_basis_id
             .as_deref()
             .ok_or_else(|| anyhow!("decision-bearing model execution lost its reasoning basis"))?;
@@ -1636,10 +1587,7 @@ pub(crate) fn validate_runtime_tool_execution_binding(
     let binding = cache
         .get::<EpiphanyRuntimeToolExecutionBinding>(intent_id)?
         .ok_or_else(|| anyhow!("tool execution intent {intent_id:?} is unbound"))?;
-    if binding.binding_id != intent_id
-        || binding.intent_id != intent_id
-        || chrono::DateTime::parse_from_rfc3339(&binding.bound_at).is_err()
-    {
+    if binding.intent_id != intent_id {
         return Err(anyhow!(
             "tool execution intent {intent_id:?} has an invalid binding"
         ));
@@ -1647,7 +1595,7 @@ pub(crate) fn validate_runtime_tool_execution_binding(
     let intent = cache
         .get::<EpiphanyToolInvocationIntent>(&tool_invocation_intent_key(intent_id))?
         .ok_or_else(|| anyhow!("tool execution binding {intent_id:?} lost its intent"))?;
-    if intent.intent_id != intent_id || intent.model_request_id != binding.model_request_id {
+    if intent.intent_id != intent_id {
         return Err(anyhow!(
             "tool execution binding {intent_id:?} disagrees with its intent"
         ));
@@ -1666,13 +1614,9 @@ pub(crate) fn validate_runtime_tool_execution_binding(
         ));
     }
     let _ = validate_governed_source_tool_intent(&cache, &binding.job_id, &intent)?;
-    if let Some(model_request_id) = binding.model_request_id.as_deref() {
-        let model_binding = cache
-            .get::<EpiphanyRuntimeModelExecutionBinding>(model_request_id)?
-            .ok_or_else(|| anyhow!("tool execution binding lost its model execution"))?;
-        if model_binding.session_id != binding.session_id
-            || model_binding.job_id != binding.job_id
-            || model_binding.request_id != model_request_id
+    if let Some(model_request_id) = intent.model_request_id.as_deref() {
+        let model_binding = validate_runtime_model_execution_binding(cache, model_request_id)?;
+        if model_binding.session_id != binding.session_id || model_binding.job_id != binding.job_id
         {
             return Err(anyhow!(
                 "tool execution binding {intent_id:?} has foreign model ownership"
@@ -1712,7 +1656,7 @@ pub fn put_runtime_tool_execution_receipt(
         ));
     }
     let binding_envelope = cache
-        .get_envelope::<EpiphanyRuntimeToolExecutionBinding>(&binding.binding_id)?
+        .get_envelope::<EpiphanyRuntimeToolExecutionBinding>(&binding.intent_id)?
         .ok_or_else(|| anyhow!("tool execution receipt lost its binding envelope"))?;
     let intent_envelope = cache
         .get_envelope::<EpiphanyToolInvocationIntent>(&tool_invocation_intent_key(
@@ -1739,9 +1683,7 @@ pub(crate) fn validate_terminal_tool_execution_family(
     intent: &EpiphanyToolInvocationIntent,
     receipt: &EpiphanyToolInvocationReceipt,
 ) -> Result<()> {
-    if binding.binding_id != intent.intent_id
-        || binding.intent_id != intent.intent_id
-        || binding.model_request_id != intent.model_request_id
+    if binding.intent_id != intent.intent_id
         || intent.schema_id != TOOL_ADAPTER_INVOCATION_INTENT_SCHEMA_ID
         || receipt.schema_id != TOOL_ADAPTER_INVOCATION_RECEIPT_SCHEMA_ID
         || receipt.receipt_id.is_empty()
@@ -1918,9 +1860,17 @@ fn archive_completed_model_session(
         .iter()
         .map(|binding| binding.request_id.clone())
         .collect::<BTreeSet<_>>();
-    let reasoning_basis_ids = model_bindings
+    let native_requests = model_request_ids
         .iter()
-        .filter_map(|binding| binding.reasoning_basis_id.clone())
+        .map(|request_id| {
+            cache
+                .get::<EpiphanyModelRequest>(request_id)?
+                .ok_or_else(|| anyhow!("archived model execution lost native request"))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let reasoning_basis_ids = native_requests
+        .iter()
+        .filter_map(|request| request.reasoning_basis_id.clone())
         .collect::<BTreeSet<_>>();
     for basis_id in &reasoning_basis_ids {
         cache
@@ -1939,25 +1889,22 @@ fn archive_completed_model_session(
             decision_context_ids.insert(context.context_id);
         }
     }
-    if model_bindings
+    if native_requests
         .iter()
-        .any(|binding| binding.source_worker_job_id.is_some())
+        .any(|request| request.source_worker_job_id.is_some())
         && decision_context_ids.is_empty()
     {
         return Err(anyhow!(
             "decision-bearing model session archive requires its terminal context"
         ));
     }
-    for request_id in &model_request_ids {
-        let native_request = cache
-            .get::<EpiphanyModelRequest>(request_id)?
-            .ok_or_else(|| anyhow!("archived model execution lost native request"))?;
+    for native_request in &native_requests {
+        let request_id = &native_request.request_id;
         let provider_request = cache
             .get::<EpiphanyOpenAiModelRequest>(request_id)?
             .ok_or_else(|| anyhow!("archived model execution lost provider request"))?;
-        if native_request.request_id != *request_id
-            || provider_request.request_id != *request_id
-            || provider_request != epiphany_openai_adapter::request_from_native(&native_request)
+        if provider_request.request_id != *request_id
+            || provider_request != epiphany_openai_adapter::request_from_native(native_request)
         {
             return Err(anyhow!(
                 "archived model execution request family is inconsistent"
@@ -2012,13 +1959,10 @@ fn archive_completed_model_session(
         .filter(|binding| binding.session_id == session_id)
         .collect::<Vec<_>>();
     tool_bindings.sort_by(|left, right| left.intent_id.cmp(&right.intent_id));
-    if tool_bindings.iter().any(|binding| {
-        !job_ids.contains(&binding.job_id)
-            || binding
-                .model_request_id
-                .as_ref()
-                .is_some_and(|request_id| !model_request_ids.contains(request_id))
-    }) {
+    if tool_bindings
+        .iter()
+        .any(|binding| !job_ids.contains(&binding.job_id))
+    {
         return Err(anyhow!(
             "runtime session archive found foreign tool execution ownership"
         ));
@@ -2043,6 +1987,18 @@ fn archive_completed_model_session(
         ));
     }
     for binding in &tool_bindings {
+        let intent = cache
+            .get::<EpiphanyToolInvocationIntent>(&tool_invocation_intent_key(&binding.intent_id))?
+            .ok_or_else(|| anyhow!("runtime session archive lost a tool intent"))?;
+        if intent
+            .model_request_id
+            .as_ref()
+            .is_some_and(|request_id| !model_request_ids.contains(request_id))
+        {
+            return Err(anyhow!(
+                "runtime session archive found foreign tool execution ownership"
+            ));
+        }
         require_runtime_tool_execution_binding(store_path, &binding.intent_id)?;
         let receipt = cache
             .get::<EpiphanyToolInvocationReceipt>(&tool_invocation_receipt_key(&binding.intent_id))?
@@ -2074,7 +2030,7 @@ fn archive_completed_model_session(
     for binding in &model_bindings {
         retired_identities.insert((
             EpiphanyRuntimeModelExecutionBinding::TYPE.to_string(),
-            binding.binding_id.clone(),
+            binding.request_id.clone(),
         ));
         retired_identities.insert((
             EpiphanyModelRequest::TYPE.to_string(),
@@ -2107,7 +2063,7 @@ fn archive_completed_model_session(
     for binding in &tool_bindings {
         retired_identities.insert((
             EpiphanyRuntimeToolExecutionBinding::TYPE.to_string(),
-            binding.binding_id.clone(),
+            binding.intent_id.clone(),
         ));
         retired_identities.insert((
             EpiphanyToolInvocationIntent::TYPE.to_string(),
@@ -2782,7 +2738,6 @@ pub fn put_runtime_requested_public_source_intents(
                 || existing_binding.intent_id != intent_id
                 || existing_binding.job_id != worker_job_id
                 || existing_binding.session_id != job.session_id
-                || existing_binding.model_request_id.is_some()
             {
                 return Err(anyhow!(
                     "requested public source intent {intent_id:?} collides with foreign authority"
@@ -2800,13 +2755,7 @@ pub fn put_runtime_requested_public_source_intents(
             ));
         }
         drop(cache);
-        put_runtime_tool_execution_intent(
-            store_path,
-            &job.session_id,
-            worker_job_id,
-            &intent,
-            created_at,
-        )?;
+        put_runtime_tool_execution_intent(store_path, &job.session_id, worker_job_id, &intent)?;
         intents.push(intent);
     }
     Ok(intents)
@@ -2942,24 +2891,24 @@ fn authenticated_public_source_lookup_receipts_for_worker(
         return Err(anyhow!("public source evidence is Eyes-owned"));
     }
     let model_request_ids = cache
-        .get_all::<EpiphanyRuntimeModelExecutionBinding>()?
+        .get_all::<EpiphanyModelRequest>()?
         .into_iter()
-        .filter(|binding| binding.source_worker_job_id.as_deref() == Some(worker_job_id))
-        .map(|binding| binding.request_id)
+        .filter(|request| request.source_worker_job_id.as_deref() == Some(worker_job_id))
+        .map(|request| request.request_id)
         .collect::<BTreeSet<_>>();
     let mut lookups = Vec::new();
     for binding in cache.get_all::<EpiphanyRuntimeToolExecutionBinding>()? {
-        let model_owned = binding
-            .model_request_id
-            .as_deref()
-            .is_some_and(|model_request_id| model_request_ids.contains(model_request_id));
-        let request_owned = binding.model_request_id.is_none() && binding.job_id == worker_job_id;
-        if !model_owned && !request_owned {
-            continue;
-        }
         let intent = cache
             .get::<EpiphanyToolInvocationIntent>(&tool_invocation_intent_key(&binding.intent_id))?
             .ok_or_else(|| anyhow!("public source tool binding lost its intent"))?;
+        let model_owned = intent
+            .model_request_id
+            .as_deref()
+            .is_some_and(|model_request_id| model_request_ids.contains(model_request_id));
+        let request_owned = intent.model_request_id.is_none() && binding.job_id == worker_job_id;
+        if !model_owned && !request_owned {
+            continue;
+        }
         if intent.server != "epiphany_public" || intent.tool_name != "github_file" {
             continue;
         }
@@ -3093,15 +3042,15 @@ fn governed_source_tool_authority(
         crate::substrate_gate_operation_for_governed_tool(&intent.server, &intent.tool_name);
     let source_worker_job_id = match intent.model_request_id.as_deref() {
         Some(model_request_id) => {
-            let model_binding = cache
-                .get::<EpiphanyRuntimeModelExecutionBinding>(model_request_id)?
+            let model_request = cache
+                .get::<EpiphanyModelRequest>(model_request_id)?
                 .ok_or_else(|| {
                     anyhow!(
-                        "model-derived tool intent {:?} has no execution binding",
+                        "model-derived tool intent {:?} has no native request",
                         intent.intent_id
                     )
                 })?;
-            match model_binding.source_worker_job_id {
+            match model_request.source_worker_job_id {
                 Some(worker_job_id) => Some(worker_job_id),
                 None if required_operation.is_some() => {
                     return Err(anyhow!(
@@ -3437,7 +3386,6 @@ fn terminal_worker_request_id(cache: &CultCache, worker_job_id: &str) -> Result<
     let bindings = cache
         .get_all::<EpiphanyRuntimeModelExecutionBinding>()?
         .into_iter()
-        .filter(|binding| binding.source_worker_job_id.as_deref() == Some(worker_job_id))
         .map(|binding| {
             let validated = validate_runtime_model_execution_binding(cache, &binding.request_id)?;
             let job = cache
@@ -3446,9 +3394,15 @@ fn terminal_worker_request_id(cache: &CultCache, worker_job_id: &str) -> Result<
             let request = cache
                 .get::<EpiphanyModelRequest>(&validated.request_id)?
                 .ok_or_else(|| anyhow!("worker model execution lost its native request"))?;
-            Ok((validated, job, request))
+            Ok(
+                (request.source_worker_job_id.as_deref() == Some(worker_job_id))
+                    .then_some((validated, job, request)),
+            )
         })
-        .collect::<Result<Vec<_>>>()?;
+        .collect::<Result<Vec<_>>>()?
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
     if bindings.is_empty() {
         return Ok(None);
     }
@@ -3683,9 +3637,9 @@ fn commit_runtime_worker_process_death(
         expected.extend([context_envelope.clone(), failure_envelope.clone()]);
         unchanged_strong_reads.extend([context_envelope, failure_envelope]);
     } else if cache
-        .get_all::<EpiphanyRuntimeModelExecutionBinding>()?
+        .get_all::<EpiphanyModelRequest>()?
         .iter()
-        .any(|binding| binding.source_worker_job_id.as_deref() == Some(job_id))
+        .any(|request| request.source_worker_job_id.as_deref() == Some(job_id))
     {
         return Err(anyhow!(
             "model-backed worker death cannot terminalize without its exact context"
