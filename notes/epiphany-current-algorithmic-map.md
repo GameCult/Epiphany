@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `0091e0e1` on `codex/epiphany-shakedown-live`
-Current worktree cut: documentation/evidence for unread adapter-status deletion;
+Latest committed implementation cut: `2e3489c4` on `codex/epiphany-shakedown-live`
+Current worktree cut: documentation/evidence for generic planning-mirror deletion;
 Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -333,6 +333,15 @@ identity remains in the exact native and provider requests; credential and
 transport attachment is proved where the transport is constructed and used.
 Runtime epoch v23 refuses v22 stores. The local published catalog now contains
 twenty live or portable contracts.
+
+Mind no longer contains a second, uninhabited planning ontology. Exact
+`2e3489c4` removes planning-capture, backlog-item, roadmap-stream, and
+objective-draft document families plus their 256-line generic state-model
+vocabulary. No live path could construct or admit one, so every reasoning
+projection received the same empty structure. Frontier planning requests,
+candidates, Mind review, adopted decisions, checkpoints, and consequence
+receipts remain the sole planning lifecycle. Mind/runtime epochs v9/v24 refuse
+the retired writable shape.
 
 Bifrost owns its private feedback-signing identity. Exact `94098223` deletes
 Epiphany's host-identity executable and the private signer, persisted identity,

@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `0091e0e1`
-Current worktree: documentation/evidence for unread adapter-status deletion;
+Latest committed implementation cut: `2e3489c4`
+Current worktree: documentation/evidence for generic planning-mirror deletion;
 Ox17 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `0091e0e1` is the current
+production symlink body and is inactive. Exact `2e3489c4` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,18 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `2e3489c4` deletes the empty generic planning mirror. Four registered Mind
+document families—planning captures, backlog items, roadmap streams, and
+objective drafts—had no constructor, writer, admission owner, or consumer, yet
+were read and injected empty into every reasoning projection. Their document
+types, registry/validation/projection branches, reasoning field, and 256-line
+issue-tracker-shaped state-model vocabulary are gone. Real planning remains in
+frontier planning requests, candidates, Mind review, adopted decisions,
+checkpoints, Hands receipts, and their exact admission paths. Mind/runtime
+writable epochs advance to v9/v24. State model and core compile; sealed
+reasoning 8/8, old-epoch refusal, model runtime 23/23, and coordinator 5/5 pass.
+The cut removes 350 net maintained lines without touching Atlas.
 
 Exact `0091e0e1` deletes the generic model-adapter and OpenAI-adapter status
 families. Every model pass wrote both mutable documents, but no query, router,
@@ -150,7 +162,7 @@ the live resident fields. Runtime writable state advances to v20. JSON schemas
 parse; core check, old-epoch refusal, coordinator 5/5, and swarm 4/4 pass. The
 cut removes 59 maintained lines and leaves `runtime_spine.rs` at 9,807 lines.
 
-Continue the registered-type and test-liability audit after exact `0091e0e1`. Model Atlas remains protected
+Continue the registered-type and test-liability audit after exact `2e3489c4`. Model Atlas remains protected
 for its first live inter-swarm collaboration trial.
 
 Exact `3ed1d564` deletes the public
