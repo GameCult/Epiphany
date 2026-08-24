@@ -2472,7 +2472,6 @@ mod tests {
             agent_pass_admission_refusals: Vec::new(),
             investigation_checkpoint: None,
             mode: None,
-            planning: Default::default(),
             repository_body_observation: None,
             repo_model: None,
         };

@@ -3,17 +3,15 @@ use std::path::Path;
 use anyhow::{Result, anyhow};
 use cultcache_rs::{CultCache, CultCacheEnvelope, DatabaseEntry};
 use epiphany_state_model::{
-    EpiphanyBacklogItem, EpiphanyEvidenceRecord, EpiphanyInvariant,
-    EpiphanyInvestigationCheckpoint, EpiphanyModeState, EpiphanyObjectiveDraft,
-    EpiphanyObservation, EpiphanyPlanningCapture, EpiphanyPlanningState, EpiphanyRoadmapStream,
-    EpiphanySubgoal,
+    EpiphanyEvidenceRecord, EpiphanyInvariant, EpiphanyInvestigationCheckpoint,
+    EpiphanyModeState, EpiphanyObservation, EpiphanySubgoal,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::{EpiphanyMindDocumentVersion, runtime_spine_cache};
 
-pub const MIND_SCHEMA_EPOCH: &str = "epiphany.mind.epoch.v8";
+pub const MIND_SCHEMA_EPOCH: &str = "epiphany.mind.epoch.v9";
 pub const MIND_OBJECTIVE_KEY: &str = "objective";
 pub const MIND_FOCUS_KEY: &str = "focus";
 pub const MIND_MODE_KEY: &str = "mode";
@@ -297,46 +295,6 @@ pub struct EpiphanyMindInvestigationCheckpointDocument {
     pub value: EpiphanyInvestigationCheckpoint,
 }
 
-#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.mind.planning_capture.v1",
-    schema = "EpiphanyMindPlanningCaptureDocument"
-)]
-pub struct EpiphanyMindPlanningCaptureDocument {
-    #[cultcache(key = 0)]
-    pub value: EpiphanyPlanningCapture,
-}
-
-#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.mind.backlog_item.v1",
-    schema = "EpiphanyMindBacklogItemDocument"
-)]
-pub struct EpiphanyMindBacklogItemDocument {
-    #[cultcache(key = 0)]
-    pub value: EpiphanyBacklogItem,
-}
-
-#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.mind.roadmap_stream.v1",
-    schema = "EpiphanyMindRoadmapStreamDocument"
-)]
-pub struct EpiphanyMindRoadmapStreamDocument {
-    #[cultcache(key = 0)]
-    pub value: EpiphanyRoadmapStream,
-}
-
-#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.mind.objective_draft.v1",
-    schema = "EpiphanyMindObjectiveDraftDocument"
-)]
-pub struct EpiphanyMindObjectiveDraftDocument {
-    #[cultcache(key = 0)]
-    pub value: EpiphanyObjectiveDraft,
-}
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct EpiphanyMindView {
     pub schema_epoch: String,
@@ -356,7 +314,6 @@ pub struct EpiphanyMindView {
     pub agent_pass_admission_refusals: Vec<crate::EpiphanyAgentPassAdmissionRefusal>,
     pub investigation_checkpoint: Option<EpiphanyInvestigationCheckpoint>,
     pub mode: Option<EpiphanyModeState>,
-    pub planning: EpiphanyPlanningState,
     pub repository_body_observation: Option<crate::RepositoryBodyObservationBasis>,
     pub repo_model: Option<crate::EpiphanyRepoModelView>,
 }
@@ -376,10 +333,6 @@ pub(crate) fn register_mind_document_types(cache: &mut CultCache) -> Result<()> 
     cache.register_entry_type::<crate::EpiphanyMindReorientationDecisionDocument>()?;
     cache.register_entry_type::<crate::EpiphanyMindReorientationPassFailureDocument>()?;
     cache.register_entry_type::<EpiphanyMindInvestigationCheckpointDocument>()?;
-    cache.register_entry_type::<EpiphanyMindPlanningCaptureDocument>()?;
-    cache.register_entry_type::<EpiphanyMindBacklogItemDocument>()?;
-    cache.register_entry_type::<EpiphanyMindRoadmapStreamDocument>()?;
-    cache.register_entry_type::<EpiphanyMindObjectiveDraftDocument>()?;
     cache.register_entry_type::<EpiphanyMindRepositoryBodyObservationDocument>()?;
     crate::repo_model_documents::register_repo_model_document_types(cache)?;
     cache.register_entry_type::<crate::RepoFrontierPlanDecisionReceipt>()?;
@@ -524,22 +477,6 @@ pub(crate) fn validate_mind_write_envelope(envelope: &CultCacheEnvelope) -> Resu
         rmp_serde::from_slice::<EpiphanyMindInvestigationCheckpointDocument>(&envelope.payload)?
             .value
             .checkpoint_id
-    } else if envelope.r#type == EpiphanyMindPlanningCaptureDocument::TYPE {
-        rmp_serde::from_slice::<EpiphanyMindPlanningCaptureDocument>(&envelope.payload)?
-            .value
-            .id
-    } else if envelope.r#type == EpiphanyMindBacklogItemDocument::TYPE {
-        rmp_serde::from_slice::<EpiphanyMindBacklogItemDocument>(&envelope.payload)?
-            .value
-            .id
-    } else if envelope.r#type == EpiphanyMindRoadmapStreamDocument::TYPE {
-        rmp_serde::from_slice::<EpiphanyMindRoadmapStreamDocument>(&envelope.payload)?
-            .value
-            .id
-    } else if envelope.r#type == EpiphanyMindObjectiveDraftDocument::TYPE {
-        rmp_serde::from_slice::<EpiphanyMindObjectiveDraftDocument>(&envelope.payload)?
-            .value
-            .id
     } else if envelope.r#type == EpiphanyMindRepositoryBodyObservationDocument::TYPE {
         let value: EpiphanyMindRepositoryBodyObservationDocument =
             rmp_serde::from_slice(&envelope.payload)?;
@@ -599,14 +536,6 @@ pub fn assemble_mind_view(store_path: impl AsRef<Path>) -> Result<EpiphanyMindVi
     }
     let checkpoints =
         values::<EpiphanyMindInvestigationCheckpointDocument, _>(&cache, |value| value.value)?;
-    let mut captures =
-        values::<EpiphanyMindPlanningCaptureDocument, _>(&cache, |value| value.value)?;
-    let mut backlog_items =
-        values::<EpiphanyMindBacklogItemDocument, _>(&cache, |value| value.value)?;
-    let mut roadmap_streams =
-        values::<EpiphanyMindRoadmapStreamDocument, _>(&cache, |value| value.value)?;
-    let mut objective_drafts =
-        values::<EpiphanyMindObjectiveDraftDocument, _>(&cache, |value| value.value)?;
     let mut body_observations = cache.get_all::<EpiphanyMindRepositoryBodyObservationDocument>()?;
     for observation in &body_observations {
         observation.validate()?;
@@ -642,10 +571,6 @@ pub fn assemble_mind_view(store_path: impl AsRef<Path>) -> Result<EpiphanyMindVi
     reorientation_decisions.sort_by(|left, right| left.decision_id.cmp(&right.decision_id));
     reorientation_failures.sort_by(|left, right| left.failure_id.cmp(&right.failure_id));
     agent_pass_admission_refusals.sort_by(|left, right| left.refusal_id.cmp(&right.refusal_id));
-    captures.sort_by(|left, right| left.id.cmp(&right.id));
-    backlog_items.sort_by(|left, right| left.id.cmp(&right.id));
-    roadmap_streams.sort_by(|left, right| left.id.cmp(&right.id));
-    objective_drafts.sort_by(|left, right| left.id.cmp(&right.id));
     let investigation_checkpoint = match focus
         .as_ref()
         .and_then(|document| document.investigation_checkpoint_id.as_deref())
@@ -690,13 +615,6 @@ pub fn assemble_mind_view(store_path: impl AsRef<Path>) -> Result<EpiphanyMindVi
         agent_pass_admission_refusals,
         investigation_checkpoint,
         mode,
-        planning: EpiphanyPlanningState {
-            workspace_root: None,
-            captures,
-            backlog_items,
-            roadmap_streams,
-            objective_drafts,
-        },
         repository_body_observation,
         repo_model,
     })
@@ -732,10 +650,6 @@ fn canonical_mind_versions(
                     | crate::EpiphanyMindReorientationPassFailureDocument::TYPE
                     | crate::EpiphanyAgentPassAdmissionRefusal::TYPE
                     | EpiphanyMindInvestigationCheckpointDocument::TYPE
-                    | EpiphanyMindPlanningCaptureDocument::TYPE
-                    | EpiphanyMindBacklogItemDocument::TYPE
-                    | EpiphanyMindRoadmapStreamDocument::TYPE
-                    | EpiphanyMindObjectiveDraftDocument::TYPE
                     | EpiphanyMindRepositoryBodyObservationDocument::TYPE
             )
         })

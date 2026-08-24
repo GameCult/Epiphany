@@ -118,7 +118,6 @@ pub struct EpiphanyMindPromptProjection {
     pub agent_pass_admission_refusals: Vec<crate::EpiphanyAgentPassAdmissionRefusal>,
     pub investigation_checkpoint: Option<epiphany_state_model::EpiphanyInvestigationCheckpoint>,
     pub mode: Option<epiphany_state_model::EpiphanyModeState>,
-    pub planning: epiphany_state_model::EpiphanyPlanningState,
     pub repository_body_observation: Option<crate::RepositoryBodyObservationBasis>,
     pub repo_model: Option<EpiphanyRepoModelPromptProjection>,
 }
@@ -141,7 +140,6 @@ impl From<crate::EpiphanyMindView> for EpiphanyMindPromptProjection {
             agent_pass_admission_refusals: value.agent_pass_admission_refusals,
             investigation_checkpoint: value.investigation_checkpoint,
             mode: value.mode,
-            planning: value.planning,
             repository_body_observation: value.repository_body_observation,
             repo_model: value.repo_model.map(Into::into),
         }
@@ -2005,7 +2003,6 @@ mod tests {
                 agent_pass_admission_refusals: Vec::new(),
                 investigation_checkpoint: None,
                 mode: None,
-                planning: Default::default(),
                 repository_body_observation: None,
                 repo_model: None,
             },
