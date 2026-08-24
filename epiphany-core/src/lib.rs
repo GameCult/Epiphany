@@ -122,7 +122,7 @@ pub use idunn_provider_health::{
     EPIPHANY_IDUNN_PROVIDER_HEALTH_ADMISSION_SCHEMA, EPIPHANY_IDUNN_PROVIDER_HEALTH_ADMISSION_TYPE,
     IdunnProviderHealthAdmission, ProviderReleaseBinding, RequiredProviderHealth,
     admit_required_idunn_provider_health, provider_health_record_key,
-    read_idunn_provider_health_trust_anchor, required_idunn_provider_health_query,
+    required_idunn_provider_health_query,
     verify_idunn_provider_health_candidate,
 };
 pub use idunn_runtime_health::{
@@ -162,7 +162,7 @@ pub use packaged_release::{
     EpiphanyPackagedReleaseEntry, EpiphanyPackagedReleaseHead, PackageReleaseRequest,
     authenticate_epiphany_packaged_release, epiphany_packaged_release_binary_path,
     epiphany_packaged_release_witness_sha256, inspect_epiphany_packaged_release_witness,
-    load_epiphany_packaged_release, load_epiphany_packaged_release_head, package_epiphany_release,
+    load_epiphany_packaged_release, package_epiphany_release,
     publish_epiphany_packaged_release, read_epiphany_packaged_release_witness,
     required_packaged_release_binaries, validate_epiphany_packaged_release,
     verify_epiphany_packaged_release_files, write_epiphany_packaged_release_witness,

@@ -61,13 +61,6 @@ pub fn load_epiphany_packaged_release(
         .get(&format!("{RELEASE_KEY_PREFIX}{release_id}"))
 }
 
-pub fn load_epiphany_packaged_release_head(
-    store: &Path,
-    runtime_id: &str,
-) -> Result<Option<EpiphanyPackagedReleaseHead>> {
-    open_epiphany_cultmesh_node(store, runtime_id.to_string())?.get(RELEASE_HEAD_KEY)
-}
-
 pub fn authenticate_epiphany_packaged_release(
     store: &Path,
     runtime_id: &str,

@@ -107,22 +107,6 @@ pub struct IdunnProviderHealthAdmission {
     pub trust_anchor_bound_at_unix_millis: u64,
 }
 
-pub fn read_idunn_provider_health_trust_anchor(
-    path: &Path,
-) -> Result<GameCultServiceTrustAnchorRecord> {
-    let rows = SingleFileMessagePackBackingStore::new(path).pull_all_read_only_snapshot()?;
-    if rows.len() != 1 {
-        bail!("Idunn provider-health trust anchor store must contain exactly one row");
-    }
-    let row = &rows[0];
-    if row.r#type != GameCultServiceTrustAnchorRecord::TYPE {
-        bail!("Idunn provider-health trust anchor store contains foreign authority");
-    }
-    let anchor: GameCultServiceTrustAnchorRecord = rmp_serde::from_slice(&row.payload)?;
-    anchor.validate()?;
-    Ok(anchor)
-}
-
 pub fn provider_health_record_key(daemon_id: &str, health_contract: &str) -> String {
     format!(
         "provider-health:{:x}",
