@@ -250,13 +250,19 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    outcomes remain their sole owners; failure physiology retains its terse
    summary, next move, completion time, verdict, and optional context. Runtime
    is v43; 51 maintained lines are removed net.
-44. Next: audit the remaining generic summary, next-move, completion-time, and
-   context cargo separately for structured outcomes, typed model failures,
-   transport completion, and process death. Preserve the only typed failure
-   account; delete mirrors where an exact owner already exists.
-45. Continue the public runtime-spine and test-liability audit by live owner
+44. Done: exact `8eaa96c5` stops persisting generic job results when an exact
+   typed role/reorientation outcome exists. Job/process terminalization CAS
+   strong-reads and byte-identically replays that structured envelope. Fulfilled
+   archives retain context plus the full typed result, not a generic companion.
+   Runtime is v44 and archived attempts are v3. The source delta is +7 lines for
+   the exact CAS fence while deleting the durable duplicate authority.
+45. Next: determine whether the residual generic result contract can disappear
+   entirely. Map model transport to its native receipt/failure, model-backed
+   outer failure to EpiphanyModelPassFailure, process death to its exact claim,
+   and reorientation failure to its context/model failure before cutting it.
+46. Continue the public runtime-spine and test-liability audit by live owner
    and consequential invariant. Do not subtract the unrun Atlas vertical slice;
    no inter-swarm collaboration has yet been exercised. Streamline it only
    around its one end-to-end authority map.
-46. Run focused tests after each cut. Only after source subtraction stabilizes
+47. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.

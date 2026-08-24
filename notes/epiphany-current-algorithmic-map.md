@@ -1103,6 +1103,13 @@ outcome that authored them. Generic transport/process physiology retains
 verdict, terse summary and next move, completion time, and optional exact
 decision-context identity. Runtime writable state is v43.
 
+Exact `8eaa96c5` removes the generic terminal document itself from structured
+worker completion. A typed role/reorientation outcome is strong-read and
+byte-identically replayed in the same CAS that terminalizes its job and process
+claim. Fulfilled archives carry context plus the full typed role result, not a
+generic companion. Generic results now exist only where no structured outcome
+exists. Runtime writable state is v44; archived worker attempts are v3.
+
 The sealed typed launch owns exact live request association. The terminal role
 result owns only semantic decision cargo or typed failure. The archived attempt
 owns historical request kind/ID and typed terminal classification after the

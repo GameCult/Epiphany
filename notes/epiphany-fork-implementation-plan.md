@@ -844,6 +844,14 @@ Cut in this order:
    needed where no structured outcome exists. Runtime is v43; 51 maintained
    lines are removed net. Next audit remaining summary, next-move, time, and
    context cargo by terminal family.
+52. **Structured decisions have one durable owner at `8eaa96c5`:** completing a
+   typed role/reorientation outcome no longer persists a generic result copy.
+   The exact typed envelope is a byte-identical strong dependency in the atomic
+   job/process terminalization CAS. Fulfilled archives retain the context and
+   full typed role result only. Runtime is v44; archived attempts are v3. The
+   source delta is +7 lines for the CAS fence while one durable duplicate family
+   disappears. Next determine whether the residual failure/transport result
+   contract can be deleted entirely.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,

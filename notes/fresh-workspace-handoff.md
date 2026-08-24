@@ -177,6 +177,19 @@ coordinator, and release model-runtime checks pass. The cut removes 51
 maintained lines net. Verification generated 3.654 GiB across 4,759 files;
 Cargo cleanup restored only the authenticated 1,776,640-byte state inspector.
 
+Exact `8eaa96c5` stops persisting generic job-result documents for structured
+role/reorientation outcomes. Runtime completion includes the exact structured
+envelope as a byte-identical strong dependency in the same job/process CAS.
+Fulfilled worker archives retain decision context plus the full typed role
+result, without a generic companion; coordinator reorientation success requires
+the typed reorientation result. Runtime advances to v44 and archived worker
+attempts to v3. Keyed lifecycle, decision audit, model-failure audit,
+reorientation, typed role admission, Persona replay, runtime-error/tool-loop
+failure, release coordinator, and release model-runtime checks pass. The source
+delta is +7 maintained lines because the exact CAS fence replaces a larger
+durable duplication. Verification generated 5.632 GiB across 6,826 files;
+Cargo cleanup restored only the authenticated 1,776,640-byte state inspector.
+
 Exact `a6cf9383` quarantines concrete Codex/OpenRouter authentication,
 credential reading, and network transport at the two release entrypoints that
 perform inference. `epiphany-openai-runtime` now owns only exact native-request
