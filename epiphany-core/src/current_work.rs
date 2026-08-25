@@ -4405,34 +4405,34 @@ mod tests {
             substrate_grant_receipt_id: grant.receipt_id.clone(),
         };
         crate::put_repo_frontier_hands_authority(&store, &hands_authority)?;
-        let hands_patch = crate::hands_patch_receipt_for_intent(
-            "hands-patch-verification-fixture".into(),
-            &intent,
-            route.authorized_paths.clone(),
-            "Applied the exact bounded change.".into(),
-            "2026-08-17T00:00:14.400Z".into(),
-        );
+        let hands_patch = crate::HandsPatchReceipt {
+            receipt_id: "hands-patch-verification-fixture".into(),
+            intent_id: intent.intent_id.clone(),
+            changed_paths: route.authorized_paths.clone(),
+            summary: "Applied the exact bounded change.".into(),
+            emitted_at: "2026-08-17T00:00:14.400Z".into(),
+        };
         crate::put_hands_patch_receipt(&store, &hands_patch)?;
-        let hands_command = crate::hands_command_receipt_for_intent(
-            "hands-command-verification-fixture".into(),
-            &intent,
-            "cargo test exact-verification-fixture".into(),
-            "0".into(),
-            "verification.stdout".into(),
-            "verification.stderr".into(),
-            "The bounded command passed.".into(),
-            "2026-08-17T00:00:14.500Z".into(),
-        );
+        let hands_command = crate::HandsCommandReceipt {
+            receipt_id: "hands-command-verification-fixture".into(),
+            intent_id: intent.intent_id.clone(),
+            command: "cargo test exact-verification-fixture".into(),
+            exit_code: "0".into(),
+            stdout_artifact: "verification.stdout".into(),
+            stderr_artifact: "verification.stderr".into(),
+            summary: "The bounded command passed.".into(),
+            emitted_at: "2026-08-17T00:00:14.500Z".into(),
+        };
         crate::put_hands_command_receipt(&store, &hands_command)?;
-        let hands_commit = crate::hands_commit_receipt_for_intent(
-            "hands-commit-verification-fixture".into(),
-            &intent,
-            "0123456789abcdef0123456789abcdef01234567".into(),
-            "codex/verification-fixture".into(),
-            route.authorized_paths.clone(),
-            "Committed the exact bounded consequence.".into(),
-            "2026-08-17T00:00:14.600Z".into(),
-        );
+        let hands_commit = crate::HandsCommitReceipt {
+            receipt_id: "hands-commit-verification-fixture".into(),
+            intent_id: intent.intent_id.clone(),
+            commit_sha: "0123456789abcdef0123456789abcdef01234567".into(),
+            branch: "codex/verification-fixture".into(),
+            changed_paths: route.authorized_paths.clone(),
+            summary: "Committed the exact bounded consequence.".into(),
+            emitted_at: "2026-08-17T00:00:14.600Z".into(),
+        };
         let ambiguous_hands_store = temp.path().join("ambiguous-hands.cc");
         std::fs::copy(&store, &ambiguous_hands_store)?;
         let mut duplicate_patch = hands_patch.clone();
