@@ -7,7 +7,6 @@ pub mod coordinator_status;
 mod cultmesh_integration;
 mod current_work;
 mod hands_gateway;
-mod idunn_provider_health;
 mod imagination_consideration;
 mod memory_graph;
 mod mind_documents;
@@ -101,13 +100,6 @@ pub use cultmesh_integration::{
 
 pub use current_work::*;
 pub use hands_gateway::*;
-pub use idunn_provider_health::{
-    EPIPHANY_IDUNN_PROVIDER_HEALTH_ADMISSION_SCHEMA, EPIPHANY_IDUNN_PROVIDER_HEALTH_ADMISSION_TYPE,
-    IdunnProviderHealthAdmission, ProviderReleaseBinding, RequiredProviderHealth,
-    admit_required_idunn_provider_health, provider_health_record_key,
-    required_idunn_provider_health_query,
-    verify_idunn_provider_health_candidate,
-};
 pub use imagination_consideration::{
     CANDIDATE_CONTRACT as IMAGINATION_CONSIDERATION_CANDIDATE_CONTRACT,
     CANDIDATE_SCHEMA as IMAGINATION_CONSIDERATION_CANDIDATE_SCHEMA_VERSION,
