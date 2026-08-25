@@ -2,10 +2,10 @@
 
 Updated: 2026-08-25
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany source cut: `f962c0bc`
+Latest committed Epiphany source cut: `d0a317bd`
 Current connector source: `6dc80f6d266db4d82566d2434adcc55a48e8ecad`
-Current pass: resident readiness has one decision owner; audit the five
-one-caller current-work review-ID wrappers next.
+Current pass: family review uses one current-work snapshot; collapse the five
+duplicated coordinator review consequence branches next.
 Ox17 and Atlas Gate 1 remain paused
 
 ## Orientation
@@ -17,7 +17,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `f962c0bc` is the current
+production symlink body and is inactive. Exact `d0a317bd` is the current
 build-affecting source on this branch. Historical live proofs remain evidence;
 they do not authorize the next capstone or Gate 1.
 
@@ -46,6 +46,17 @@ they do not authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `d0a317bd` deletes the five public one-caller family review-job-ID
+wrappers. The coordinator now pulls one typed current-work projection for the
+entire review dispatch and retains the existing Research, Verification,
+proposal Modeling, Body Modeling, and frontier-verdict Modeling priority.
+`EpiphanyAgentPassAttemptProjection::review_job_id` owns the shared rule that
+only a Review attempt exposes its job identity. No generic registry or
+admission path was added. The cut removes 33 maintained lines net. Current-work
+tests pass 3/3 and the release-owned coordinator checks cleanly. Verification
+generated 1.451 GiB across 2,554 files; cleanup restored the exact authenticated
+state inspector.
 
 Exact `f962c0bc` deletes `ResidentProviderHealth`,
 `authenticate_resident_provider`, the dead `provider_matches_authority`

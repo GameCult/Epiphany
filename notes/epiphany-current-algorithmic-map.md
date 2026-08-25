@@ -809,6 +809,13 @@ concrete failed predicates through `provider_is_fresh`. The dead boolean
 wrapper and duplicate release/freshness/owner test are gone; exact predicate,
 clock-skew, release/process/brake, CAS, and private-state proofs remain.
 
+Exact `d0a317bd` removes five one-caller review-job-ID wrappers. One coordinator
+review dispatch pulls one current-work snapshot and derives Research,
+Verification, proposal Modeling, Body Modeling, or frontier-verdict Modeling
+identity from that same state. The shared attempt projection exposes its job ID
+only for Review; every family still enters its own exact result and admission
+owner. No generic role registry or second scheduling projection exists.
+
 ## Canonical authority map
 
 | Owner | Inputs | Outputs | Invariant |

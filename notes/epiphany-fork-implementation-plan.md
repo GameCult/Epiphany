@@ -242,12 +242,22 @@ its dead boolean predicate wrapper, and one duplicate test while preserving the
 single live readiness path and its exact failed-predicate evidence. Audit the
 five one-caller current-work review-ID wrappers next: derive review identity
 from one already-owned projection if the coordinator has it, and delete the
-repeated store reads instead of introducing a generic review registry.
+repeated store reads instead of introducing a generic review registry. Exact
+`d0a317bd` lands that cut. Continue through the adjacent five duplicated review
+consequence branches: select one private typed family target, execute the common
+result/stop/admit/status skeleton once, and retain family-specific admission
+without adding persisted or registry state.
 
 Resident startup now has one health decision. `derive_resident_cognition_readiness`
 loads the exact provider row, probes the process singleton, and obtains the
 concrete failed authority predicates through `provider_is_fresh`. No parallel
 aggregate or boolean wrapper can reinterpret those facts for another caller.
+
+Coordinator family review now consumes one `EpiphanyCurrentWorkProjection`.
+Five path-based job-ID APIs are gone; the shared attempt projection exposes a
+job ID only in Review state. Research keeps its specialized lifecycle and the
+three Modeling families keep their established priority. The remaining repeated
+result-read/operator-stop/admission blocks are the next DRY liability.
 
 Preserve exact provider-request sealing, the lean Connector client ABI,
 OpenRouter's separate temporary release edge, keyed Mind audit/CAS guarantees,
