@@ -829,6 +829,10 @@ Self exposes no generic terminal-receipt reader; the consequential verifier
 reads the exact typed envelope. RepoModel basis currentness is checked through
 the cache-owned complete-view validator, with no second path-based assembler.
 
+Exact `e7b66b35` makes causal request-ID construction an internal Core organ.
+The six family functions still share the one length-framed SHA-256 primitive;
+the crate root carries them only at crate visibility, not as downstream ABI.
+
 ## Canonical authority map
 
 | Owner | Inputs | Outputs | Invariant |

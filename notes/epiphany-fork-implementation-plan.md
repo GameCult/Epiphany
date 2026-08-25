@@ -254,6 +254,10 @@ the terminal-receipt proof now reads the typed envelope in its test, RepoModel
 currentness uses the live cache validator, and resident readiness internals are
 private. Continue at the crate-root export boundary; deterministic causal-ID
 helpers used only inside Core should not masquerade as a public library API.
+Exact `e7b66b35` demotes that entire causal-ID surface without changing the
+digest law. Continue the same class audit through internal prompt rendering,
+supersession, and Resident Self policy/completion helpers; keep entrypoints that
+are actually consumed by release binaries or sibling packages public.
 
 Resident startup now has one health decision. `derive_resident_cognition_readiness`
 loads the exact provider row, probes the process singleton, and obtains the

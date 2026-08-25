@@ -2,10 +2,10 @@
 
 Updated: 2026-08-25
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany source cut: `fca516f5`
+Latest committed Epiphany source cut: `e7b66b35`
 Current connector source: `6dc80f6d266db4d82566d2434adcc55a48e8ecad`
-Current pass: test-only state readers and path validators are gone; audit the
-crate-root export boundary for internal causal-identity helpers next.
+Current pass: causal-work identity is crate-private; demote the adjacent
+single-consumer internal prompt/supersession and Resident Self helpers next.
 Ox17 and Atlas Gate 1 remain paused
 
 ## Orientation
@@ -17,7 +17,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `fca516f5` is the current
+production symlink body and is inactive. Exact `e7b66b35` is the current
 build-affecting source on this branch. Historical live proofs remain evidence;
 they do not authorize the next capstone or Gate 1.
 
@@ -46,6 +46,15 @@ they do not authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `e7b66b35` demotes the complete causal-work identity module from the
+public crate ABI. Proposal Modeling, frontier Research, frontier Planning,
+PlanMind, frontier-verdict Modeling, and admitted-direction request IDs retain
+one shared length-framed SHA-256 law and all existing call sites; downstream
+crates can no longer mistake the construction helpers for a supported API.
+Seven public exports disappear with zero line, schema, dependency, or target
+growth. The focused Core library check passes. Verification generated 0.286
+GiB across 1,026 files; cleanup restored the exact authenticated inspector.
 
 Exact `fca516f5` removes the test-only Resident Self terminal-receipt reader and
 the path-based RepoModel basis validator, and makes resident-provider document
