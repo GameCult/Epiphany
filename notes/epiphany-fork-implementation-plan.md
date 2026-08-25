@@ -231,9 +231,10 @@ construction package and moves its pure constructor beneath Core's existing
 packaged-release owner. Exact `1e66e770` deletes the producerless Hands receipt
 constructors while retaining the consequence writers that protect the actual
 route/grant/Verification chain. Exact `fab6a59a` deletes the never-called Idunn
-runtime-health signer/aggregate/RUDP module. Audit the equally isolated Idunn
-provider-health admission module next; self-tests cannot impersonate a live
-consumer.
+runtime-health signer/aggregate/RUDP module. Exact `200732e9` deletes its
+equally isolated provider-health query/admission store. The release swarm still
+uses `resident_readiness`; Idunn's deployed health authority remains external.
+Narrow zero-consumer Core exports next.
 
 Preserve exact provider-request sealing, the lean Connector client ABI,
 OpenRouter's separate temporary release edge, keyed Mind audit/CAS guarantees,

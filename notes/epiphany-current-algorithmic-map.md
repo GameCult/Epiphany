@@ -782,6 +782,14 @@ Epiphany's swarm derives startup permission through `resident_readiness`. A
 second dormant publisher was not redundancy; it was an unauthenticated claim
 of physiology.
 
+Exact `200732e9` deletes the adjacent producerless Idunn provider-health store.
+No production process issued its query, verified a candidate through it, or
+read its monotonic admission documents; only six module-local tests did. The
+release swarm compiles without that vocabulary and continues to authenticate
+its exact packaged release, brake, process owner, and resident provider through
+`resident_readiness`. Idunn's deployment health remains an external receipt,
+not an Epiphany-owned shadow store.
+
 ## Canonical authority map
 
 | Owner | Inputs | Outputs | Invariant |

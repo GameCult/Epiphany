@@ -2,10 +2,10 @@
 
 Updated: 2026-08-25
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany source cut: `fab6a59a`
+Latest committed Epiphany source cut: `200732e9`
 Current connector source: `6dc80f6d266db4d82566d2434adcc55a48e8ecad`
-Current pass: the never-called Idunn runtime-health publisher is gone; audit
-the equally isolated Idunn provider-health admission module next.
+Current pass: both never-called Idunn health simulacra are gone; narrow Core's
+remaining zero-consumer public exports next.
 Ox17 and Atlas Gate 1 remain paused
 
 ## Orientation
@@ -17,7 +17,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `fab6a59a` is the current
+production symlink body and is inactive. Exact `200732e9` is the current
 build-affecting source on this branch. Historical live proofs remain evidence;
 they do not authorize the next capstone or Gate 1.
 
@@ -46,6 +46,14 @@ they do not authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `200732e9` deletes the 1,030-line `idunn_provider_health` module and
+eight Core export lines. Its query, candidate verification, monotonic admission
+store, typed admission family, and six self-tests had no production consumer.
+The release-owned swarm compiles without it and the real resident-readiness
+owner passes 11/11. The cut removes 1,038 maintained lines. Verification
+produced 1.45 GiB across 2,554 files; cleanup restored the exact authenticated
+state inspector.
 
 Exact `fab6a59a` deletes the 505-line `idunn_runtime_health` module and
 seven Core export lines. Its signer, aggregate calculator, RUDP publisher, two
