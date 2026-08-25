@@ -66,18 +66,6 @@ pub fn open_epiphany_cultmesh_node(
     )
 }
 
-pub fn canonical_epiphany_swarm_brake_protected_surfaces() -> Vec<String> {
-    vec![
-        "resident.self".to_string(),
-        "coordinator.run".to_string(),
-        "persona.public_speech".to_string(),
-        "hands.consequence".to_string(),
-        "atlas.publish".to_string(),
-        "atlas.project".to_string(),
-        "atlas.impact_ingress".to_string(),
-    ]
-}
-
 pub fn default_epiphany_cultmesh_swarm_brake(
     generated_at_utc: impl Into<String>,
 ) -> EpiphanyCultMeshSwarmBrakeEntry {
@@ -90,7 +78,15 @@ pub fn default_epiphany_cultmesh_swarm_brake(
             .to_string(),
         operator_agent_id: EPIPHANY_CANONICAL_SWARM_BRAKE_OWNER.to_string(),
         affected_clusters: Vec::new(),
-        protected_surfaces: canonical_epiphany_swarm_brake_protected_surfaces(),
+        protected_surfaces: vec![
+            "resident.self".into(),
+            "coordinator.run".into(),
+            "persona.public_speech".into(),
+            "hands.consequence".into(),
+            "atlas.publish".into(),
+            "atlas.project".into(),
+            "atlas.impact_ingress".into(),
+        ],
         created_at_utc: generated_at_utc.into(),
         expires_at_utc: None,
         private_state_exposed: false,

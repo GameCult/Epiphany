@@ -92,8 +92,8 @@ pub use cultmesh_integration::EPIPHANY_CANONICAL_SWARM_BRAKE_OWNER;
 pub use cultmesh_integration::{
     EPIPHANY_CULTMESH_SWARM_BRAKE_KEY, EPIPHANY_CULTMESH_SWARM_BRAKE_SCHEMA_VERSION,
     EPIPHANY_CULTMESH_SWARM_BRAKE_TYPE, EpiphanyCultMeshDocuments, EpiphanyCultMeshSwarmBrakeEntry,
-    canonical_epiphany_swarm_brake_protected_surfaces, default_epiphany_cultmesh_swarm_brake,
-    engage_epiphany_cultmesh_swarm_brake, load_epiphany_cultmesh_swarm_brake,
+    default_epiphany_cultmesh_swarm_brake, engage_epiphany_cultmesh_swarm_brake,
+    load_epiphany_cultmesh_swarm_brake,
     open_epiphany_cultmesh_node, release_epiphany_cultmesh_swarm_brake,
     write_epiphany_cultmesh_swarm_brake,
 };
