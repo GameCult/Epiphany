@@ -796,6 +796,11 @@ witness I/O no longer masquerade as root APIs; validation remains visible only
 to the parent publication/authentication owner. Package, publish, inspect,
 authenticate, and exact digest operations remain the external contract.
 
+Exact `e905dcd9` removes the canonical brake-surface helper as a separate API.
+The seven protected surfaces are construction data of the default brake, not a
+second callable authority. Engage, release, load, write, validation, and the
+typed brake document remain unchanged.
+
 ## Canonical authority map
 
 | Owner | Inputs | Outputs | Invariant |

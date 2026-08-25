@@ -2,10 +2,10 @@
 
 Updated: 2026-08-25
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany source cut: `1e4fa533`
+Latest committed Epiphany source cut: `e905dcd9`
 Current connector source: `6dc80f6d266db4d82566d2434adcc55a48e8ecad`
-Current pass: packaged-release exports now match real consumers; inline the
-single-caller canonical brake-surface helper next.
+Current pass: the canonical brake list belongs directly to the default brake;
+audit the test-only resident-provider aggregate next.
 Ox17 and Atlas Gate 1 remain paused
 
 ## Orientation
@@ -17,7 +17,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `1e4fa533` is the current
+production symlink body and is inactive. Exact `e905dcd9` is the current
 build-affecting source on this branch. Historical live proofs remain evidence;
 they do not authorize the next capstone or Gate 1.
 
@@ -46,6 +46,13 @@ they do not authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `e905dcd9` inlines the sole canonical protected-surface list into the
+default swarm brake and removes its root export. The actual brake document and
+engage/release/read/write owners remain unchanged, including Model Atlas. The
+cut removes four maintained lines and one false public API. Both brake lifecycle
+tests pass. Verification produced 1.23 GiB across 1,888 files; cleanup restored
+the exact authenticated state inspector.
 
 Exact `1e4fa533` inlines the one-caller packaged-release loader into
 authentication, makes required-binary enumeration and witness read/write
