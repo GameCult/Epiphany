@@ -224,11 +224,12 @@ Delete or demote:
 Keep the five-day shakedown, Ox17 deployment, and Model Atlas operational Gate
 1 paused. Exact `a721b763` leaves Epiphany with one native model event/receipt
 family and one package owning native contracts plus pure provider lowering.
-Audit the library-only `epiphany-openai-runtime` package next. Its production
-model and Persona entrypoints already belong to `epiphany-release-bundle`; if
-the separate package protects no independent compile, dependency, or test
-invariant, make it the root package's library target and delete its manifest
-and dependency edge.
+The library-only `epiphany-openai-runtime` package remains earned: its one
+optional target isolates model/Persona orchestration from seven unrelated root
+release binaries. Audit `epiphany-release-construction` next. It has one Core
+consumer; if independent release-witness construction and focused testing do
+not earn the package, move the owner under Core's existing packaged-release
+module and delete the workspace member, manifest, and dependency edge.
 
 Preserve exact provider-request sealing, the lean Connector client ABI,
 OpenRouter's separate temporary release edge, keyed Mind audit/CAS guarantees,

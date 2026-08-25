@@ -4,9 +4,10 @@ Updated: 2026-08-25
 Branch: `codex/epiphany-shakedown-live`
 Latest committed Epiphany source cut: `a721b763`
 Current connector source: `6dc80f6d266db4d82566d2434adcc55a48e8ecad`
-Current pass: one native model event/receipt family serves every provider and
-the model adapter owns pure provider lowering; audit the library-only model
-runtime package next. Ox17 and Atlas Gate 1 remain paused
+Current pass: one native model event/receipt family serves every provider, the
+model adapter owns pure provider lowering, and the optional model-runtime
+package is an earned compile boundary. Audit release construction next. Ox17
+and Atlas Gate 1 remain paused
 
 ## Orientation
 
@@ -64,6 +65,14 @@ durable CultCache identity or field order. Model adapter 5/5, decision context
 8/8, runtime 21/21, and release model edge 12/12 pass. The two bounded build
 roots reached 3.9 GiB/5,598 files and 4.7 GiB/6,524 files; both were removed and
 only the exact authenticated state inspector remains.
+
+The follow-up package audit retains `epiphany-openai-runtime`. Its single
+optional library target contains model/Persona orchestration and is enabled only
+for the two model-backed release binaries. The root release package owns nine
+production binaries; collapsing the library there would spread its compile
+graph or feature scaffolding across seven unrelated entrypoints. No source
+change was justified. The next subtraction audit is the single-consumer
+`epiphany-release-construction` package.
 
 Independent repository `GameCult/CodexConnector` owns the Codex credential and
 transport authority as one Cargo package

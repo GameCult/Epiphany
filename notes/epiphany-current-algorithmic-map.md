@@ -661,13 +661,21 @@ interface authority.
 
 Exact `a6cf9383` first made that boundary physical in the package graph. The pure
 `epiphany-openai-runtime` library opens the exact model execution, derives the
-provider request, normalizes typed provider events, emits governed tool
+provider request, admits canonical native model events, emits governed tool
 intents, and records terminal physiology/audit without depending on a Codex
 crate. One shared source module at the release-bundle edge owns concrete
 Codex/OpenRouter authentication, credential reading, and network calls for the
 model and Persona entrypoints. Persona keeps its three-stage family executor;
 the service owns its concrete runner. Workers have one governed tool-capable
 route, not a tool route plus a parallel no-tools opinion.
+
+The package boundary remains earned after the `a721b763` audit. It is one
+optional library target containing model/Persona orchestration, pulled only by
+the two model-backed release binaries behind `openai-runtime`. The root release
+package owns nine production binaries; folding the library into that package
+would spread model-runtime compilation or feature scaffolding across seven
+unrelated entrypoints. Package count is not improved when compile fan-out and
+ownership legibility get worse.
 
 One logical state judgment consumes one pulled snapshot. Exact `7374be5e`
 makes Mind assembly, keyed RepoModel assembly, current-work projection,
