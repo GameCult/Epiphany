@@ -2,10 +2,10 @@
 
 Updated: 2026-08-25
 Latest committed implementation cut: `27e1dca1` on `codex/epiphany-shakedown-live`
-Current pass: Idunn's immutable Ox17 container route is live. The capstone is
-braked after three provider failures caused by the now-fixed Docker-to-host
-firewall seam. `state/map.yaml` owns resumption authority. Atlas Gate 1 and
-production remain paused.
+Current pass: historical Ox17 is checksum-sealed and retired. Idunn's active
+isolated target and Connector caller are provider-neutral Capstone 17. A
+replacement image construction and fresh run remain. `state/map.yaml` owns
+current direction. Atlas Gate 1 and production remain paused.
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke
@@ -1428,13 +1428,12 @@ Accepted through the local `5b799b12` source boundary:
 
 Open before Model Atlas Gate 1 resumes:
 
-1. export and seal the stopped Ox17 root's consequential typed evidence before
-   any fresh deployment can delete its fixed named volumes;
-2. only after explicit operator fresh-retry authority, use immutable exact
-   `27e1dca1`, verify Connector `80de3acc` plus the bounded `3c2f343` bridge,
-   reset the failure budget for that new root, and prove direct Body Modeling,
+1. construct the renamed Capstone 17 runtime package from the exact current
+   Epiphany commit and deploy it with new empty private volumes;
+2. verify Connector `80de3acc` plus the bounded `1eeea5f` bridge before
+   inference, reset the failure budget for that new root, and prove direct Body Modeling,
    typed refusal-to-retry if exercised, Hands through Verification, exact
-   context audit, and restart/re-entry without public speech;
+   context audit, and restart/re-entry without public speech or Hands mutation;
 3. only then restart Model Atlas Gate 1 from a new
    external root.
 

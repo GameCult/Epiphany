@@ -67,8 +67,8 @@ transport belong to the independent CodexConnector daemon, not Epiphany's body.
 
 ### 0. Federate Decision-Auditable Mind
 
-Status: source-complete; immutable Ox17 container deployed; capstone braked
-after the three-failure boundary. The persisted thread head,
+Status: source-complete; historical Ox17 checksum-sealed and retired; renamed
+Capstone 17 image construction and fresh run active. The persisted thread head,
 global revision transaction, aggregate RepoModel, generic Mind gateway, and
 dual readers are deleted. Concrete invariant owners submit exact-envelope
 `MindMutation` plans; CultCache batch CAS merges disjoint identities and refuses
@@ -267,8 +267,8 @@ further unearned public function across `runtime_spine`, `state_model`,
 `current_work`, `resident_readiness`, and `resident_self`; every survivor has a
 production consumer, and the sole low-fanout candidate protects resident
 objective authentication. Source subtraction has reached diminishing returns.
-Prepare the fresh exact Ox17 package capstone next; `state/map.yaml` owns its
-current direction.
+Construct and run the fresh provider-neutral Capstone 17 package next;
+`state/map.yaml` owns its current direction.
 
 Resident startup now has one health decision. `derive_resident_cognition_readiness`
 loads the exact provider row, probes the process singleton, and obtains the
