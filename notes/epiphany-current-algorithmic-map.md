@@ -1,10 +1,9 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-25
-Latest committed implementation cut: `a721b763` on `codex/epiphany-shakedown-live`
-Current pass: one native model event/receipt family and one model-adapter
-package own provider projection; audit the library-only model-runtime package
-next. Ox17 remains paused
+Latest committed implementation cut: `ed4ca58c` on `codex/epiphany-shakedown-live`
+Current pass: source subtraction is complete; `state/map.yaml` owns the fresh
+Ox17 package-capstone direction. Atlas Gate 1 and production remain paused.
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke

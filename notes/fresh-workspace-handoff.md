@@ -2,10 +2,11 @@
 
 Updated: 2026-08-25
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany source cut: `9f189871`
+Latest committed Epiphany source cut: `ed4ca58c`
 Current connector source: `6dc80f6d266db4d82566d2434adcc55a48e8ecad`
-Current pass: adjacent single-consumer cognition helpers are private; delete
-the adopted-plan effective-action/command field wrappers next.
+Current pass: source subtraction has reached diminishing returns. Prepare the
+fresh exact Ox17 package capstone next; canonical direction lives in
+`state/map.yaml`.
 Ox17 and Atlas Gate 1 remain paused
 
 ## Orientation
@@ -17,7 +18,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `9f189871` is the current
+production symlink body and is inactive. Exact `ed4ca58c` is the current
 build-affecting source on this branch. Historical live proofs remain evidence;
 they do not authorize the next capstone or Gate 1.
 
@@ -46,6 +47,16 @@ they do not authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `ed4ca58c` deletes `RepoFrontierAdoptedPlan::effective_action` and
+`effective_command`; the operator projection and Hands consequence validator
+read the owning public fields directly. The closing audit found no further
+unearned public function in the five high-risk ownership modules. Every
+survivor has a production consumer, and the only low-fanout candidate protects
+resident objective authentication. Source subtraction stops here. The staged
+diff check passed; no mixed-worktree compilation is claimed. Prepare the fresh
+exact Ox17 package capstone next while production and Atlas Gate 1 remain
+paused.
 
 Exact `9f189871` removes the admitted-direction prompt alias from the crate
 root, makes its renderer and supersession check crate-internal, and makes the
