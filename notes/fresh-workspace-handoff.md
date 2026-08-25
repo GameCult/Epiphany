@@ -2,10 +2,10 @@
 
 Updated: 2026-08-25
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany source cut: `1a9dec56`
+Latest committed Epiphany source cut: `fca516f5`
 Current connector source: `6dc80f6d266db4d82566d2434adcc55a48e8ecad`
-Current pass: family review has one common consequence pipeline; audit
-test-only public readers and validators as one class next.
+Current pass: test-only state readers and path validators are gone; audit the
+crate-root export boundary for internal causal-identity helpers next.
 Ox17 and Atlas Gate 1 remain paused
 
 ## Orientation
@@ -17,7 +17,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `1a9dec56` is the current
+production symlink body and is inactive. Exact `fca516f5` is the current
 build-affecting source on this branch. Historical live proofs remain evidence;
 they do not authorize the next capstone or Gate 1.
 
@@ -46,6 +46,17 @@ they do not authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `fca516f5` removes the test-only Resident Self terminal-receipt reader and
+the path-based RepoModel basis validator, and makes resident-provider document
+validation/loading private to their owning module. The supersession test now
+reads the exact typed terminal envelope directly; the Atlas basis test uses the
+production cache validator after refreshing its snapshot. No terminal-receipt,
+private-state, duplicate-owner, or complete-basis proof was dropped. The cut
+removes eight maintained lines net and four false public surfaces. Resident
+readiness passes 9/9, current work 3/3, the Atlas basis test passes, and Core
+checks cleanly. Verification generated 1.407 GiB across 2,428 files; cleanup
+restored the exact authenticated state inspector.
 
 Exact `1a9dec56` collapses five copies of coordinator review physiology into
 one typed flow: exact result read, operator pause, family admission, event

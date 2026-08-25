@@ -249,7 +249,11 @@ result/stop/admit/status skeleton once, and retain family-specific admission
 without adding persisted or registry state. Exact `1a9dec56` lands that cut.
 Continue with a class audit of test-only public readers and validators; demote
 interfaces needed only by consequential Core proofs, and delete those that
-merely manufacture a second authority.
+merely manufacture a second authority. Exact `fca516f5` lands that class cut:
+the terminal-receipt proof now reads the typed envelope in its test, RepoModel
+currentness uses the live cache validator, and resident readiness internals are
+private. Continue at the crate-root export boundary; deterministic causal-ID
+helpers used only inside Core should not masquerade as a public library API.
 
 Resident startup now has one health decision. `derive_resident_cognition_readiness`
 loads the exact provider row, probes the process singleton, and obtains the

@@ -823,6 +823,12 @@ dispatches to the existing family-specific admission function, emits the same
 family event cargo, and refreshes status once. The target is in-process control
 flow only: it owns no durable state, scheduling, callback table, or CAS law.
 
+Exact `fca516f5` narrows the adjacent inspection surface. Resident-provider
+documents are validated and loaded only inside their readiness owner. Resident
+Self exposes no generic terminal-receipt reader; the consequential verifier
+reads the exact typed envelope. RepoModel basis currentness is checked through
+the cache-owned complete-view validator, with no second path-based assembler.
+
 ## Canonical authority map
 
 | Owner | Inputs | Outputs | Invariant |
