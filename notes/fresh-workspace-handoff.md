@@ -2,11 +2,11 @@
 
 Updated: 2026-08-25
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany source cut: `27e1dca1`
-Current connector source: `80de3acc18e058f649c3b25ce617f8869f038670`
-Current pass: historical Ox17 is checksum-sealed and retired. The reusable
-Idunn-owned target and Connector caller are now provider-neutral Capstone 17.
-One replacement image construction and a fresh isolated capstone run remain.
+Latest deployed non-production Epiphany source: `377be331b9b86d7404a441f0d9a9f62081b86126`
+Current Connector client/daemon: `be1776ab455fd79bd74b393518ab07211dc9c1f0` / `80de3acc18e058f649c3b25ce617f8869f038670`
+Current pass: Capstone 17 container physiology is proven, but three coherent
+fresh attempts stopped at the bounded provider/Connector failure budget.
+Do not grant a fourth identical attempt.
 Canonical direction lives in `state/map.yaml`. Production and Atlas Gate 1
 remain paused.
 
@@ -41,11 +41,16 @@ sealed failed evidence; it does not authorize Gate 1 or seed the replacement bod
   `sha256:12bc9a30ad455db2709c0b0749bde84e1c763c5cd36d1ea158112fdaa1deed9c`
   from exact Epiphany `27e1dca1`. Its state/work volumes and receipts are
   checksum-sealed read-only under `/srv/epiphany/capstones/failures/20260825-c50a1a83118d-f4697376-caff-4b38-a331-24e31f334d8b`; the container and volumes are deleted.
-- CodexConnector `80de3acc` admits only `epiphany-capstone-17-yggdrasil`.
-  Odin `446657a1` and gamecult-ops `1eeea5f` own the renamed target,
-  preserve-before-delete volumes, and bounded removable loopback/firewall bridge.
-- Idunn source `8b972715c47731f2418d0c423cb0dd2076940bd7` is provenance-exact and
-  admits Epiphany through the shared authenticated daemon-health contract.
+- Dormant fresh container `920c23d1a63159c2a2b293c4ff58476b283f2cc34eef1b38f0559e8bcfa9b400`
+  runs immutable image `sha256:af748394b5098f85a4d4571243e0f0937f3e9126f9ab5bec33ae0c89983981c0`
+  from exact Epiphany `377be331b9b86d7404a441f0d9a9f62081b86126`. It has no continuation authority.
+- Connector client `be1776ab455fd79bd74b393518ab07211dc9c1f0` talks to daemon
+  `80de3acc18e058f649c3b25ce617f8869f038670` as `epiphany-model-runtime` over
+  the direct UFW-bounded container gateway. The root-owned credential is
+  group-readable and mounted read-only; the guest proxy is deleted.
+- Idunn exact `7e31921c4b53563d7a7f10e756d0dd1458fe7688` and deployed gamecult-ops
+  exact `5393a3904ebc86ac5e60d63fee887b7345433af5` own the isolated lifecycle.
+  A later local ops head is not deployed authority.
 - gamecult-ops `b47f9084` removes Docker from
   Epiphany's future Idunn compile/package actuator. Native Rust `1.95.0` is
   installed under `epiphany-builder`; current source-change builds are native.
@@ -56,15 +61,20 @@ sealed failed evidence; it does not authorize Gate 1 or seed the replacement bod
 
 ## What just landed
 
-Historical exact `27e1dca1` was the immutable Ox17 source. Direct Body Modeling launched
-without Eyes. One wrong provider label failed before transport and remained a
-typed terminal refusal. A corrected fresh state root then made exactly three
-provider attempts; UFW blocked container-to-host bridge traffic, so each
-failed before usable output and exposed a secondary failure-identity collision.
-The run stopped with no Hands mutation and no public speech. The bridge route
-was then corrected and a bounded TCP start/stop probe passed; no fourth model
-attempt was run. The complete failed body was archived with verified SHA-256
-manifests and retired under the standing non-production lifecycle grant.
+Exact `cf9fb445` repairs the duplicate terminal-failure write: a sealed provider
+failure now returns as the one worker outcome instead of falling through to a
+second generic failure identity. Exact `1e57bfac` aligns both Epiphany Connector
+dependencies on the unicast-capable client. Exact `377be331` preserves the
+bounded Connector error source chain. Ops exact `0c48dd35` grants the acting UID
+read access through the credential's host group, and exact `5393a390` deletes
+the fragile guest proxy in favor of the direct UFW-bounded gateway route.
+
+Three fresh gpt-5.4 roots then completed 6, 6, and 4 coherent authenticated
+provider/tool cycles. They terminated with provider SSE timeout, Connector I/O
+failure, and provider SSE timeout. Each produced exactly one typed terminal
+failure, with no Mind admission, Hands mutation, or public speech. The third
+body is sealed under `/srv/epiphany/capstones/failures/20260825T123821Z-manual:redeploy:yggdrasil-epiphany-capstone-17:manual:redeploy:yggdrasil-epiphany-capstone-17:2026-08-25T12:27:14.826Z-877e506f-eacf-42c2-a066-03e0ffaaf6c9`.
+The bridge and UFW aperture are stopped; production units remain inactive.
 
 Exact `ed4ca58c` deletes `RepoFrontierAdoptedPlan::effective_action` and
 `effective_command`; the operator projection and Hands consequence validator
