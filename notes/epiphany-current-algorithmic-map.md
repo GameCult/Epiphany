@@ -801,6 +801,14 @@ The seven protected surfaces are construction data of the default brake, not a
 second callable authority. Engage, release, load, write, validation, and the
 typed brake document remain unchanged.
 
+Exact `f962c0bc` removes the test-only `ResidentProviderHealth` aggregate and
+its authenticator. Resident startup has one decision path:
+`derive_resident_cognition_readiness` loads the exact provider readiness row,
+probes its process singleton, and asks `provider_authority_failures` for the
+concrete failed predicates through `provider_is_fresh`. The dead boolean
+wrapper and duplicate release/freshness/owner test are gone; exact predicate,
+clock-skew, release/process/brake, CAS, and private-state proofs remain.
+
 ## Canonical authority map
 
 | Owner | Inputs | Outputs | Invariant |

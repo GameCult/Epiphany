@@ -237,8 +237,17 @@ uses `resident_readiness`; Idunn's deployed health authority remains external.
 Exact `1e4fa533` then narrows packaged-release API to its real package,
 publish, inspect, authentication, and digest consumers. Exact `e905dcd9`
 inlines the single-caller canonical brake-surface list without changing brake
-authority. Audit the test-only resident-provider aggregate next without
-touching the live readiness path or paused Model Atlas.
+authority. Exact `f962c0bc` deletes the test-only resident-provider aggregate,
+its dead boolean predicate wrapper, and one duplicate test while preserving the
+single live readiness path and its exact failed-predicate evidence. Audit the
+five one-caller current-work review-ID wrappers next: derive review identity
+from one already-owned projection if the coordinator has it, and delete the
+repeated store reads instead of introducing a generic review registry.
+
+Resident startup now has one health decision. `derive_resident_cognition_readiness`
+loads the exact provider row, probes the process singleton, and obtains the
+concrete failed authority predicates through `provider_is_fresh`. No parallel
+aggregate or boolean wrapper can reinterpret those facts for another caller.
 
 Preserve exact provider-request sealing, the lean Connector client ABI,
 OpenRouter's separate temporary release edge, keyed Mind audit/CAS guarantees,

@@ -2,10 +2,10 @@
 
 Updated: 2026-08-25
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany source cut: `e905dcd9`
+Latest committed Epiphany source cut: `f962c0bc`
 Current connector source: `6dc80f6d266db4d82566d2434adcc55a48e8ecad`
-Current pass: the canonical brake list belongs directly to the default brake;
-audit the test-only resident-provider aggregate next.
+Current pass: resident readiness has one decision owner; audit the five
+one-caller current-work review-ID wrappers next.
 Ox17 and Atlas Gate 1 remain paused
 
 ## Orientation
@@ -17,7 +17,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `e905dcd9` is the current
+production symlink body and is inactive. Exact `f962c0bc` is the current
 build-affecting source on this branch. Historical live proofs remain evidence;
 they do not authorize the next capstone or Gate 1.
 
@@ -46,6 +46,18 @@ they do not authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `f962c0bc` deletes `ResidentProviderHealth`,
+`authenticate_resident_provider`, the dead `provider_matches_authority`
+boolean wrapper, and the duplicate predicate test that alone kept the second
+resident-health decision alive. Production startup still uses
+`derive_resident_cognition_readiness` and reports the exact failed authority
+predicates through `provider_is_fresh`. The surviving tests cover exact
+release/process/brake binding, bounded clock skew, CAS, and private-state
+refusal. The cut removes 204 maintained lines net. Resident readiness passes
+9/9 and the release-owned swarm checks cleanly. Verification generated 2.012
+GiB across 2,823 files; cleanup restored the exact authenticated state
+inspector.
 
 Exact `e905dcd9` inlines the sole canonical protected-surface list into the
 default swarm brake and removes its root export. The actual brake document and
