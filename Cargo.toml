@@ -26,7 +26,7 @@ cultnet-rs = { path = "vendor/cultnet-rs" }
 epiphany-core = { path = "epiphany-core" }
 epiphany-model-adapter = { path = "epiphany-model-adapter" }
 epiphany-openai-runtime = { path = "epiphany-openai-runtime", optional = true }
-codex-connector = { git = "https://github.com/GameCult/CodexConnector", rev = "6dc80f6d266db4d82566d2434adcc55a48e8ecad", default-features = false, features = ["client"], optional = true }
+codex-connector = { git = "https://github.com/GameCult/CodexConnector", rev = "be1776ab455fd79bd74b393518ab07211dc9c1f0", default-features = false, optional = true }
 epiphany-tool-adapter = { path = "epiphany-tool-adapter" }
 epiphany-tool-mcp-runtime = { path = "epiphany-tool-mcp-runtime", optional = true }
 rmp-serde = "1"
