@@ -4,9 +4,9 @@ Updated: 2026-08-25
 Branch: `codex/epiphany-shakedown-live`
 Latest deployed non-production Epiphany source: `377be331b9b86d7404a441f0d9a9f62081b86126`
 Current Connector client/daemon: `be1776ab455fd79bd74b393518ab07211dc9c1f0` / `80de3acc18e058f649c3b25ce617f8869f038670`
-Current pass: Capstone 17 container physiology is proven, but three coherent
-fresh attempts stopped at the bounded provider/Connector failure budget.
-Do not grant a fourth identical attempt.
+Current pass: the one authorized gpt-5.6-luna comparison failed before its first
+tool round with an early authenticated socket close. The failed root is sealed;
+do not grant another attempt without an owner-level cause or verifier gap.
 Canonical direction lives in `state/map.yaml`. Production and Atlas Gate 1
 remain paused.
 
@@ -41,16 +41,16 @@ sealed failed evidence; it does not authorize Gate 1 or seed the replacement bod
   `sha256:12bc9a30ad455db2709c0b0749bde84e1c763c5cd36d1ea158112fdaa1deed9c`
   from exact Epiphany `27e1dca1`. Its state/work volumes and receipts are
   checksum-sealed read-only under `/srv/epiphany/capstones/failures/20260825-c50a1a83118d-f4697376-caff-4b38-a331-24e31f334d8b`; the container and volumes are deleted.
-- Dormant fresh container `920c23d1a63159c2a2b293c4ff58476b283f2cc34eef1b38f0559e8bcfa9b400`
+- Exited container `920c23d1a63159c2a2b293c4ff58476b283f2cc34eef1b38f0559e8bcfa9b400`
   runs immutable image `sha256:af748394b5098f85a4d4571243e0f0937f3e9126f9ab5bec33ae0c89983981c0`
-  from exact Epiphany `377be331b9b86d7404a441f0d9a9f62081b86126`. It has no continuation authority.
+  from exact Epiphany `377be331b9b86d7404a441f0d9a9f62081b86126`. Its failed roots have no continuation authority.
 - Connector client `be1776ab455fd79bd74b393518ab07211dc9c1f0` talks to daemon
   `80de3acc18e058f649c3b25ce617f8869f038670` as `epiphany-model-runtime` over
   the direct UFW-bounded container gateway. The root-owned credential is
   group-readable and mounted read-only; the guest proxy is deleted.
-- Idunn exact `7e31921c4b53563d7a7f10e756d0dd1458fe7688` and deployed gamecult-ops
-  exact `5393a3904ebc86ac5e60d63fee887b7345433af5` own the isolated lifecycle.
-  A later local ops head is not deployed authority.
+- Idunn exact `7e31921c4b53563d7a7f10e756d0dd1458fe7688` owns the isolated lifecycle.
+  Deployed gamecult-ops policy exact `36892263864351b9bcf946e67f0edddc2d9e4ec0`
+  admits both Epiphany and Ghostlight callers separately to `gpt-5.6-luna`.
 - gamecult-ops `b47f9084` removes Docker from
   Epiphany's future Idunn compile/package actuator. Native Rust `1.95.0` is
   installed under `epiphany-builder`; current source-change builds are native.
@@ -75,6 +75,19 @@ failure, and provider SSE timeout. Each produced exactly one typed terminal
 failure, with no Mind admission, Hands mutation, or public speech. The third
 body is sealed under `/srv/epiphany/capstones/failures/20260825T123821Z-manual:redeploy:yggdrasil-epiphany-capstone-17:manual:redeploy:yggdrasil-epiphany-capstone-17:2026-08-25T12:27:14.826Z-877e506f-eacf-42c2-a066-03e0ffaaf6c9`.
 The bridge and UFW aperture are stopped; production units remain inactive.
+
+The authorized Luna comparison retained Epiphany's tool-bearing request shape
+and changed only the admitted model. Fresh root
+`/var/lib/gamecult/epiphany/luna/runtime/runtime.cc` launched Body Modeling job
+`body-modeling-0122c8f7ad5240535f427b8b25e5cfb5aa02ad931d5e39c491fad2a7c3984a36-attempt-0`.
+It failed before any tool round with `connector client connection failed: failed
+to fill whole buffer`. The Connector daemon, host bridge, and firewall aperture
+remained active; `CAPSTONE-17.md` was absent and there was no Hands mutation or
+public speech. The exited body is checksum-sealed at
+`/srv/epiphany/capstones/failures/20260825T131038Z-capstone-17-luna-comparison-da62aa1d-a4bc-4e9f-985e-7c6541bcb826`.
+Ghostlight's routine no-tool Luna completions falsify generic daemon nonfunction
+but do not make its request shape equivalent. Inspect the Connector-owned early
+close before admitting more inference budget.
 
 Exact `ed4ca58c` deletes `RepoFrontierAdoptedPlan::effective_action` and
 `effective_command`; the operator projection and Hands consequence validator
