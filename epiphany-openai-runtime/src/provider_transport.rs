@@ -238,7 +238,7 @@ where
             provider: provider.to_string(),
             sequence: 0,
             payload: EpiphanyModelStreamPayload::Failed {
-                message: error.to_string(),
+                message: format!("{error:#}"),
             },
         }],
     }
@@ -279,4 +279,30 @@ fn hex_digest(digest: [u8; 32]) -> String {
         write!(&mut value, "{byte:02x}").expect("writing to a String cannot fail");
     }
     value
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn failed_transport_event_preserves_the_bounded_error_chain() {
+        let events = collect_transport_events(
+            async {
+                Err(anyhow!("socket timed out"))
+                    .context("Connector client could not read its response")
+            },
+            "request-1",
+            "openai-codex",
+        )
+        .await;
+        assert_eq!(events.len(), 1);
+        let EpiphanyModelStreamPayload::Failed { message } = &events[0].payload else {
+            panic!("transport failure must project one failed event");
+        };
+        assert_eq!(
+            message,
+            "Connector client could not read its response: socket timed out"
+        );
+    }
 }
