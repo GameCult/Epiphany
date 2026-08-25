@@ -4,9 +4,8 @@ Updated: 2026-08-25
 Branch: `codex/epiphany-shakedown-live`
 Latest committed Epiphany source cut: `ed4ca58c`
 Current connector source: `6dc80f6d266db4d82566d2434adcc55a48e8ecad`
-Current pass: source subtraction has reached diminishing returns. Prepare the
-fresh exact Ox17 package capstone next; canonical direction lives in
-`state/map.yaml`.
+Current pass: source subtraction is complete. Ox17 is blocked on an Idunn-owned
+compile-test-seal-only route; canonical direction lives in `state/map.yaml`.
 Ox17 and Atlas Gate 1 remain paused
 
 ## Orientation
@@ -57,6 +56,15 @@ resident objective authentication. Source subtraction stops here. The staged
 diff check passed; no mixed-worktree compilation is claimed. Prepare the fresh
 exact Ox17 package capstone next while production and Atlas Gate 1 remain
 paused.
+
+The subsequent Yggdrasil preflight found that the documented bounded-redeploy
+helper grants the complete Epiphany deployment transaction: compile, test,
+seal, publish, Body/pointer mutation, service start, health admission, and final
+witness. Idunn exposes no package-only action. Do not use bounded redeploy or
+the root manifest for the private pre-admission capstone, and do not compile on
+Starfire. Obtain an Idunn-owned compile-test-seal-only route first; then run
+fresh-store Ox17 from its immutable `ed4ca58c` package. Production and Atlas
+Gate 1 remain paused.
 
 Exact `9f189871` removes the admitted-direction prompt alias from the crate
 root, makes its renderer and supersession check crate-internal, and makes the
