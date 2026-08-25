@@ -366,7 +366,7 @@ pub fn complete_worker_job_from_assistant_text(
     openai_request_id: &str,
     openai_summary: &EpiphanyOpenAiRuntimeRunSummary,
     assistant_text: &str,
-) -> Result<()> {
+) -> Result<Option<epiphany_core::EpiphanyModelPassFailure>> {
     let decision_context =
         epiphany_core::seal_model_decision_context(store_path.as_ref(), openai_request_id)?;
     let launch_document = launch_request.launch_document()?;
@@ -392,7 +392,7 @@ pub fn complete_worker_job_from_assistant_text(
                     .unwrap_or("structured output was absent")
             )
         };
-        fail_model_backed_worker_job(
+        let failure = fail_model_backed_worker_job(
             store_path,
             &launch_request.job_id,
             openai_request_id,
@@ -403,7 +403,7 @@ pub fn complete_worker_job_from_assistant_text(
             },
             summary,
         )?;
-        return Ok(());
+        return Ok(Some(failure));
     }
     let mut evidence_refs = parsed
         .as_ref()
@@ -457,7 +457,7 @@ pub fn complete_worker_job_from_assistant_text(
             }
         }
     }
-    Ok(())
+    Ok(None)
 }
 
 pub fn fail_worker_job(
@@ -2972,13 +2972,18 @@ mod tests {
             summary: "Provider refused the model pass.".to_string(),
             tool_intent_ids: Vec::new(),
         };
-        complete_worker_job_from_assistant_text(
+        let provider_failure = complete_worker_job_from_assistant_text(
             &provider_failure_store,
             &launch_request,
             &model_request.request_id,
             &provider_failure_summary,
             "",
-        )?;
+        )?
+        .expect("provider failure outcome");
+        assert_eq!(
+            provider_failure.failure_kind,
+            "provider_or_transport_failure"
+        );
         assert_eq!(
             runtime_job(&provider_failure_store, &worker_job_id)?
                 .expect("provider failure worker job")
@@ -3005,13 +3010,15 @@ mod tests {
             verdict: "pass".to_string(),
             ..provider_failure_summary.clone()
         };
-        complete_worker_job_from_assistant_text(
+        let contract_failure = complete_worker_job_from_assistant_text(
             &contract_failure_store,
             &launch_request,
             &model_request.request_id,
             &contract_failure_summary,
             "not the declared structured contract",
-        )?;
+        )?
+        .expect("contract failure outcome");
+        assert_eq!(contract_failure.failure_kind, "output_contract_failure");
         assert_eq!(
             runtime_job(&contract_failure_store, &worker_job_id)?
                 .expect("contract failure worker job")
@@ -3049,13 +3056,14 @@ mod tests {
             "repoModelOperations": []
         })
         .to_string();
-        complete_worker_job_from_assistant_text(
+        let completed = complete_worker_job_from_assistant_text(
             &store,
             &launch_request,
             &model_request.request_id,
             &openai_summary,
             &assistant_text,
         )?;
+        assert!(completed.is_none());
 
         let runtime_evidence_id = format!("openai-request:{}", model_request.request_id);
         let typed_result = epiphany_core::runtime_role_worker_result(&store, &worker_job_id)?

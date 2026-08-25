@@ -561,13 +561,29 @@ async fn run_worker_launch(
 
     let assistant_text =
         assistant_text_from_model_events(&options.store_path, &current_request_id)?;
-    complete_worker_job_from_assistant_text(
+    if let Some(failure) = complete_worker_job_from_assistant_text(
         &options.store_path,
         &launch_request,
         &current_request_id,
         &openai_summary,
         &assistant_text,
-    )?;
+    )? {
+        return Ok(json!({
+            "store": options.store_path,
+            "jobId": launch_request.job_id,
+            "bindingId": launch_request.binding_id,
+            "role": launch_request.role,
+            "requestId": current_request_id,
+            "openaiVerdict": openai_summary.verdict,
+            "openaiSummary": openai_summary.summary,
+            "workerResultId": null,
+            "verdict": "failed",
+            "summary": failure.summary,
+            "nextSafeMove": "Inspect the typed model-pass failure before launching a fresh request identity.",
+            "requestedPublicSourceRuns": requested_public_source_runs,
+            "toolRounds": tool_rounds,
+        }));
+    }
     let (worker_result_id, verdict, summary, next_safe_move) =
         match launch_request.launch_document()? {
             epiphany_core::EpiphanyWorkerLaunchDocument::Role(_) => {
