@@ -375,6 +375,14 @@ mod platform {
         Ok((starttime, state))
     }
 
+    fn is_missing_error(error: &anyhow::Error) -> bool {
+        error.chain().any(|source| {
+            source
+                .downcast_ref::<std::io::Error>()
+                .is_some_and(|error| error.kind() == std::io::ErrorKind::NotFound)
+        })
+    }
+
     fn created_at_rfc3339(starttime: u64) -> Result<String> {
         let ticks_per_second = unsafe { libc::sysconf(libc::_SC_CLK_TCK) };
         if ticks_per_second <= 0 {
