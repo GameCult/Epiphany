@@ -2,12 +2,11 @@
 
 Updated: 2026-08-25
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany source cut: `a721b763`
+Latest committed Epiphany source cut: `8086d66f`
 Current connector source: `6dc80f6d266db4d82566d2434adcc55a48e8ecad`
-Current pass: one native model event/receipt family serves every provider, the
-model adapter owns pure provider lowering, and the optional model-runtime
-package is an earned compile boundary. Audit release construction next. Ox17
-and Atlas Gate 1 remain paused
+Current pass: release construction belongs directly to Core's packaged-release
+organ; audit the producerless public Hands receipt writers next. Ox17 and Atlas
+Gate 1 remain paused
 
 ## Orientation
 
@@ -18,7 +17,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `a721b763` is the current
+production symlink body and is inactive. Exact `8086d66f` is the current
 build-affecting source on this branch. Historical live proofs remain evidence;
 they do not authorize the next capstone or Gate 1.
 
@@ -47,6 +46,15 @@ they do not authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `8086d66f` deletes the single-consumer
+`epiphany-release-construction` Cargo package. Its pure 1,222-line constructor
+moves byte-for-byte under Core's existing packaged-release module; `fs2` moves
+with it. One workspace target, manifest, dependency edge, and seventeen stale
+lockfile lines disappear. The cut removes 39 maintained lines. Core check,
+packaged-release 15/15, resident-readiness 11/11, and the release entrypoint
+pass. Verification produced 1.60 GiB across 2,728 files; cleanup restored the
+exact authenticated state inspector.
 
 Exact `dfe3757b` retains terminal Reorientation failure disposition inside the
 one current-work projection. The coordinator no longer reopens the runtime job

@@ -226,10 +226,11 @@ Keep the five-day shakedown, Ox17 deployment, and Model Atlas operational Gate
 family and one package owning native contracts plus pure provider lowering.
 The library-only `epiphany-openai-runtime` package remains earned: its one
 optional target isolates model/Persona orchestration from seven unrelated root
-release binaries. Audit `epiphany-release-construction` next. It has one Core
-consumer; if independent release-witness construction and focused testing do
-not earn the package, move the owner under Core's existing packaged-release
-module and delete the workspace member, manifest, and dependency edge.
+release binaries. Exact `8086d66f` deletes the single-consumer release-
+construction package and moves its pure constructor beneath Core's existing
+packaged-release owner. Audit the producerless public Hands receipt constructors
+and writers next; they may not survive merely because current-work tests invoke
+them while no actuator does.
 
 Preserve exact provider-request sealing, the lean Connector client ABI,
 OpenRouter's separate temporary release edge, keyed Mind audit/CAS guarantees,

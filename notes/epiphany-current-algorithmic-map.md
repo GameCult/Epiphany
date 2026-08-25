@@ -759,6 +759,14 @@ provider lowering and OpenRouter response projection are modules of
 transport remains outside: OpenRouter at the release edge and Codex in the
 independent daemon.
 
+Exact `8086d66f` makes packaged-release ownership physical. The pure release
+constructor and its witness/file verifier live beneath Core's existing
+`packaged_release` module, beside the CultMesh publication and authentication
+path that consumes them. The single-consumer `epiphany-release-construction`
+package, manifest, workspace target, and dependency edge are gone. The source
+body moved byte-for-byte; exact target, cache, substitution, and tamper proofs
+remain module tests under the owning Core library.
+
 ## Canonical authority map
 
 | Owner | Inputs | Outputs | Invariant |
