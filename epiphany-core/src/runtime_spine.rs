@@ -7362,7 +7362,7 @@ fn validate_hands_consequence_grant(
             route
                 .adopted_plan
                 .as_ref()
-                .is_some_and(|plan| command != plan.effective_command())
+                .is_some_and(|plan| command != plan.command.as_str())
         })
         || !paths_covered
         || authority.substrate_grant_receipt_id != grant.receipt_id

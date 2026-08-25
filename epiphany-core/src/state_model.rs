@@ -183,16 +183,6 @@ pub struct RepoFrontierAdoptedPlan {
     pub commit_message: String,
 }
 
-impl RepoFrontierAdoptedPlan {
-    pub fn effective_action(&self) -> &str {
-        self.action.as_str()
-    }
-
-    pub fn effective_command(&self) -> &str {
-        self.command.as_str()
-    }
-}
-
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum RepoFrontierStatus {
