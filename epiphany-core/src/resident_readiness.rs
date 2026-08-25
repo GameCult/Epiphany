@@ -520,72 +520,6 @@ fn classify_active_lease_observation(
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ResidentProviderHealth {
-    pub terminal_current: usize,
-    pub warming: usize,
-    pub contradictions: Vec<String>,
-}
-
-pub fn authenticate_resident_provider(
-    release: &crate::EpiphanyPackagedReleaseEntry,
-    witness: &str,
-    resident_store: &Path,
-    freshness_millis: u64,
-) -> ResidentProviderHealth {
-    let mut result = ResidentProviderHealth {
-        terminal_current: 0,
-        warming: 0,
-        contradictions: Vec::new(),
-    };
-    for (owner, store, role) in [("resident-self", resident_store, "swarm")] {
-        let executable = epiphany_packaged_release_binary_path(release, role).ok();
-        let value = match load_resident_provider_readiness(store) {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                result.warming += 1;
-                continue;
-            }
-            Err(error) => {
-                result
-                    .contradictions
-                    .push(format!("{owner} provider readiness is invalid: {error:#}"));
-                continue;
-            }
-        };
-        let role_owner_present = match resident_process_singleton_is_owned(store) {
-            Ok(value) => value,
-            Err(error) => {
-                result.contradictions.push(format!(
-                    "{owner} provider singleton observation failed: {error:#}"
-                ));
-                continue;
-            }
-        };
-        if provider_matches_authority(
-            &value,
-            owner,
-            &release.runtime_id,
-            &release.release_id,
-            witness,
-            Some(&release.source_commit_sha),
-            executable.as_deref(),
-            current_time_millis(),
-            freshness_millis,
-            role_owner_present,
-        ) {
-            result.terminal_current += 1;
-        } else if value.runtime_id == release.runtime_id && value.release_id == release.release_id {
-            result.warming += 1;
-        } else {
-            result
-                .contradictions
-                .push(format!("{owner} provider readiness names another release"));
-        }
-    }
-    result
-}
-
 fn provider_is_fresh(
     store: &Path,
     owner: &str,
@@ -682,34 +616,6 @@ fn provider_authority_failures(
         failures.push("freshness");
     }
     failures
-}
-
-#[allow(clippy::too_many_arguments)]
-fn provider_matches_authority(
-    value: &ResidentProviderReadiness,
-    owner: &str,
-    runtime_id: &str,
-    release_id: &str,
-    witness: &str,
-    source_commit: Option<&str>,
-    executable: Option<&Path>,
-    now_millis: u64,
-    freshness_millis: u64,
-    role_owner_present: bool,
-) -> bool {
-    provider_authority_failures(
-        value,
-        owner,
-        runtime_id,
-        release_id,
-        witness,
-        source_commit,
-        executable,
-        now_millis,
-        freshness_millis,
-        role_owner_present,
-    )
-    .is_empty()
 }
 
 fn canonical_or_absolute(path: &Path) -> PathBuf {
@@ -835,60 +741,6 @@ mod tests {
             status: "ready".into(),
             private_state_exposed: false,
         }
-    }
-
-    #[test]
-    fn stale_wrong_release_and_absent_role_owner_cannot_be_ready() {
-        let value = provider();
-        let executable = std::env::current_exe().unwrap();
-        assert!(provider_matches_authority(
-            &value,
-            "resident-self",
-            "ygg",
-            "release-a",
-            &value.release_witness_sha256,
-            Some("commit-a"),
-            Some(&executable),
-            1_050,
-            100,
-            true
-        ));
-        assert!(!provider_matches_authority(
-            &value,
-            "resident-self",
-            "ygg",
-            "release-b",
-            &value.release_witness_sha256,
-            Some("commit-a"),
-            Some(&executable),
-            1_050,
-            100,
-            true
-        ));
-        assert!(!provider_matches_authority(
-            &value,
-            "resident-self",
-            "ygg",
-            "release-a",
-            &value.release_witness_sha256,
-            Some("commit-a"),
-            Some(&executable),
-            1_101,
-            100,
-            true
-        ));
-        assert!(!provider_matches_authority(
-            &value,
-            "resident-self",
-            "ygg",
-            "release-a",
-            &value.release_witness_sha256,
-            Some("commit-a"),
-            Some(&executable),
-            1_050,
-            100,
-            false
-        ));
     }
 
     #[test]
@@ -1084,79 +936,23 @@ mod tests {
         let mut value = provider();
         value.observed_at_millis = 1_500;
         let executable = PathBuf::from(&value.process_executable_path);
-        assert!(provider_matches_authority(
-            &value,
-            "resident-self",
-            "ygg",
-            "release-a",
-            &value.release_witness_sha256,
-            Some("commit-a"),
-            Some(&executable),
-            1_000,
-            100,
-            true,
-        ));
+        let failures = |value: &ResidentProviderReadiness| {
+            provider_authority_failures(
+                value,
+                "resident-self",
+                "ygg",
+                "release-a",
+                &value.release_witness_sha256,
+                Some("commit-a"),
+                Some(&executable),
+                1_000,
+                100,
+                true,
+            )
+        };
+        assert!(failures(&value).is_empty());
         value.observed_at_millis = 2_001;
-        assert!(!provider_matches_authority(
-            &value,
-            "resident-self",
-            "ygg",
-            "release-a",
-            &value.release_witness_sha256,
-            Some("commit-a"),
-            Some(&executable),
-            1_000,
-            100,
-            true,
-        ));
+        assert_eq!(failures(&value), vec!["future-observation"]);
     }
 
-    #[test]
-    fn aggregate_health_warms_on_missing_and_rejects_wrong_release() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let resident = temp.path().join("resident.cc");
-        let executable = std::env::current_exe()?;
-        let binary = |role: &str| crate::EpiphanyPackagedReleaseBinary {
-            role: role.into(),
-            file_name: executable.file_name().unwrap().to_string_lossy().into(),
-            canonical_path: executable.display().to_string(),
-            sha256: format!("sha256-{}", "b".repeat(64)),
-            byte_len: 1,
-        };
-        let release = crate::EpiphanyPackagedReleaseEntry {
-            schema_version: crate::EPIPHANY_PACKAGED_RELEASE_SCHEMA_VERSION.into(),
-            release_id: "release-a".into(),
-            runtime_id: "ygg".into(),
-            source_commit_sha: "commit-a".into(),
-            target_triple: "test".into(),
-            cargo_profile: "release".into(),
-            toolchain_fingerprint: "toolchain".into(),
-            created_at_utc: "now".into(),
-            package_root: temp.path().display().to_string(),
-            binaries: vec![binary("swarm")],
-            private_state_exposed: false,
-        };
-        let witness = format!("sha256-{}", "a".repeat(64));
-        let missing = authenticate_resident_provider(&release, &witness, &resident, 10);
-        assert_eq!(missing.warming, 1);
-        let process = crate::capture_process_instance(std::process::id())?;
-        let mut wrong = provider();
-        wrong.runtime_id = "ygg".into();
-        wrong.release_id = "other-release".into();
-        wrong.release_witness_sha256 = witness.clone();
-        wrong.source_commit = "commit-a".into();
-        wrong.observed_at_millis = 10;
-        wrong.process_id = process.process_id;
-        wrong.process_creation_token = process.creation_token;
-        wrong.process_executable_path = process.executable_path.display().to_string();
-        publish_resident_provider_readiness(&resident, wrong)?;
-        let rejected = authenticate_resident_provider(&release, &witness, &resident, 10);
-        assert!(
-            rejected
-                .contradictions
-                .iter()
-                .any(|reason| reason.contains("another release"))
-        );
-        Ok(())
-    }
 }
