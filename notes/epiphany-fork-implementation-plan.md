@@ -67,7 +67,8 @@ transport belong to the independent CodexConnector daemon, not Epiphany's body.
 
 ### 0. Federate Decision-Auditable Mind
 
-Status: source-complete; exact-package capstone open. The persisted thread head,
+Status: source-complete; immutable Ox17 container deployed; capstone braked
+after the three-failure boundary. The persisted thread head,
 global revision transaction, aggregate RepoModel, generic Mind gateway, and
 dual readers are deleted. Concrete invariant owners submit exact-envelope
 `MindMutation` plans; CultCache batch CAS merges disjoint identities and refuses

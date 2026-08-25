@@ -2,11 +2,12 @@
 
 Updated: 2026-08-25
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany source cut: `ed4ca58c`
-Current connector source: `6dc80f6d266db4d82566d2434adcc55a48e8ecad`
-Current pass: source subtraction is complete. Ox17 is blocked on an Idunn-owned
-compile-test-seal-only route; canonical direction lives in `state/map.yaml`.
-Ox17 and Atlas Gate 1 remain paused
+Latest committed Epiphany source cut: `27e1dca1`
+Current connector source: `80de3acc18e058f649c3b25ce617f8869f038670`
+Current pass: the Idunn-owned Ox17 container route is live. The capstone is
+braked after three network failures; the exact route defect is fixed and
+probe-proven, but no fourth provider attempt was made. Canonical direction
+lives in `state/map.yaml`. Production and Atlas Gate 1 remain paused.
 
 ## Orientation
 
@@ -17,9 +18,9 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `ed4ca58c` is the current
-build-affecting source on this branch. Historical live proofs remain evidence;
-they do not authorize the next capstone or Gate 1.
+production symlink body and is inactive. Exact `27e1dca1` is packaged only in
+the non-production Ox17 container. Historical live proofs remain evidence;
+they do not authorize Gate 1.
 
 ## Current live deployment
 
@@ -35,6 +36,14 @@ they do not authorize the next capstone or Gate 1.
   restarts after the hard epoch
   refusal rollback. The d2ca stores and swarm brake remain historical
   production state; no newer package is admitted there.
+- Non-production Ox17 container `c50a1a83118d` runs immutable image
+  `sha256:12bc9a30ad455db2709c0b0749bde84e1c763c5cd36d1ea158112fdaa1deed9c`
+  from exact Epiphany `27e1dca1`. Its named state/work volumes are private and
+  its root is read-only; it has no production mounts. The bridge has egress,
+  so this is storage/authority isolation, not network isolation.
+- CodexConnector `80de3acc` admits a separate `epiphany-ox17-yggdrasil`
+  caller. gamecult-ops `3c2f343` owns fresh volume initialization and the
+  bounded removable loopback/firewall bridge.
 - Idunn source `8b972715c47731f2418d0c423cb0dd2076940bd7` is provenance-exact and
   admits Epiphany through the shared authenticated daemon-health contract.
 - gamecult-ops `b47f9084` removes Docker from
@@ -47,6 +56,15 @@ they do not authorize the next capstone or Gate 1.
 
 ## What just landed
 
+Exact `27e1dca1` is the immutable Ox17 source. Direct Body Modeling launched
+without Eyes. One wrong provider label failed before transport and remained a
+typed terminal refusal. A corrected fresh state root then made exactly three
+provider attempts; UFW blocked container-to-host bridge traffic, so each
+failed before usable output and exposed a secondary failure-identity collision.
+The run stopped with no Hands mutation and no public speech. The bridge route
+was then corrected and a bounded TCP start/stop probe passed; no fourth model
+attempt was run.
+
 Exact `ed4ca58c` deletes `RepoFrontierAdoptedPlan::effective_action` and
 `effective_command`; the operator projection and Hands consequence validator
 read the owning public fields directly. The closing audit found no further
@@ -57,14 +75,13 @@ diff check passed; no mixed-worktree compilation is claimed. Prepare the fresh
 exact Ox17 package capstone next while production and Atlas Gate 1 remain
 paused.
 
-The subsequent Yggdrasil preflight found that the documented bounded-redeploy
-helper grants the complete Epiphany deployment transaction: compile, test,
-seal, publish, Body/pointer mutation, service start, health admission, and final
-witness. Idunn exposes no package-only action. Do not use bounded redeploy or
-the root manifest for the private pre-admission capstone, and do not compile on
-Starfire. Obtain an Idunn-owned compile-test-seal-only route first; then run
-fresh-store Ox17 from its immutable `ed4ca58c` package. Production and Atlas
-Gate 1 remain paused.
+The former package-only authority gap is closed by the immutable image witness
+and one-shot Idunn target. The failed root is terminal evidence: do not issue a
+fourth attempt in it or reuse its volumes. A redeploy deletes the fixed named
+volumes, so seal their consequential typed evidence or obtain an explicit
+retention-owner disposal classification first. A new fresh-root attempt then
+requires operator admission and an explicit reset of its failure budget.
+Production and Atlas Gate 1 remain paused.
 
 Exact `9f189871` removes the admitted-direction prompt alias from the crate
 root, makes its renderer and supersession check crate-internal, and makes the
