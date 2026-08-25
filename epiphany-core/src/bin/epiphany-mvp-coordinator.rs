@@ -741,205 +741,100 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     let role_id = role_id_for_coordinator_action(&action)
                         .ok_or_else(|| anyhow!("unsupported review action {action}"))?;
                     let current_work = epiphany_core::project_current_work(&runtime_store)?;
-                    if role_id == "research"
-                        && current_work.research.stage
-                            == epiphany_core::RepoFrontierResearchLifecycleStage::ResultReady
-                        && let Some(job_id) = current_work.research.worker_job_id.as_deref()
-                    {
-                        let result =
-                            epiphany_core::runtime_role_worker_result(&runtime_store, &job_id)?
-                                .ok_or_else(|| {
-                                    anyhow!("frontier Research review lost its typed result")
-                                })?;
-                        push_event(
-                            &mut step,
-                            json!({"type": "frontierResearchResult", "roleId": role_id, "result": result}),
-                        );
-                        if !args.auto_review {
-                            final_action = json!({
-                                "action": "reviewResearchResult",
-                                "reason": "The exact frontier Research result awaits keyed Mind admission.",
-                                "runtimeJobId": job_id,
-                            });
-                            append_operator_step_jsonl(&steps_path, &step)?;
-                            steps.push(step);
-                            break;
+                    let target = family_review_target(role_id, &current_work).ok_or_else(|| {
+                        anyhow!(
+                            "{role_id} review has no keyed current-work owner; generic role-lane review is retired"
+                        )
+                    })?;
+                    let (family_label, result_event_type, admission_owner) = match target.kind {
+                        FamilyReviewKind::FrontierResearch => {
+                            ("frontier Research", "frontierResearchResult", "keyed Mind")
                         }
-                        let accepted = epiphany_core::accept_frontier_research_result(
-                            &runtime_store,
-                            &job_id,
-                            &now(),
-                        )?;
-                        push_event(
-                            &mut step,
-                            json!({"type": "frontierResearchAccept", "roleId": role_id, "commit": accepted}),
-                        );
-                        final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+                        FamilyReviewKind::FrontierVerification => (
+                            "frontier Verification",
+                            "frontierVerificationResult",
+                            "Soul",
+                        ),
+                        FamilyReviewKind::ProposalModeling => {
+                            ("proposal Modeling", "proposalModelingResult", "keyed Mind")
+                        }
+                        FamilyReviewKind::BodyModeling => {
+                            ("Body Modeling", "bodyModelingResult", "keyed Mind")
+                        }
+                        FamilyReviewKind::FrontierVerdictModeling => (
+                            "frontier verdict Modeling",
+                            "frontierVerdictModelingResult",
+                            "keyed Mind",
+                        ),
+                    };
+                    let result =
+                        epiphany_core::runtime_role_worker_result(&runtime_store, target.job_id)?
+                            .ok_or_else(|| anyhow!("{family_label} review lost its typed result"))?;
+                    push_event(
+                        &mut step,
+                        json!({
+                            "type": result_event_type,
+                            "roleId": role_id,
+                            "result": result,
+                        }),
+                    );
+                    if !args.auto_review {
+                        final_action = json!({
+                            "action": action,
+                            "reason": format!("The exact {family_label} result awaits {admission_owner} admission."),
+                            "runtimeJobId": target.job_id,
+                        });
                         append_operator_step_jsonl(&steps_path, &step)?;
                         steps.push(step);
-                        continue;
+                        break;
                     }
-                    if role_id == "verification"
-                        && let Some(job_id) = current_work
-                            .verification
-                            .as_ref()
-                            .and_then(|work| work.attempt.review_job_id())
-                    {
-                        let result =
-                            epiphany_core::runtime_role_worker_result(&runtime_store, &job_id)?
-                                .ok_or_else(|| {
-                                    anyhow!("frontier Verification review lost its typed result")
-                                })?;
-                        push_event(
-                            &mut step,
-                            json!({"type": "frontierVerificationResult", "roleId": role_id, "result": result}),
-                        );
-                        if !args.auto_review {
-                            final_action = json!({
-                                "action": "reviewVerificationResult",
-                                "reason": "The exact frontier Verification result awaits Soul admission.",
-                                "runtimeJobId": job_id,
-                            });
-                            append_operator_step_jsonl(&steps_path, &step)?;
-                            steps.push(step);
-                            break;
+                    let admission_event = match target.kind {
+                        FamilyReviewKind::FrontierResearch => {
+                            let commit = epiphany_core::accept_frontier_research_result(
+                                &runtime_store,
+                                target.job_id,
+                                &now(),
+                            )?;
+                            json!({"type": "frontierResearchAccept", "roleId": role_id, "commit": commit})
                         }
-                        let admission = epiphany_core::accept_frontier_verification_result(
-                            &runtime_store,
-                            &job_id,
-                            &now(),
-                        )?;
-                        push_event(
-                            &mut step,
-                            json!({"type": "frontierVerificationAdmission", "roleId": role_id, "outcome": admission}),
-                        );
-                        final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
-                        append_operator_step_jsonl(&steps_path, &step)?;
-                        steps.push(step);
-                        continue;
-                    }
-                    if role_id == "modeling"
-                        && let Some(job_id) = current_work
-                            .proposal_modeling
-                            .as_ref()
-                            .and_then(|work| work.attempt.review_job_id())
-                    {
-                        let result =
-                            epiphany_core::runtime_role_worker_result(&runtime_store, &job_id)?
-                                .ok_or_else(|| {
-                                    anyhow!("proposal Modeling review lost its typed result")
-                                })?;
-                        push_event(
-                            &mut step,
-                            json!({"type": "proposalModelingResult", "roleId": role_id, "result": result}),
-                        );
-                        if !args.auto_review {
-                            final_action = json!({
-                                "action": "reviewModelingResult",
-                                "reason": "The exact proposal Modeling result awaits keyed Mind admission.",
-                                "runtimeJobId": job_id,
-                            });
-                            append_operator_step_jsonl(&steps_path, &step)?;
-                            steps.push(step);
-                            break;
+                        FamilyReviewKind::FrontierVerification => {
+                            let outcome = epiphany_core::accept_frontier_verification_result(
+                                &runtime_store,
+                                target.job_id,
+                                &now(),
+                            )?;
+                            json!({"type": "frontierVerificationAdmission", "roleId": role_id, "outcome": outcome})
                         }
-                        let admission = epiphany_core::accept_proposal_modeling_result(
-                            &runtime_store,
-                            &job_id,
-                            &now(),
-                        )?;
-                        push_event(
-                            &mut step,
-                            json!({"type": "proposalModelingAdmission", "roleId": role_id, "outcome": admission}),
-                        );
-                        final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
-                        append_operator_step_jsonl(&steps_path, &step)?;
-                        steps.push(step);
-                        continue;
-                    }
-                    if role_id == "modeling"
-                        && let Some(job_id) = current_work
-                            .body_modeling
-                            .as_ref()
-                            .and_then(|work| work.attempt.review_job_id())
-                    {
-                        let result =
-                            epiphany_core::runtime_role_worker_result(&runtime_store, &job_id)?
-                                .ok_or_else(|| {
-                                    anyhow!("Body Modeling review lost its typed result")
-                                })?;
-                        push_event(
-                            &mut step,
-                            json!({"type": "bodyModelingResult", "roleId": role_id, "result": result}),
-                        );
-                        if !args.auto_review {
-                            final_action = json!({
-                                "action": "reviewModelingResult",
-                                "reason": "The exact Body Modeling result awaits keyed Mind admission.",
-                                "runtimeJobId": job_id,
-                            });
-                            append_operator_step_jsonl(&steps_path, &step)?;
-                            steps.push(step);
-                            break;
+                        FamilyReviewKind::ProposalModeling => {
+                            let outcome = epiphany_core::accept_proposal_modeling_result(
+                                &runtime_store,
+                                target.job_id,
+                                &now(),
+                            )?;
+                            json!({"type": "proposalModelingAdmission", "roleId": role_id, "outcome": outcome})
                         }
-                        let admission = epiphany_core::accept_body_modeling_result(
-                            &runtime_store,
-                            &job_id,
-                            &now(),
-                        )?;
-                        push_event(
-                            &mut step,
-                            json!({"type": "bodyModelingAdmission", "roleId": role_id, "outcome": admission}),
-                        );
-                        final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
-                        append_operator_step_jsonl(&steps_path, &step)?;
-                        steps.push(step);
-                        continue;
-                    }
-                    if role_id == "modeling"
-                        && let Some(job_id) = current_work
-                            .frontier_verdict_modeling
-                            .as_ref()
-                            .and_then(|work| work.attempt.review_job_id())
-                    {
-                        let result =
-                            epiphany_core::runtime_role_worker_result(&runtime_store, &job_id)?
-                                .ok_or_else(|| {
-                                    anyhow!(
-                                        "frontier verdict Modeling review lost its typed result"
-                                    )
-                                })?;
-                        push_event(
-                            &mut step,
-                            json!({"type": "frontierVerdictModelingResult", "roleId": role_id, "result": result}),
-                        );
-                        if !args.auto_review {
-                            final_action = json!({
-                                "action": "reviewModelingResult",
-                                "reason": "The exact frontier verdict Modeling result awaits keyed Mind admission.",
-                                "runtimeJobId": job_id,
-                            });
-                            append_operator_step_jsonl(&steps_path, &step)?;
-                            steps.push(step);
-                            break;
+                        FamilyReviewKind::BodyModeling => {
+                            let outcome = epiphany_core::accept_body_modeling_result(
+                                &runtime_store,
+                                target.job_id,
+                                &now(),
+                            )?;
+                            json!({"type": "bodyModelingAdmission", "roleId": role_id, "outcome": outcome})
                         }
-                        let admission = epiphany_core::accept_frontier_verdict_modeling_result(
-                            &runtime_store,
-                            &job_id,
-                            &now(),
-                        )?;
-                        push_event(
-                            &mut step,
-                            json!({"type": "frontierVerdictModelingAdmission", "roleId": role_id, "outcome": admission}),
-                        );
-                        final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
-                        append_operator_step_jsonl(&steps_path, &step)?;
-                        steps.push(step);
-                        continue;
-                    }
-                    return Err(anyhow!(
-                        "{role_id} review has no keyed current-work owner; generic role-lane review is retired"
-                    ));
+                        FamilyReviewKind::FrontierVerdictModeling => {
+                            let outcome = epiphany_core::accept_frontier_verdict_modeling_result(
+                                &runtime_store,
+                                target.job_id,
+                                &now(),
+                            )?;
+                            json!({"type": "frontierVerdictModelingAdmission", "roleId": role_id, "outcome": outcome})
+                        }
+                    };
+                    push_event(&mut step, admission_event);
+                    final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+                    append_operator_step_jsonl(&steps_path, &step)?;
+                    steps.push(step);
+                    continue;
                 }
                 "reviewReorientResult" => {
                     let result = read_reorient_result(&runtime_store, &thread_id)?;
@@ -1593,6 +1488,72 @@ fn accept_reorient(runtime_store: &Path) -> Result<Value> {
         "mindCommitReceipt": accepted,
         "changed": true,
     }))
+}
+
+#[derive(Clone, Copy)]
+enum FamilyReviewKind {
+    FrontierResearch,
+    FrontierVerification,
+    ProposalModeling,
+    BodyModeling,
+    FrontierVerdictModeling,
+}
+
+struct FamilyReviewTarget<'a> {
+    kind: FamilyReviewKind,
+    job_id: &'a str,
+}
+
+fn family_review_target<'a>(
+    role_id: &str,
+    work: &'a epiphany_core::EpiphanyCurrentWorkProjection,
+) -> Option<FamilyReviewTarget<'a>> {
+    match role_id {
+        "research"
+            if work.research.stage
+                == epiphany_core::RepoFrontierResearchLifecycleStage::ResultReady =>
+        {
+            Some(FamilyReviewTarget {
+                kind: FamilyReviewKind::FrontierResearch,
+                job_id: work.research.worker_job_id.as_deref()?,
+            })
+        }
+        "verification" => Some(FamilyReviewTarget {
+            kind: FamilyReviewKind::FrontierVerification,
+            job_id: work.verification.as_ref()?.attempt.review_job_id()?,
+        }),
+        "modeling" => {
+            if let Some(job_id) = work
+                .proposal_modeling
+                .as_ref()
+                .and_then(|candidate| candidate.attempt.review_job_id())
+            {
+                return Some(FamilyReviewTarget {
+                    kind: FamilyReviewKind::ProposalModeling,
+                    job_id,
+                });
+            }
+            if let Some(job_id) = work
+                .body_modeling
+                .as_ref()
+                .and_then(|candidate| candidate.attempt.review_job_id())
+            {
+                return Some(FamilyReviewTarget {
+                    kind: FamilyReviewKind::BodyModeling,
+                    job_id,
+                });
+            }
+            Some(FamilyReviewTarget {
+                kind: FamilyReviewKind::FrontierVerdictModeling,
+                job_id: work
+                    .frontier_verdict_modeling
+                    .as_ref()?
+                    .attempt
+                    .review_job_id()?,
+            })
+        }
+        _ => None,
+    }
 }
 
 fn role_id_for_coordinator_action(action: &str) -> Option<&'static str> {
