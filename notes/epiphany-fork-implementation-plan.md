@@ -230,8 +230,10 @@ release binaries. Exact `8086d66f` deletes the single-consumer release-
 construction package and moves its pure constructor beneath Core's existing
 packaged-release owner. Exact `1e66e770` deletes the producerless Hands receipt
 constructors while retaining the consequence writers that protect the actual
-route/grant/Verification chain. Audit the never-called Idunn runtime-health
-module next; self-tests cannot impersonate a deployed publisher.
+route/grant/Verification chain. Exact `fab6a59a` deletes the never-called Idunn
+runtime-health signer/aggregate/RUDP module. Audit the equally isolated Idunn
+provider-health admission module next; self-tests cannot impersonate a live
+consumer.
 
 Preserve exact provider-request sealing, the lean Connector client ABI,
 OpenRouter's separate temporary release edge, keyed Mind audit/CAS guarantees,

@@ -775,6 +775,13 @@ route, intent, Substrate Gate grant, patch, successful command, current frontier
 and atomically creates the Verification obligation. The current-work lifecycle
 still proves disjoint Persona and Hands commits merge.
 
+Exact `fab6a59a` deletes the producerless Idunn runtime-health projection. No
+production path called its aggregate calculator, signer, or RUDP publisher;
+only its own tests did. Idunn owns deployed daemon health outside Epiphany, and
+Epiphany's swarm derives startup permission through `resident_readiness`. A
+second dormant publisher was not redundancy; it was an unauthenticated claim
+of physiology.
+
 ## Canonical authority map
 
 | Owner | Inputs | Outputs | Invariant |

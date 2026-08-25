@@ -2,10 +2,10 @@
 
 Updated: 2026-08-25
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany source cut: `1e66e770`
+Latest committed Epiphany source cut: `fab6a59a`
 Current connector source: `6dc80f6d266db4d82566d2434adcc55a48e8ecad`
-Current pass: test-only Hands constructors are gone while typed consequence
-admission remains; audit the producerless Idunn runtime-health module next.
+Current pass: the never-called Idunn runtime-health publisher is gone; audit
+the equally isolated Idunn provider-health admission module next.
 Ox17 and Atlas Gate 1 remain paused
 
 ## Orientation
@@ -17,7 +17,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `1e66e770` is the current
+production symlink body and is inactive. Exact `fab6a59a` is the current
 build-affecting source on this branch. Historical live proofs remain evidence;
 they do not authorize the next capstone or Gate 1.
 
@@ -46,6 +46,14 @@ they do not authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `fab6a59a` deletes the 505-line `idunn_runtime_health` module and
+seven Core export lines. Its signer, aggregate calculator, RUDP publisher, two
+public shapes, and five self-tests had no production caller. Idunn's live
+signed-health authority is external; Epiphany's swarm uses the separate
+resident-readiness path. The cut removes 512 maintained lines. Provider-health
+admission 6/6 and resident-readiness 11/11 pass. Verification produced 1.25 GiB
+across 1,888 files; cleanup restored the exact authenticated state inspector.
 
 Exact `1e66e770` deletes three public Hands receipt convenience constructors
 and their `too_many_arguments` exemption. Their only caller was the current-work
