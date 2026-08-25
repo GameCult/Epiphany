@@ -37,6 +37,9 @@ use std::time::Duration;
 const RESIDENT_MAINTENANCE_INTERVAL: Duration = Duration::from_secs(60);
 
 fn main() -> Result<()> {
+    if env::args().nth(1).as_deref() == Some("initialize-and-release-brake") {
+        return initialize_and_release_brake();
+    }
     let mut args = Args::parse()?;
     authenticate_resident_self_policy(&mut args.policy)?;
     args.policy.validate()?;
@@ -114,6 +117,46 @@ fn main() -> Result<()> {
         }
         CommandKind::Status => unreachable!("status returned before actuation setup"),
     }
+    Ok(())
+}
+
+fn initialize_and_release_brake() -> Result<()> {
+    let mut values = BTreeMap::new();
+    let mut args = env::args().skip(2);
+    while let Some(flag) = args.next() {
+        let value = args
+            .next()
+            .ok_or_else(|| anyhow!("missing value for {flag}"))?;
+        values.insert(flag, value);
+    }
+    let required = |name: &str| {
+        values
+            .get(name)
+            .filter(|value| !value.trim().is_empty())
+            .cloned()
+            .ok_or_else(|| anyhow!("missing {name}"))
+    };
+    let store = PathBuf::from(required("--local-verse-store")?);
+    let runtime_id = required("--runtime-id")?;
+    let actor_id = required("--actor-id")?;
+    let reason = required("--reason")?;
+    let now = Utc::now().to_rfc3339();
+    epiphany_core::engage_epiphany_cultmesh_swarm_brake(
+        &store,
+        &runtime_id,
+        "Fresh runtime begins braked before explicit release.",
+        &actor_id,
+        &now,
+        false,
+    )?;
+    let brake = epiphany_core::release_epiphany_cultmesh_swarm_brake(
+        &store,
+        &runtime_id,
+        reason,
+        actor_id,
+        now,
+    )?;
+    println!("{}", serde_json::to_string_pretty(&brake)?);
     Ok(())
 }
 
