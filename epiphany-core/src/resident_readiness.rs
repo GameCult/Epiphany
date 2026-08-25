@@ -214,7 +214,7 @@ pub struct ResidentProviderReadiness {
 }
 
 impl ResidentProviderReadiness {
-    pub fn validate(&self) -> Result<()> {
+    fn validate(&self) -> Result<()> {
         if self.schema_version != RESIDENT_PROVIDER_READINESS_SCHEMA_VERSION {
             bail!("resident provider readiness schema is unsupported");
         }
@@ -295,7 +295,7 @@ pub fn publish_resident_provider_readiness(
     Ok(readiness)
 }
 
-pub fn load_resident_provider_readiness(store: &Path) -> Result<Option<ResidentProviderReadiness>> {
+fn load_resident_provider_readiness(store: &Path) -> Result<Option<ResidentProviderReadiness>> {
     Ok(readiness_snapshot(store)?.1)
 }
 

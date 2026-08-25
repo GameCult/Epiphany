@@ -179,15 +179,6 @@ impl EpiphanyRepoModelBasis {
         Ok(())
     }
 
-    pub fn validate_current(&self, store_path: impl AsRef<Path>) -> Result<()> {
-        self.validate()?;
-        let current = assemble_repo_model_view(store_path)?.reasoning_basis();
-        if current != *self {
-            return Err(anyhow!("RepoModel basis is stale"));
-        }
-        Ok(())
-    }
-
     pub fn validate_against_cache(&self, cache: &CultCache) -> Result<()> {
         self.validate()?;
         let live = cache.snapshot_envelopes();
@@ -2251,7 +2242,8 @@ mod tests {
             source.document_type == crate::AtlasSurfaceOffer::TYPE
                 && source.document_key == offer_id.to_string()
         }));
-        offer_view.reasoning_basis().validate_current(&store)?;
+        cache.pull_all_backing_stores()?;
+        offer_view.reasoning_basis().validate_against_cache(&cache)?;
 
         let eve = crate::AtlasRepositoryIdentity::new("gamecult-local", "eve")?;
         let eve_surface = uuid::Uuid::new_v4();

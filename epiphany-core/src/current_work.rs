@@ -11,6 +11,8 @@ use crate::{
 
 #[cfg(test)]
 use crate::RepoFrontierResearchContinuationAction;
+#[cfg(test)]
+use cultcache_rs::{CacheBackingStore, SingleFileMessagePackBackingStore};
 
 pub const BODY_MODELING_DECISION_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.mind.body_modeling_decision.v1";
@@ -3587,9 +3589,14 @@ mod tests {
             "a grant derived from the prior Mind projection must not launch"
         );
         assert!(crate::pending_resident_self_grant(&resident_store)?.is_none());
-        let terminal_receipts = crate::resident_self_terminal_receipts(&resident_store)?;
-        assert_eq!(terminal_receipts.len(), 1);
-        assert_eq!(terminal_receipts[0].terminal_status, "superseded");
+        let terminal = SingleFileMessagePackBackingStore::new(&resident_store)
+            .pull_all()?
+            .into_iter()
+            .find(|entry| entry.r#type == crate::ResidentSelfTerminalReceipt::TYPE)
+            .expect("superseded grant must leave one terminal receipt");
+        let terminal: crate::ResidentSelfTerminalReceipt =
+            rmp_serde::from_slice(&terminal.payload)?;
+        assert_eq!(terminal.terminal_status, "superseded");
         assert_current_work_reentry_is_read_only(&store, &scheduled_work)?;
         let mut scheduled_cache = crate::runtime_spine_cache(&store)?;
         scheduled_cache.pull_all_backing_stores()?;

@@ -2533,13 +2533,6 @@ pub fn cancel_resident_self_turn(
     Ok(terminal)
 }
 
-pub fn resident_self_terminal_receipts(path: &Path) -> Result<Vec<ResidentSelfTerminalReceipt>> {
-    Ok(state_cache(path)?
-        .get_all::<ResidentSelfTerminalReceipt>()?
-        .into_iter()
-        .collect())
-}
-
 pub fn retain_resident_self_lifecycles(
     path: &Path,
     retain_closed: usize,
