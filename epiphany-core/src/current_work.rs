@@ -86,6 +86,14 @@ pub struct EpiphanyAgentPassAttemptProjection {
     pub job_id: Option<String>,
 }
 
+impl EpiphanyAgentPassAttemptProjection {
+    pub fn review_job_id(&self) -> Option<&str> {
+        (self.action == EpiphanyAgentPassContinuationAction::Review)
+            .then_some(self.job_id.as_deref())
+            .flatten()
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
     type = "epiphany.mind.agent_pass_admission_refusal.v1",
@@ -1047,53 +1055,6 @@ fn current_proposal_modeling_work(
         }));
     }
     Ok(None)
-}
-
-pub fn current_body_modeling_review_job_id(store_path: impl AsRef<Path>) -> Result<Option<String>> {
-    Ok(crate::project_current_work(store_path)?
-        .body_modeling
-        .filter(|work| work.attempt.action == EpiphanyAgentPassContinuationAction::Review)
-        .and_then(|work| work.attempt.job_id))
-}
-
-pub fn current_proposal_modeling_review_job_id(
-    store_path: impl AsRef<Path>,
-) -> Result<Option<String>> {
-    Ok(project_current_work(store_path)?
-        .proposal_modeling
-        .filter(|work| work.attempt.action == EpiphanyAgentPassContinuationAction::Review)
-        .and_then(|work| work.attempt.job_id))
-}
-
-pub fn current_frontier_verdict_modeling_review_job_id(
-    store_path: impl AsRef<Path>,
-) -> Result<Option<String>> {
-    Ok(project_current_work(store_path)?
-        .frontier_verdict_modeling
-        .filter(|work| work.attempt.action == EpiphanyAgentPassContinuationAction::Review)
-        .and_then(|work| work.attempt.job_id))
-}
-
-pub fn current_frontier_research_review_job_id(
-    store_path: impl AsRef<Path>,
-) -> Result<Option<String>> {
-    let mut cache = crate::runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    let lifecycle = crate::runtime_spine::repo_frontier_research_lifecycle(&cache)?;
-    Ok(
-        (lifecycle.stage == crate::RepoFrontierResearchLifecycleStage::ResultReady)
-            .then_some(lifecycle.worker_job_id)
-            .flatten(),
-    )
-}
-
-pub fn current_frontier_verification_review_job_id(
-    store_path: impl AsRef<Path>,
-) -> Result<Option<String>> {
-    Ok(project_current_work(store_path)?
-        .verification
-        .filter(|work| work.attempt.action == EpiphanyAgentPassContinuationAction::Review)
-        .and_then(|work| work.attempt.job_id))
 }
 
 pub(crate) fn frontier_planning_attempt_ordinal(request_id: &str, job_id: &str) -> Result<usize> {

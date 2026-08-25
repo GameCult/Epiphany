@@ -740,9 +740,11 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 "reviewResearchResult" | "reviewModelingResult" | "reviewVerificationResult" => {
                     let role_id = role_id_for_coordinator_action(&action)
                         .ok_or_else(|| anyhow!("unsupported review action {action}"))?;
+                    let current_work = epiphany_core::project_current_work(&runtime_store)?;
                     if role_id == "research"
-                        && let Some(job_id) =
-                            epiphany_core::current_frontier_research_review_job_id(&runtime_store)?
+                        && current_work.research.stage
+                            == epiphany_core::RepoFrontierResearchLifecycleStage::ResultReady
+                        && let Some(job_id) = current_work.research.worker_job_id.as_deref()
                     {
                         let result =
                             epiphany_core::runtime_role_worker_result(&runtime_store, &job_id)?
@@ -778,10 +780,10 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         continue;
                     }
                     if role_id == "verification"
-                        && let Some(job_id) =
-                            epiphany_core::current_frontier_verification_review_job_id(
-                                &runtime_store,
-                            )?
+                        && let Some(job_id) = current_work
+                            .verification
+                            .as_ref()
+                            .and_then(|work| work.attempt.review_job_id())
                     {
                         let result =
                             epiphany_core::runtime_role_worker_result(&runtime_store, &job_id)?
@@ -817,8 +819,10 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         continue;
                     }
                     if role_id == "modeling"
-                        && let Some(job_id) =
-                            epiphany_core::current_proposal_modeling_review_job_id(&runtime_store)?
+                        && let Some(job_id) = current_work
+                            .proposal_modeling
+                            .as_ref()
+                            .and_then(|work| work.attempt.review_job_id())
                     {
                         let result =
                             epiphany_core::runtime_role_worker_result(&runtime_store, &job_id)?
@@ -854,8 +858,10 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         continue;
                     }
                     if role_id == "modeling"
-                        && let Some(job_id) =
-                            epiphany_core::current_body_modeling_review_job_id(&runtime_store)?
+                        && let Some(job_id) = current_work
+                            .body_modeling
+                            .as_ref()
+                            .and_then(|work| work.attempt.review_job_id())
                     {
                         let result =
                             epiphany_core::runtime_role_worker_result(&runtime_store, &job_id)?
@@ -891,10 +897,10 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         continue;
                     }
                     if role_id == "modeling"
-                        && let Some(job_id) =
-                            epiphany_core::current_frontier_verdict_modeling_review_job_id(
-                                &runtime_store,
-                            )?
+                        && let Some(job_id) = current_work
+                            .frontier_verdict_modeling
+                            .as_ref()
+                            .and_then(|work| work.attempt.review_job_id())
                     {
                         let result =
                             epiphany_core::runtime_role_worker_result(&runtime_store, &job_id)?
