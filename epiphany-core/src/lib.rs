@@ -8,7 +8,6 @@ mod cultmesh_integration;
 mod current_work;
 mod hands_gateway;
 mod idunn_provider_health;
-mod idunn_runtime_health;
 mod imagination_consideration;
 mod memory_graph;
 mod mind_documents;
@@ -108,12 +107,6 @@ pub use idunn_provider_health::{
     admit_required_idunn_provider_health, provider_health_record_key,
     required_idunn_provider_health_query,
     verify_idunn_provider_health_candidate,
-};
-pub use idunn_runtime_health::{
-    CULTNET_RUDP_PROTOCOL_ID, EPIPHANY_IDUNN_RUNTIME_HEALTH_CONTRACT,
-    EpiphanyAggregateRuntimeHealthInput, IdunnDaemonHealthDocument,
-    derive_epiphany_aggregate_runtime_health, publish_idunn_daemon_health_rudp,
-    sign_epiphany_runtime_health,
 };
 pub use imagination_consideration::{
     CANDIDATE_CONTRACT as IMAGINATION_CONSIDERATION_CANDIDATE_CONTRACT,
