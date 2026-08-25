@@ -2,10 +2,10 @@
 
 Updated: 2026-08-25
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany source cut: `200732e9`
+Latest committed Epiphany source cut: `1e4fa533`
 Current connector source: `6dc80f6d266db4d82566d2434adcc55a48e8ecad`
-Current pass: both never-called Idunn health simulacra are gone; narrow Core's
-remaining zero-consumer public exports next.
+Current pass: packaged-release exports now match real consumers; inline the
+single-caller canonical brake-surface helper next.
 Ox17 and Atlas Gate 1 remain paused
 
 ## Orientation
@@ -17,7 +17,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `200732e9` is the current
+production symlink body and is inactive. Exact `1e4fa533` is the current
 build-affecting source on this branch. Historical live proofs remain evidence;
 they do not authorize the next capstone or Gate 1.
 
@@ -46,6 +46,15 @@ they do not authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `1e4fa533` inlines the one-caller packaged-release loader into
+authentication, makes required-binary enumeration and witness read/write
+private to construction, and demotes validation/file/digest checks to the
+parent packaged-release owner. Five unconsumed root exports disappear while
+package/publish/inspect/authentication remain public. The cut removes seven
+maintained lines. Packaged-release 15/15 and the release entrypoint pass.
+Verification produced 1.45 GiB across 2,554 files; cleanup restored the exact
+authenticated state inspector.
 
 Exact `200732e9` deletes the 1,030-line `idunn_provider_health` module and
 eight Core export lines. Its query, candidate verification, monotonic admission

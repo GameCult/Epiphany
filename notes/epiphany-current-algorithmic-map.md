@@ -790,6 +790,12 @@ its exact packaged release, brake, process owner, and resident provider through
 `resident_readiness`. Idunn's deployment health remains an external receipt,
 not an Epiphany-owned shadow store.
 
+Exact `1e4fa533` narrows packaged-release API to actual consumers. Authentication
+opens its typed witness directly; construction-private binary enumeration and
+witness I/O no longer masquerade as root APIs; validation remains visible only
+to the parent publication/authentication owner. Package, publish, inspect,
+authenticate, and exact digest operations remain the external contract.
+
 ## Canonical authority map
 
 | Owner | Inputs | Outputs | Invariant |

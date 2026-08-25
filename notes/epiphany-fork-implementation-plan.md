@@ -234,7 +234,9 @@ route/grant/Verification chain. Exact `fab6a59a` deletes the never-called Idunn
 runtime-health signer/aggregate/RUDP module. Exact `200732e9` deletes its
 equally isolated provider-health query/admission store. The release swarm still
 uses `resident_readiness`; Idunn's deployed health authority remains external.
-Narrow zero-consumer Core exports next.
+Exact `1e4fa533` then narrows packaged-release API to its real package,
+publish, inspect, authentication, and digest consumers. Continue the
+single-caller public-surface audit without touching paused Model Atlas.
 
 Preserve exact provider-request sealing, the lean Connector client ABI,
 OpenRouter's separate temporary release edge, keyed Mind audit/CAS guarantees,
