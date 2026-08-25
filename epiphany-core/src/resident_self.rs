@@ -1869,7 +1869,7 @@ fn digest_parts(parts: impl IntoIterator<Item = impl AsRef<[u8]>>) -> String {
     format!("sha256:{:x}", hash.finalize())
 }
 
-pub fn resident_self_policy_digest(policy: &ResidentSelfPolicy) -> String {
+fn resident_self_policy_digest(policy: &ResidentSelfPolicy) -> String {
     digest_parts([
         policy.workspace.display().to_string(),
         policy.coordinator_bin.display().to_string(),
@@ -2339,7 +2339,7 @@ pub fn validate_resident_self_coordinator_receipt_binding(
     Ok(())
 }
 
-pub fn complete_resident_self_turn_after_death(
+fn complete_resident_self_turn_after_death(
     path: &Path,
     lease: &ResidentSelfTurnLease,
     recovery: &crate::EpiphanyCoordinatorDeathRecovery,

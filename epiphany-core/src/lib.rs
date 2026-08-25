@@ -43,7 +43,6 @@ pub use admitted_model_direction_consideration::{
     RESULT_CONTRACT as ADMITTED_MODEL_DIRECTION_CONSIDERATION_RESULT_CONTRACT,
     RESULT_SCHEMA as ADMITTED_MODEL_DIRECTION_CONSIDERATION_RESULT_SCHEMA_VERSION,
     commit_request as commit_admitted_model_direction_consideration_request,
-    render_prompt as render_admitted_model_direction_consideration_prompt,
     result_id_for_launch as admitted_model_direction_consideration_result_id_for_launch,
     validate_current_request as validate_current_admitted_model_direction_consideration_request,
     validate_request as validate_admitted_model_direction_consideration_request,

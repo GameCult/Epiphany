@@ -186,7 +186,7 @@ pub fn validate_request(request: &AdmittedModelDirectionConsiderationRequest) ->
     Ok(())
 }
 
-pub fn request_is_superseded(
+pub(crate) fn request_is_superseded(
     cache: &cultcache_rs::CultCache,
     request: &AdmittedModelDirectionConsiderationRequest,
 ) -> Result<bool> {
@@ -240,7 +240,7 @@ pub fn result_id_for_launch(request_id: &str, job_id: &str) -> String {
     )
 }
 
-pub fn render_prompt(request: &AdmittedModelDirectionConsiderationRequest) -> String {
+pub(crate) fn render_prompt(request: &AdmittedModelDirectionConsiderationRequest) -> String {
     format!(
         "Act as Epiphany Imagination for one proposal-only direction consideration. Inspect the exact current keyed Modeling map bound by request {} at projection digest {}. Suggest options or hold. Do not adopt, edit, execute, release, or deploy.",
         request.request_id, request.model_projection_digest

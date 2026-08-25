@@ -2693,7 +2693,7 @@ fn launch_consideration_work(
                 ));
             }
             (
-                crate::render_admitted_model_direction_consideration_prompt(request),
+                crate::admitted_model_direction_consideration::render_prompt(request),
                 None,
                 Some(
                     crate::AdmittedModelDirectionConsiderationContextProjection::new(
