@@ -17,9 +17,9 @@ ctrlc = { version = "3.5.1", features = ["termination"] }
 cultcache-rs = { path = "../vendor/cultcache-rs" }
 cultmesh-rs = { path = "../vendor/cultmesh-rs" }
 cultnet-rs = { path = "../vendor/cultnet-rs" }
-epiphany-release-construction = { path = "../epiphany-release-construction" }
 epiphany-model-adapter = { path = "../epiphany-model-adapter" }
 epiphany-tool-adapter = { path = "../epiphany-tool-adapter" }
+fs2 = "0.4"
 ghostlight-persona-projection = { git = "https://github.com/GameCult/Ghostlight.git", rev = "22281891cbf9258db80c15a9fd465e6fa251e7dd", package = "ghostlight-persona-projection" }
 ed25519-dalek = "2"
 ignore = "0.4.23"

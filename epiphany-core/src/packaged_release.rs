@@ -4,7 +4,8 @@ use chrono::Utc;
 use cultcache_rs::SingleFileMessagePackBackingStore;
 use std::path::Path;
 
-pub use epiphany_release_construction::*;
+mod construction;
+pub use construction::*;
 
 const RELEASE_KEY_PREFIX: &str = "epiphany-local/packaged-release/by-id/";
 const RELEASE_HEAD_KEY: &str = "epiphany-local/packaged-release/current";

@@ -543,8 +543,8 @@ dependencies = [
  "cultnet-rs",
  "ed25519-dalek",
  "epiphany-model-adapter",
- "epiphany-release-construction",
  "epiphany-tool-adapter",
+ "fs2",
  "ghostlight-persona-projection",
  "ignore",
  "libc",
@@ -614,21 +614,6 @@ dependencies = [
  "ureq",
  "uuid",
  "zeroize",
-]
-
-[[package]]
-name = "epiphany-release-construction"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "cultcache-rs",
- "fs2",
- "rmp-serde",
- "serde",
- "sha2",
- "tempfile",
- "uuid",
 ]
 
 [[package]]

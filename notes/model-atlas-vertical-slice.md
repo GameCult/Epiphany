@@ -207,7 +207,7 @@ uses:
 ```powershell
 $env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'
 cargo test -p epiphany-core --lib atlas::runtime::tests
-cargo test -p epiphany-release-construction --lib binary_suffix_follows_requested_target_not_packager_host
+cargo test -p epiphany-core --lib binary_suffix_follows_requested_target_not_packager_host
 ```
 
 Changes to publisher, projector, impact, transport, or Eve lowering logic must
