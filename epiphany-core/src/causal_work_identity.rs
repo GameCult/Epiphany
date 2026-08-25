@@ -9,7 +9,7 @@ fn digest_id(prefix: &str, causal_parts: &[&str]) -> String {
     format!("{prefix}-{:x}", digest.finalize())
 }
 
-pub fn proposal_modeling_request_id(
+pub(crate) fn proposal_modeling_request_id(
     runtime_id: &str,
     proposal_id: &str,
     payload_sha256: &str,
@@ -20,7 +20,7 @@ pub fn proposal_modeling_request_id(
     )
 }
 
-pub fn frontier_research_request_id(
+pub(crate) fn frontier_research_request_id(
     runtime_id: &str,
     frontier_item_id: &str,
     frontier_item_hash: &str,
@@ -31,7 +31,7 @@ pub fn frontier_research_request_id(
     )
 }
 
-pub fn frontier_planning_request_id(
+pub(crate) fn frontier_planning_request_id(
     runtime_id: &str,
     frontier_item_id: &str,
     frontier_item_hash: &str,
@@ -42,7 +42,7 @@ pub fn frontier_planning_request_id(
     )
 }
 
-pub fn frontier_plan_mind_request_id(
+pub(crate) fn frontier_plan_mind_request_id(
     runtime_id: &str,
     planning_request_id: &str,
     imagination_result_id: &str,
@@ -59,7 +59,7 @@ pub fn frontier_plan_mind_request_id(
     )
 }
 
-pub fn frontier_verdict_modeling_request_id(
+pub(crate) fn frontier_verdict_modeling_request_id(
     runtime_id: &str,
     soul_verdict_receipt_id: &str,
     verification_result_id: &str,
@@ -76,7 +76,7 @@ pub fn frontier_verdict_modeling_request_id(
     )
 }
 
-pub fn admitted_model_direction_request_id(
+pub(crate) fn admitted_model_direction_request_id(
     runtime_id: &str,
     model_projection_digest: &str,
     previous_terminal_result_id: Option<&str>,

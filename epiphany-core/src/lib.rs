@@ -71,7 +71,7 @@ pub use agent_launch::epiphany_reorient_launch_output_schema;
 pub use agent_launch::epiphany_role_label;
 pub use agent_launch::epiphany_role_launch_output_schema;
 pub use atlas::*;
-pub use causal_work_identity::*;
+pub(crate) use causal_work_identity::*;
 pub use coordinator_objective_intake::UserObjectiveIntake;
 pub use coordinator_objective_intake::UserObjectiveIntakeApplied;
 pub use coordinator_objective_intake::UserObjectiveIntakeInput;
