@@ -246,7 +246,10 @@ repeated store reads instead of introducing a generic review registry. Exact
 `d0a317bd` lands that cut. Continue through the adjacent five duplicated review
 consequence branches: select one private typed family target, execute the common
 result/stop/admit/status skeleton once, and retain family-specific admission
-without adding persisted or registry state.
+without adding persisted or registry state. Exact `1a9dec56` lands that cut.
+Continue with a class audit of test-only public readers and validators; demote
+interfaces needed only by consequential Core proofs, and delete those that
+merely manufacture a second authority.
 
 Resident startup now has one health decision. `derive_resident_cognition_readiness`
 loads the exact provider row, probes the process singleton, and obtains the
@@ -257,7 +260,9 @@ Coordinator family review now consumes one `EpiphanyCurrentWorkProjection`.
 Five path-based job-ID APIs are gone; the shared attempt projection exposes a
 job ID only in Review state. Research keeps its specialized lifecycle and the
 three Modeling families keep their established priority. The remaining repeated
-result-read/operator-stop/admission blocks are the next DRY liability.
+result-read/operator-stop/admission blocks are gone. One private target now
+selects the family, and one common pipeline reads, pauses, admits, emits, and
+refreshes. The target cannot persist, schedule, or admit anything itself.
 
 Preserve exact provider-request sealing, the lean Connector client ABI,
 OpenRouter's separate temporary release edge, keyed Mind audit/CAS guarantees,

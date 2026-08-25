@@ -816,6 +816,13 @@ identity from that same state. The shared attempt projection exposes its job ID
 only for Review; every family still enters its own exact result and admission
 owner. No generic role registry or second scheduling projection exists.
 
+Exact `1a9dec56` collapses the adjacent duplicated review consequences. A
+private target names the already-selected family and exact job; the coordinator
+then performs one typed result read and one operator-stop path. Automatic review
+dispatches to the existing family-specific admission function, emits the same
+family event cargo, and refreshes status once. The target is in-process control
+flow only: it owns no durable state, scheduling, callback table, or CAS law.
+
 ## Canonical authority map
 
 | Owner | Inputs | Outputs | Invariant |

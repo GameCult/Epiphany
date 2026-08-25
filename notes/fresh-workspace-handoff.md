@@ -2,10 +2,10 @@
 
 Updated: 2026-08-25
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany source cut: `d0a317bd`
+Latest committed Epiphany source cut: `1a9dec56`
 Current connector source: `6dc80f6d266db4d82566d2434adcc55a48e8ecad`
-Current pass: family review uses one current-work snapshot; collapse the five
-duplicated coordinator review consequence branches next.
+Current pass: family review has one common consequence pipeline; audit
+test-only public readers and validators as one class next.
 Ox17 and Atlas Gate 1 remain paused
 
 ## Orientation
@@ -17,7 +17,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `d0a317bd` is the current
+production symlink body and is inactive. Exact `1a9dec56` is the current
 build-affecting source on this branch. Historical live proofs remain evidence;
 they do not authorize the next capstone or Gate 1.
 
@@ -46,6 +46,16 @@ they do not authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `1a9dec56` collapses five copies of coordinator review physiology into
+one typed flow: exact result read, operator pause, family admission, event
+append, and status refresh. A private in-process target selects Research,
+Verification, proposal Modeling, Body Modeling, or frontier-verdict Modeling
+from the one current-work snapshot; it owns no state or admission. Each family
+still calls its exact CAS owner and emits the same event cargo, with Modeling
+priority unchanged. The cut removes 39 maintained lines net. Coordinator
+binary tests pass 4/4 without warnings. Verification generated 1.609 GiB across
+2,145 files; cleanup restored the exact authenticated state inspector.
 
 Exact `d0a317bd` deletes the five public one-caller family review-job-ID
 wrappers. The coordinator now pulls one typed current-work projection for the
