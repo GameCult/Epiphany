@@ -79,7 +79,7 @@ pub struct PackageReleaseRequest<'a> {
     pub target_triple: &'a str,
 }
 
-pub fn required_packaged_release_binaries(target_triple: &str) -> Vec<(&'static str, String)> {
+fn required_packaged_release_binaries(target_triple: &str) -> Vec<(&'static str, String)> {
     let file_name = |name: &str| target_binary_file_name(target_triple, name);
     vec![
         ("release-publisher", file_name("epiphany-release")),
@@ -572,7 +572,9 @@ fn release_bundle_target_dir(
     target_root.join(format!("graph-{:x}", digest.finalize()))
 }
 
-pub fn validate_epiphany_packaged_release(entry: &EpiphanyPackagedReleaseEntry) -> Result<()> {
+pub(super) fn validate_epiphany_packaged_release(
+    entry: &EpiphanyPackagedReleaseEntry,
+) -> Result<()> {
     if entry.schema_version != EPIPHANY_PACKAGED_RELEASE_SCHEMA_VERSION {
         bail!("unsupported packaged release schema");
     }
@@ -630,7 +632,9 @@ pub fn validate_epiphany_packaged_release(entry: &EpiphanyPackagedReleaseEntry) 
     Ok(())
 }
 
-pub fn verify_epiphany_packaged_release_files(entry: &EpiphanyPackagedReleaseEntry) -> Result<()> {
+pub(super) fn verify_epiphany_packaged_release_files(
+    entry: &EpiphanyPackagedReleaseEntry,
+) -> Result<()> {
     validate_epiphany_packaged_release(entry)?;
     let root = canonical_path(&entry.package_root).context("packaged release root is absent")?;
     if root != PathBuf::from(&entry.package_root) {
@@ -672,7 +676,7 @@ pub fn verify_epiphany_packaged_release_files(entry: &EpiphanyPackagedReleaseEnt
     Ok(())
 }
 
-pub fn write_epiphany_packaged_release_witness(
+fn write_epiphany_packaged_release_witness(
     path: &Path,
     entry: &EpiphanyPackagedReleaseEntry,
 ) -> Result<()> {
@@ -686,7 +690,7 @@ pub fn write_epiphany_packaged_release_witness(
     })
 }
 
-pub fn read_epiphany_packaged_release_witness(path: &Path) -> Result<EpiphanyPackagedReleaseEntry> {
+fn read_epiphany_packaged_release_witness(path: &Path) -> Result<EpiphanyPackagedReleaseEntry> {
     let bytes = fs::read(path)
         .with_context(|| format!("failed to read packaged release witness {}", path.display()))?;
     let entry = rmp_serde::from_slice(&bytes).with_context(|| {
@@ -727,7 +731,7 @@ pub fn epiphany_packaged_release_witness_sha256(
     witness_sha256(entry)
 }
 
-pub fn validate_epiphany_packaged_release_sha256(value: &str) -> Result<()> {
+pub(super) fn validate_epiphany_packaged_release_sha256(value: &str) -> Result<()> {
     validate_sha256(value)
 }
 

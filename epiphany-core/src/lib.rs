@@ -124,10 +124,7 @@ pub use packaged_release::{
     EpiphanyPackagedReleaseEntry, EpiphanyPackagedReleaseHead, PackageReleaseRequest,
     authenticate_epiphany_packaged_release, epiphany_packaged_release_binary_path,
     epiphany_packaged_release_witness_sha256, inspect_epiphany_packaged_release_witness,
-    load_epiphany_packaged_release, package_epiphany_release,
-    publish_epiphany_packaged_release, read_epiphany_packaged_release_witness,
-    required_packaged_release_binaries, validate_epiphany_packaged_release,
-    verify_epiphany_packaged_release_files, write_epiphany_packaged_release_witness,
+    package_epiphany_release, publish_epiphany_packaged_release,
 };
 pub use persona_conversation::*;
 pub use persona_discord_crossing::*;

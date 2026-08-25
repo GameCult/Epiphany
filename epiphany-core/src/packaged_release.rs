@@ -53,15 +53,6 @@ pub fn publish_epiphany_packaged_release(
     Ok(entry)
 }
 
-pub fn load_epiphany_packaged_release(
-    store: &Path,
-    runtime_id: &str,
-    release_id: &str,
-) -> Result<Option<EpiphanyPackagedReleaseEntry>> {
-    open_epiphany_cultmesh_node(store, runtime_id.to_string())?
-        .get(&format!("{RELEASE_KEY_PREFIX}{release_id}"))
-}
-
 pub fn authenticate_epiphany_packaged_release(
     store: &Path,
     runtime_id: &str,
@@ -69,7 +60,8 @@ pub fn authenticate_epiphany_packaged_release(
     expected_witness_sha256: &str,
 ) -> Result<EpiphanyPackagedReleaseEntry> {
     validate_epiphany_packaged_release_sha256(expected_witness_sha256)?;
-    let entry = load_epiphany_packaged_release(store, runtime_id, release_id)?
+    let entry = open_epiphany_cultmesh_node(store, runtime_id.to_string())?
+        .get::<EpiphanyPackagedReleaseEntry>(&format!("{RELEASE_KEY_PREFIX}{release_id}"))?
         .context("packaged release witness is absent")?;
     validate_epiphany_packaged_release(&entry)?;
     verify_epiphany_packaged_release_files(&entry)?;
