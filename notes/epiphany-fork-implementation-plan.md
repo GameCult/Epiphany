@@ -258,6 +258,10 @@ Exact `e7b66b35` demotes that entire causal-ID surface without changing the
 digest law. Continue the same class audit through internal prompt rendering,
 supersession, and Resident Self policy/completion helpers; keep entrypoints that
 are actually consumed by release binaries or sibling packages public.
+Exact `9f189871` lands that cut and removes the dead prompt root alias. Continue
+by deleting `RepoFrontierAdoptedPlan::effective_action` and
+`effective_command`: both merely return their public fields and currently make
+the Hands route look as though a second derivation law exists.
 
 Resident startup now has one health decision. `derive_resident_cognition_readiness`
 loads the exact provider row, probes the process singleton, and obtains the

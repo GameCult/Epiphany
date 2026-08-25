@@ -2,10 +2,10 @@
 
 Updated: 2026-08-25
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany source cut: `e7b66b35`
+Latest committed Epiphany source cut: `9f189871`
 Current connector source: `6dc80f6d266db4d82566d2434adcc55a48e8ecad`
-Current pass: causal-work identity is crate-private; demote the adjacent
-single-consumer internal prompt/supersession and Resident Self helpers next.
+Current pass: adjacent single-consumer cognition helpers are private; delete
+the adopted-plan effective-action/command field wrappers next.
 Ox17 and Atlas Gate 1 remain paused
 
 ## Orientation
@@ -17,7 +17,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `e7b66b35` is the current
+production symlink body and is inactive. Exact `9f189871` is the current
 build-affecting source on this branch. Historical live proofs remain evidence;
 they do not authorize the next capstone or Gate 1.
 
@@ -46,6 +46,15 @@ they do not authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `9f189871` removes the admitted-direction prompt alias from the crate
+root, makes its renderer and supersession check crate-internal, and makes the
+Resident Self policy digest and death-completion helper private to their sole
+owner. The current-work launcher now names the prompt module directly. The cut
+removes one maintained line net and five false public/root surfaces without
+changing prompt text, digest inputs, supersession, or recovery. Current work
+passes 3/3 and Core checks cleanly. Verification generated 1.407 GiB across
+2,428 files; cleanup restored the exact authenticated inspector.
 
 Exact `e7b66b35` demotes the complete causal-work identity module from the
 public crate ABI. Proposal Modeling, frontier Research, frontier Planning,

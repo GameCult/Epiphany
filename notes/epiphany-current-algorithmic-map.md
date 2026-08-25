@@ -833,6 +833,10 @@ Exact `e7b66b35` makes causal request-ID construction an internal Core organ.
 The six family functions still share the one length-framed SHA-256 primitive;
 the crate root carries them only at crate visibility, not as downstream ABI.
 
+Exact `9f189871` applies the same boundary to adjacent cognition helpers. The
+admitted-direction prompt is called through its owning module, supersession is
+crate-only, and Resident Self policy/death helpers are same-module private.
+
 ## Canonical authority map
 
 | Owner | Inputs | Outputs | Invariant |
