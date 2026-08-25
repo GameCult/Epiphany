@@ -2,11 +2,11 @@
 
 Updated: 2026-08-25
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany source cut: `8086d66f`
+Latest committed Epiphany source cut: `1e66e770`
 Current connector source: `6dc80f6d266db4d82566d2434adcc55a48e8ecad`
-Current pass: release construction belongs directly to Core's packaged-release
-organ; audit the producerless public Hands receipt writers next. Ox17 and Atlas
-Gate 1 remain paused
+Current pass: test-only Hands constructors are gone while typed consequence
+admission remains; audit the producerless Idunn runtime-health module next.
+Ox17 and Atlas Gate 1 remain paused
 
 ## Orientation
 
@@ -17,7 +17,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `8086d66f` is the current
+production symlink body and is inactive. Exact `1e66e770` is the current
 build-affecting source on this branch. Historical live proofs remain evidence;
 they do not authorize the next capstone or Gate 1.
 
@@ -46,6 +46,16 @@ they do not authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `1e66e770` deletes three public Hands receipt convenience constructors
+and their `too_many_arguments` exemption. Their only caller was the current-work
+lifecycle test, which now uses explicit typed receipt literals. The three
+receipt writers remain as the real consequence-admission owner over route,
+intent, Substrate Gate grant, patch, successful command, commit, and exact
+Verification obligation. The cut removes 59 maintained lines. The complete
+keyed Modeling/Research/Hands/Verification lifecycle and concurrent
+Persona/Hands proof passes. Verification produced 1.25 GiB across 1,888 files;
+cleanup restored the exact authenticated state inspector.
 
 Exact `8086d66f` deletes the single-consumer
 `epiphany-release-construction` Cargo package. Its pure 1,222-line constructor

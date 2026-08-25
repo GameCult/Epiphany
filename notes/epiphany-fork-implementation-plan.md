@@ -228,9 +228,10 @@ The library-only `epiphany-openai-runtime` package remains earned: its one
 optional target isolates model/Persona orchestration from seven unrelated root
 release binaries. Exact `8086d66f` deletes the single-consumer release-
 construction package and moves its pure constructor beneath Core's existing
-packaged-release owner. Audit the producerless public Hands receipt constructors
-and writers next; they may not survive merely because current-work tests invoke
-them while no actuator does.
+packaged-release owner. Exact `1e66e770` deletes the producerless Hands receipt
+constructors while retaining the consequence writers that protect the actual
+route/grant/Verification chain. Audit the never-called Idunn runtime-health
+module next; self-tests cannot impersonate a deployed publisher.
 
 Preserve exact provider-request sealing, the lean Connector client ABI,
 OpenRouter's separate temporary release edge, keyed Mind audit/CAS guarantees,

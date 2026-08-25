@@ -767,6 +767,14 @@ package, manifest, workspace target, and dependency edge are gone. The source
 body moved byte-for-byte; exact target, cache, substitution, and tamper proofs
 remain module tests under the owning Core library.
 
+Exact `1e66e770` removes the three Hands receipt convenience constructors. A
+receipt is an explicit typed consequence, not an object whose provenance should
+be hidden behind a test-only factory. The retained writers are the admission
+owner: patch and command identities are immutable; commit validates the exact
+route, intent, Substrate Gate grant, patch, successful command, current frontier,
+and atomically creates the Verification obligation. The current-work lifecycle
+still proves disjoint Persona and Hands commits merge.
+
 ## Canonical authority map
 
 | Owner | Inputs | Outputs | Invariant |
