@@ -364,6 +364,7 @@ dependencies = [
 [[package]]
 name = "cultcache-rs"
 version = "0.1.0"
+source = "git+https://github.com/GameCult/CultLib.git?rev=e171eca32329baa928f4a1d810401a8b4c857029#e171eca32329baa928f4a1d810401a8b4c857029"
 dependencies = [
  "anyhow",
  "chrono",
@@ -381,6 +382,7 @@ dependencies = [
 [[package]]
 name = "cultcache-rs-derive"
 version = "0.1.0"
+source = "git+https://github.com/GameCult/CultLib.git?rev=e171eca32329baa928f4a1d810401a8b4c857029#e171eca32329baa928f4a1d810401a8b4c857029"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -390,18 +392,18 @@ dependencies = [
 [[package]]
 name = "cultmesh-rs"
 version = "0.1.0"
+source = "git+https://github.com/GameCult/CultLib.git?rev=e171eca32329baa928f4a1d810401a8b4c857029#e171eca32329baa928f4a1d810401a8b4c857029"
 dependencies = [
  "anyhow",
  "cultcache-rs",
  "cultnet-rs",
- "pretty_assertions",
  "serde",
- "tempfile",
 ]
 
 [[package]]
 name = "cultnet-rs"
 version = "0.1.0"
+source = "git+https://github.com/GameCult/CultLib.git?rev=e171eca32329baa928f4a1d810401a8b4c857029#e171eca32329baa928f4a1d810401a8b4c857029"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -410,7 +412,6 @@ dependencies = [
  "cultcache-rs",
  "ed25519-dalek",
  "hmac",
- "pretty_assertions",
  "rand 0.9.5",
  "rmp-serde",
  "rmpv",
@@ -419,9 +420,9 @@ dependencies = [
  "serde_json",
  "sha2",
  "socket2 0.5.10",
- "tempfile",
  "uuid",
  "windows-sys 0.61.2",
+ "zeroize",
 ]
 
 [[package]]
@@ -460,12 +461,6 @@ dependencies = [
  "const-oid",
  "zeroize",
 ]
-
-[[package]]
-name = "diff"
-version = "0.1.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56254986775e3233ffa9c4d7d3faaf6d36a2c09d30b20687e9f88bc8bafc16c8"
 
 [[package]]
 name = "digest"
@@ -1386,16 +1381,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9"
 dependencies = [
  "zerocopy",
-]
-
-[[package]]
-name = "pretty_assertions"
-version = "1.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ae130e2f271fbc2ac3a40fb1d07180839cdbbe443c7a27e1e3c13c5cac0116d"
-dependencies = [
- "diff",
- "yansi",
 ]
 
 [[package]]
@@ -2822,12 +2807,6 @@ name = "writeable"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ffae5123b2d3fc086436f8834ae3ab053a283cfac8fe0a0b8eaae044768a4c4"
-
-[[package]]
-name = "yansi"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cfe53a6657fd280eaa890a3bc59152892ffa3e30101319d168b781ed6529b049"
 
 [[package]]
 name = "yoke"

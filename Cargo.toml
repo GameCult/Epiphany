@@ -6,7 +6,6 @@ members = [
     "epiphany-tool-adapter",
     "epiphany-tool-mcp-runtime",
 ]
-exclude = ["vendor/cultcache-rs"]
 resolver = "3"
 
 [package]
@@ -21,8 +20,8 @@ license-file = "LICENSE"
 anyhow = "1"
 chrono = "0.4.44"
 ctrlc = { version = "3.5.1", features = ["termination"] }
-cultcache-rs = { path = "vendor/cultcache-rs" }
-cultnet-rs = { path = "vendor/cultnet-rs" }
+cultcache-rs = { git = "https://github.com/GameCult/CultLib.git", rev = "e171eca32329baa928f4a1d810401a8b4c857029", package = "cultcache-rs" }
+cultnet-rs = { git = "https://github.com/GameCult/CultLib.git", rev = "e171eca32329baa928f4a1d810401a8b4c857029", package = "cultnet-rs" }
 epiphany-core = { path = "epiphany-core" }
 epiphany-model-adapter = { path = "epiphany-model-adapter" }
 epiphany-openai-runtime = { path = "epiphany-openai-runtime", optional = true }

@@ -13,7 +13,7 @@ path = "src/lib.rs"
 [dependencies]
 anyhow = "1"
 chrono = "0.4.44"
-cultcache-rs = { path = "../vendor/cultcache-rs" }
+cultcache-rs = { git = "https://github.com/GameCult/CultLib.git", rev = "e171eca32329baa928f4a1d810401a8b4c857029", package = "cultcache-rs" }
 epiphany-core = { path = "../epiphany-core" }
 epiphany-model-adapter = { path = "../epiphany-model-adapter" }
 epiphany-tool-adapter = { path = "../epiphany-tool-adapter" }

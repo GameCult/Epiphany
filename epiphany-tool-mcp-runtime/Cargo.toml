@@ -11,7 +11,7 @@ anyhow = "1"
 chrono = "0.4.44"
 epiphany-tool-adapter = { path = "../epiphany-tool-adapter" }
 epiphany-core = { path = "../epiphany-core" }
-cultcache-rs = { path = "../vendor/cultcache-rs" }
+cultcache-rs = { git = "https://github.com/GameCult/CultLib.git", rev = "e171eca32329baa928f4a1d810401a8b4c857029", package = "cultcache-rs" }
 http = "1"
 reqwest = { version = "0.13.2", default-features = false, features = ["json", "rustls"] }
 sha2 = "0.10"

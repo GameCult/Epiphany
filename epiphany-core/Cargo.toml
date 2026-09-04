@@ -14,9 +14,9 @@ path = "src/lib.rs"
 anyhow = "1"
 chrono = "0.4.44"
 ctrlc = { version = "3.5.1", features = ["termination"] }
-cultcache-rs = { path = "../vendor/cultcache-rs" }
-cultmesh-rs = { path = "../vendor/cultmesh-rs" }
-cultnet-rs = { path = "../vendor/cultnet-rs" }
+cultcache-rs = { git = "https://github.com/GameCult/CultLib.git", rev = "e171eca32329baa928f4a1d810401a8b4c857029", package = "cultcache-rs" }
+cultmesh-rs = { git = "https://github.com/GameCult/CultLib.git", rev = "e171eca32329baa928f4a1d810401a8b4c857029", package = "cultmesh-rs" }
+cultnet-rs = { git = "https://github.com/GameCult/CultLib.git", rev = "e171eca32329baa928f4a1d810401a8b4c857029", package = "cultnet-rs" }
 epiphany-model-adapter = { path = "../epiphany-model-adapter" }
 epiphany-tool-adapter = { path = "../epiphany-tool-adapter" }
 fs2 = "0.4"
