@@ -572,7 +572,6 @@ fn fallback<'a>(value: &'a str, fallback: &'a str) -> &'a str {
 mod tests {
     use super::*;
 
-
     #[test]
     fn typed_interpreter_effects_reject_channel_escape_and_mixed_drop() {
         let valid = r#"{"schemaVersion":"epiphany.persona_interpreter_effect_set.v0","effects":[{"kind":"state_note","memory_kind":"memory","summary":"The operator expects a native conversational nerve."},{"kind":"say","channel_id":"aquarium","content":"The nerve is live.","speech_act":"status","register":"concise","safety_notes":[]}]}"#;

@@ -198,9 +198,8 @@ mod tests {
 
     #[test]
     fn parses_only_the_owned_stdio_and_http_subset() -> Result<()> {
-        let config = McpRuntimeConfig::from_toml(
-            &format!(
-                r#"
+        let config = McpRuntimeConfig::from_toml(&format!(
+            r#"
 [mcp_servers.local]
 command = "{ABSOLUTE_COMMAND}"
 args = ["--stdio"]
@@ -211,8 +210,7 @@ url = "https://example.test/mcp"
 bearer_token_env_var = "MCP_TOKEN"
 tool_timeout_sec = 4
 "#
-            ),
-        )?;
+        ))?;
         assert!(matches!(
             config.server("local")?.transport,
             McpTransportConfig::Stdio { .. }

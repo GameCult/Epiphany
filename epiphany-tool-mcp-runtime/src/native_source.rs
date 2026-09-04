@@ -7,10 +7,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::thread;
 
-pub fn execute_epiphany_source(
-    intent: &EpiphanyToolInvocationIntent,
-    cwd: &Path,
-) -> Result<Value> {
+pub fn execute_epiphany_source(intent: &EpiphanyToolInvocationIntent, cwd: &Path) -> Result<Value> {
     let arguments: Value =
         serde_json::from_str(&intent.arguments_json).context("arguments_json is not valid JSON")?;
     if !arguments.is_object() {
@@ -292,11 +289,8 @@ mod tests {
         )?;
         assert_eq!(value["content"], "2: two\n3: three");
         assert!(
-            execute_epiphany_source(
-                &intent("read_file", r#"{"path":"../escape"}"#),
-                dir.path()
-            )
-            .is_err()
+            execute_epiphany_source(&intent("read_file", r#"{"path":"../escape"}"#), dir.path())
+                .is_err()
         );
         Ok(())
     }

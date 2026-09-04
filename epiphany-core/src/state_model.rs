@@ -93,9 +93,7 @@ pub struct EpiphanyModeState {
     pub kind: Option<EpiphanyModeKind>,
 }
 
-#[derive(
-    Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash, Default,
-)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum EpiphanyModeKind {
     Plan,
@@ -205,9 +203,7 @@ pub struct EpiphanyMemoryDomain {
     pub lifecycle: EpiphanyMemoryLifecycle,
 }
 
-#[derive(
-    Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash, Default,
-)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum EpiphanyMemoryLifecycle {
     #[default]
@@ -218,9 +214,7 @@ pub enum EpiphanyMemoryLifecycle {
     Stale,
 }
 
-#[derive(
-    Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash, Default,
-)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum EpiphanyMemoryNodeKind {
     #[default]
@@ -259,9 +253,7 @@ pub struct EpiphanyMemoryNode {
     pub updated_at: Option<String>,
 }
 
-#[derive(
-    Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash, Default,
-)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum EpiphanyMemoryEdgeKind {
     #[default]

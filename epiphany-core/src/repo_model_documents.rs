@@ -1,12 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use anyhow::{Result, anyhow};
-use cultcache_rs::{CultCache, CultCacheEnvelope, DatabaseEntry};
 use crate::state_model::{
     EpiphanyMemoryDomain, EpiphanyMemoryEdge, EpiphanyMemoryGraphSnapshot, EpiphanyMemoryNode,
     RepoFrontierItem,
 };
+use anyhow::{Result, anyhow};
+use cultcache_rs::{CultCache, CultCacheEnvelope, DatabaseEntry};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -1532,10 +1532,10 @@ fn validate_claim_obligations(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{RuntimeSpineInitOptions, initialize_runtime_spine};
     use crate::state_model::{
         EpiphanyMemoryEdgeKind, EpiphanyMemoryLifecycle, EpiphanyMemoryNodeKind, RepoFrontierStatus,
     };
+    use crate::{RuntimeSpineInitOptions, initialize_runtime_spine};
 
     fn bind_test_body(
         store: &Path,
@@ -2243,7 +2243,9 @@ mod tests {
                 && source.document_key == offer_id.to_string()
         }));
         cache.pull_all_backing_stores()?;
-        offer_view.reasoning_basis().validate_against_cache(&cache)?;
+        offer_view
+            .reasoning_basis()
+            .validate_against_cache(&cache)?;
 
         let eve = crate::AtlasRepositoryIdentity::new("gamecult-local", "eve")?;
         let eve_surface = uuid::Uuid::new_v4();

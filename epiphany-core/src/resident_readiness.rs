@@ -954,5 +954,4 @@ mod tests {
         value.observed_at_millis = 2_001;
         assert_eq!(failures(&value), vec!["future-observation"]);
     }
-
 }

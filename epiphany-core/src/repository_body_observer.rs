@@ -214,7 +214,6 @@ pub struct RepositoryBodyManifest {
     pub entries: Vec<RepositoryBodyManifestEntry>,
 }
 
-
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(type = "epiphany.repository_body.head", schema = "RepositoryBodyHead")]
 pub struct RepositoryBodyHead {
@@ -331,7 +330,7 @@ pub fn admit_repository_body_observation(
         BODY_OBSERVATION_TYPE,
         &basis.observation_id,
     )
-        .ok_or_else(|| anyhow!("repository Body observation source is absent"))?;
+    .ok_or_else(|| anyhow!("repository Body observation source is absent"))?;
     let source_observation =
         crate::EpiphanyMindDocumentVersion::from_envelope("epiphany-repository-body", source)?;
     let document = crate::EpiphanyMindRepositoryBodyObservationDocument {
@@ -1356,7 +1355,7 @@ fn validate_runtime_binding_entries(
             EpiphanyRuntimeSwarmBinding::TYPE,
             RUNTIME_SWARM_BINDING_KEY,
         )
-            .ok_or_else(|| anyhow!("runtime store has no immutable swarm binding"))?,
+        .ok_or_else(|| anyhow!("runtime store has no immutable swarm binding"))?,
     )?;
     if binding.schema_version != RUNTIME_SWARM_BINDING_SCHEMA_VERSION
         || binding.binding_id != RUNTIME_SWARM_BINDING_KEY

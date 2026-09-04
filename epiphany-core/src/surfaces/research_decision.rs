@@ -1,7 +1,7 @@
-use anyhow::{Result, anyhow};
 use crate::state_model::EpiphanyEvidenceRecord;
 use crate::state_model::EpiphanyInvestigationCheckpoint;
 use crate::state_model::EpiphanyObservation;
+use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 

@@ -1,11 +1,11 @@
 use std::path::Path;
 
+use crate::state_model::{
+    EpiphanyEvidenceRecord, EpiphanyInvariant, EpiphanyInvestigationCheckpoint, EpiphanyModeState,
+    EpiphanyObservation, EpiphanySubgoal,
+};
 use anyhow::{Result, anyhow};
 use cultcache_rs::{CultCache, CultCacheEnvelope, DatabaseEntry};
-use crate::state_model::{
-    EpiphanyEvidenceRecord, EpiphanyInvariant, EpiphanyInvestigationCheckpoint,
-    EpiphanyModeState, EpiphanyObservation, EpiphanySubgoal,
-};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 

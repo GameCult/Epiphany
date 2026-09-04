@@ -30,8 +30,8 @@ mod runtime_spine;
 mod runtime_store_backend;
 mod runtime_worker_attempt;
 mod soul_gateway;
-mod state_model;
 mod state_ledger;
+mod state_model;
 mod substrate_gate;
 mod surfaces;
 
@@ -92,9 +92,8 @@ pub use cultmesh_integration::{
     EPIPHANY_CULTMESH_SWARM_BRAKE_KEY, EPIPHANY_CULTMESH_SWARM_BRAKE_SCHEMA_VERSION,
     EPIPHANY_CULTMESH_SWARM_BRAKE_TYPE, EpiphanyCultMeshDocuments, EpiphanyCultMeshSwarmBrakeEntry,
     default_epiphany_cultmesh_swarm_brake, engage_epiphany_cultmesh_swarm_brake,
-    load_epiphany_cultmesh_swarm_brake,
-    open_epiphany_cultmesh_node, release_epiphany_cultmesh_swarm_brake,
-    write_epiphany_cultmesh_swarm_brake,
+    load_epiphany_cultmesh_swarm_brake, open_epiphany_cultmesh_node,
+    release_epiphany_cultmesh_swarm_brake, write_epiphany_cultmesh_swarm_brake,
 };
 
 pub use current_work::*;
@@ -104,8 +103,7 @@ pub use imagination_consideration::{
     CANDIDATE_SCHEMA as IMAGINATION_CONSIDERATION_CANDIDATE_SCHEMA_VERSION,
     ImaginationConsiderationCandidate, ImaginationConsiderationDisposition,
     ImaginationConsiderationQuestion, ImaginationConsiderationRequest,
-    ImaginationConsiderationReviewRoute,
-    ImaginationOptionDraft, QuotedPersonaFeedbackEvidence,
+    ImaginationConsiderationReviewRoute, ImaginationOptionDraft, QuotedPersonaFeedbackEvidence,
     REQUEST_CONTRACT as IMAGINATION_CONSIDERATION_REQUEST_CONTRACT,
     REQUEST_SCHEMA as IMAGINATION_CONSIDERATION_REQUEST_SCHEMA_VERSION,
     candidate_id_for_launch as imagination_consideration_candidate_id_for_launch,
@@ -262,7 +260,6 @@ pub use runtime_spine::terminalize_model_pass_failure_session;
 pub use runtime_spine::terminalize_runtime_job;
 pub(crate) use runtime_worker_attempt::{RuntimeTypedRequestRef, WorkerProcessStatus};
 pub use soul_gateway::*;
-pub use state_model::*;
 pub use state_ledger::EpiphanyBranchRecord;
 pub use state_ledger::EpiphanyLedgerEvidenceRecord;
 pub use state_ledger::EpiphanyStateLedgerEntry;
@@ -270,6 +267,7 @@ pub use state_ledger::add_state_branch;
 pub use state_ledger::append_state_evidence;
 pub use state_ledger::close_state_branch;
 pub use state_ledger::load_state_ledger;
+pub use state_model::*;
 pub use substrate_gate::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
 pub use substrate_gate::SubstrateGateRepoAccessGrantReceipt;
 pub use substrate_gate::substrate_gate_coordinator_implementation_grant;

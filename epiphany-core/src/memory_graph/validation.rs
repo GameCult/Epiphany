@@ -22,9 +22,7 @@ pub(crate) fn repo_paths_are_canonical_and_safe(paths: &[String]) -> bool {
         })
 }
 
-pub(crate) fn frontier_item_has_routeable_repository_scope(
-    item: &crate::RepoFrontierItem,
-) -> bool {
+pub(crate) fn frontier_item_has_routeable_repository_scope(item: &crate::RepoFrontierItem) -> bool {
     !item.repository_scope.is_empty() && repo_paths_are_canonical_and_safe(&item.repository_scope)
 }
 

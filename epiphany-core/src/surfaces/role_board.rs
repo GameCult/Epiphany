@@ -21,20 +21,18 @@ pub struct EpiphanyRoleBoardLane {
 
 pub fn derive_role_board(input: EpiphanyRoleBoardInput) -> Vec<EpiphanyRoleBoardLane> {
     let missing = !input.mind_present;
-    let lane = |title: &str, status, note: &str| {
-        EpiphanyRoleBoardLane {
-            title: title.into(),
-            status: if missing {
-                EpiphanyCoordinatorRoleStatus::Blocked
-            } else {
-                status
-            },
-            note: if missing {
-                "Canonical keyed Mind is missing.".into()
-            } else {
-                note.into()
-            },
-        }
+    let lane = |title: &str, status, note: &str| EpiphanyRoleBoardLane {
+        title: title.into(),
+        status: if missing {
+            EpiphanyCoordinatorRoleStatus::Blocked
+        } else {
+            status
+        },
+        note: if missing {
+            "Canonical keyed Mind is missing.".into()
+        } else {
+            note.into()
+        },
     };
 
     let modeling_action = input

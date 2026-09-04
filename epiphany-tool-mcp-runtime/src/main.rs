@@ -353,8 +353,7 @@ mod tests {
                 private_state_exposed: false,
             },
         )?;
-        let grant = epiphany_core::issue_resident_self_grant(&resident_store, 2)?
-        .expect("grant");
+        let grant = epiphany_core::issue_resident_self_grant(&resident_store, 2)?.expect("grant");
         let intent = EpiphanyToolInvocationIntent::new(
             "native-state-read",
             EPIPHANY_TOOL_RUNTIME_ADAPTER_ID,

@@ -5,8 +5,7 @@ use cultmesh_rs::{CultMesh, CultMeshNode, CultMeshNodeOptions, cultmesh_document
 use std::path::Path;
 
 pub const EPIPHANY_CULTMESH_SWARM_BRAKE_TYPE: &str = "epiphany.cultmesh.swarm_brake";
-pub const EPIPHANY_CULTMESH_SWARM_BRAKE_SCHEMA_VERSION: &str =
-    "epiphany.cultmesh.swarm_brake.v0";
+pub const EPIPHANY_CULTMESH_SWARM_BRAKE_SCHEMA_VERSION: &str = "epiphany.cultmesh.swarm_brake.v0";
 pub const EPIPHANY_CULTMESH_SWARM_BRAKE_KEY: &str = "epiphany-local/swarm-brake";
 pub const EPIPHANY_CANONICAL_SWARM_BRAKE_ID: &str = "epiphany/swarm-brake";
 pub const EPIPHANY_CANONICAL_SWARM_BRAKE_OWNER: &str = "epiphany.swarm-brake";
@@ -109,7 +108,9 @@ pub fn engage_epiphany_cultmesh_swarm_brake(
         return Err(anyhow!("swarm brake engagement requires an actor identity"));
     }
     if allow_engaged_adoption && actor_id != "Idunn" {
-        return Err(anyhow!("only Idunn may adopt an already-engaged legacy brake"));
+        return Err(anyhow!(
+            "only Idunn may adopt an already-engaged legacy brake"
+        ));
     }
     if let Some(current) = load_epiphany_cultmesh_swarm_brake(&store_path, runtime_id.clone())? {
         let foreign = current.brake_id != EPIPHANY_CANONICAL_SWARM_BRAKE_ID
@@ -196,7 +197,9 @@ fn validate_swarm_brake(brake: &EpiphanyCultMeshSwarmBrakeEntry) -> Result<()> {
         || brake.runtime_id.trim().is_empty()
         || brake.created_at_utc.trim().is_empty()
     {
-        return Err(anyhow!("swarm brake identity, scope, runtime, and timestamp are required"));
+        return Err(anyhow!(
+            "swarm brake identity, scope, runtime, and timestamp are required"
+        ));
     }
     if !matches!(brake.status.as_str(), "released" | "engaged") {
         return Err(anyhow!("swarm brake status must be released or engaged"));
@@ -206,7 +209,9 @@ fn validate_swarm_brake(brake: &EpiphanyCultMeshSwarmBrakeEntry) -> Result<()> {
             || brake.operator_agent_id.trim().is_empty()
             || (brake.affected_clusters.is_empty() && brake.protected_surfaces.is_empty()))
     {
-        return Err(anyhow!("engaged swarm brake requires operator id, reason, and scope"));
+        return Err(anyhow!(
+            "engaged swarm brake requires operator id, reason, and scope"
+        ));
     }
     Ok(())
 }
@@ -229,7 +234,12 @@ mod tests {
         )?;
         assert_eq!(engaged.status, "engaged");
         assert_eq!(engaged.brake_id, EPIPHANY_CANONICAL_SWARM_BRAKE_ID);
-        assert!(engaged.protected_surfaces.iter().any(|value| value == "hands.consequence"));
+        assert!(
+            engaged
+                .protected_surfaces
+                .iter()
+                .any(|value| value == "hands.consequence")
+        );
         assert_eq!(
             load_epiphany_cultmesh_swarm_brake(&store, "runtime")?,
             Some(engaged)

@@ -134,10 +134,9 @@ fn continuation_decision(
             launch,
             &format!("The exact {label} obligation has no live attempt."),
         ),
-        EpiphanyAgentPassContinuationAction::Wait => decision(
-            wait,
-            &format!("The exact {label} attempt is still live."),
-        ),
+        EpiphanyAgentPassContinuationAction::Wait => {
+            decision(wait, &format!("The exact {label} attempt is still live."))
+        }
         EpiphanyAgentPassContinuationAction::Review => decision(
             review,
             &format!("The exact {label} result awaits its family admission owner."),

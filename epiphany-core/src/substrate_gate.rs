@@ -69,10 +69,7 @@ pub fn substrate_gate_operation_for_governed_tool(
     tool_name: &str,
 ) -> Option<&'static str> {
     match (server, tool_name) {
-        (
-            "epiphany_source",
-            "read_file" | "directory_inventory" | "git_show",
-        )
+        ("epiphany_source", "read_file" | "directory_inventory" | "git_show")
         | ("epiphany_state", "resident_grant_lifecycle") => {
             Some(SUBSTRATE_GATE_SOURCE_READ_OPERATION)
         }

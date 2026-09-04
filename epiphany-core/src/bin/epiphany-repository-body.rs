@@ -2,10 +2,9 @@ use anyhow::{Result, bail};
 use chrono::Utc;
 use epiphany_core::{
     EpiphanyMemoryAnchor, EpiphanyMemoryDomain, EpiphanyMemoryLifecycle, EpiphanyMemoryNode,
-    EpiphanyMemoryNodeKind, EpiphanyRepoModelSeed,
-    EpiphanyRepoModelSeedDocuments, ObserveOutcome, RuntimeSpineInitOptions,
-    admit_repository_body_observation, bind_repository_body, bind_runtime_to_swarm,
-    initialize_keyed_repo_model, initialize_runtime_spine,
+    EpiphanyMemoryNodeKind, EpiphanyRepoModelSeed, EpiphanyRepoModelSeedDocuments, ObserveOutcome,
+    RuntimeSpineInitOptions, admit_repository_body_observation, bind_repository_body,
+    bind_runtime_to_swarm, initialize_keyed_repo_model, initialize_runtime_spine,
     load_current_runtime_repository_body_basis, load_repository_body_status,
     observe_repository_body,
 };
