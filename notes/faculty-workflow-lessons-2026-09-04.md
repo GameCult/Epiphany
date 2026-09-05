@@ -113,6 +113,17 @@ the source in context.
    rule: workers own files, a supervisor outside the sandbox owns git. Now in
    evidence; should be a known-fact in every Codex-worker brief.
 
+### Integration is a sequence, not a line
+
+Late in the series a Self integration step was written as one shell line:
+fast-forward merge, remove worktree, delete branch. Main had moved by two doc
+commits, the fast-forward refused, and the chain kept going: the worktree was
+removed and the branch pointer deleted with the verified commits still only
+reachable by SHA. Recovery was cheap because the SHA was in the Soul report,
+but the shape was wrong. Integration is merge, confirm the tip, then delete;
+each step gated on the previous one's result. A typed Self would refuse to
+express the deletion until the merge receipt existed.
+
 ## Costs, for planning
 
 - Modeling: 170–210k tokens, 6–11 min. Imagination: 180–245k, 8–21 min.
