@@ -124,6 +124,16 @@ but the shape was wrong. Integration is merge, confirm the tip, then delete;
 each step gated on the previous one's result. A typed Self would refuse to
 express the deletion until the merge receipt existed.
 
+### The result line, not the launch
+
+The same lapse in another costume: a Self kicked off a test run in the
+background, was notified that the run had *finished*, and pushed. The run
+had finished red. The tip sat red on origin for ten minutes until the
+result line was read. A background completion is a signal that a result
+exists, not what the result is; the push is gated on reading it. A typed
+Self would take the test receipt as the push's input and could not express
+the push without it.
+
 ## Costs, for planning
 
 - Modeling: 170–210k tokens, 6–11 min. Imagination: 180–245k, 8–21 min.
