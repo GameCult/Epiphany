@@ -24,8 +24,8 @@ architecture:
     idunn: Owns source-change CI/CD observation, compilation, testing, release construction, deployment, and daemon survival.
     cultmesh: Projects typed state without becoming its owner.
     brokkr: Owns Unity editor inspection and actuation; Epiphany consumes its typed CultMesh/Eve capabilities and receipts.
-    model_provider: Owns explicit provider selection and exact provider lowering; the independent CodexConnector is the admitted non-production capstone credential and transport boundary with a distinct caller identity, while production Epiphany remains inactive on its historical OpenRouter configuration.
-    codex: Retained only where an OpenAI provider needs its earned authentication or transport capability.
+    model_provider: Owns explicit provider selection and exact provider lowering. Epiphany is backend-agnostic. Codex, Claude, and OpenAI-compatible APIs are reached through separate connectors, which share one standardized Epiphany-facing CultNet API that Ghostlight also consumes. Today the independent CodexConnector is the admitted non-production capstone credential and transport boundary, with a distinct caller identity. Production Epiphany remains inactive on its historical OpenRouter configuration.
+    codex: One connector backend among several. Epiphany's compiled body holds no Codex implementation or transport (evicted in 7a125d78 and ed7357a2); Codex auth and transport belong to CodexConnector.
 
 invariants:
   - Mind is the sole durable state-admission authority.
