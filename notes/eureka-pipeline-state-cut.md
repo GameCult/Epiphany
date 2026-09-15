@@ -39,12 +39,25 @@ code anchor still holds. The other pins:
    should only ever be one Epiphany/Eureka running in any one repo. Nonetheless,
    we should have a merge tool in case it ever happens."
 7. Re-pin CultLib from `e171eca3` to `a0813c6` first.
+8. **Q1-Q5 are all ruled A (operator, 2026-09-15: "all recommendations, go
+   ahead").**
+   - Q1: one single-file `.cc` per repo plus the admission-replay merge command.
+   - Q2: additive changes keep the epoch; a breaking bump refuses the old store.
+   - Q3: an all-or-nothing merge, settled through a typed `merge_exclusion`.
+   - Q4: voidbot indexes the default branch only.
+   - Q5: `schemars` becomes an unconditional `epiphany-core` dependency.
 
-## Open operator questions
+   The question text below is the record of the choice, not open work.
+9. **Eureka is published as its own repo** (operator, 2026-09-15: "we'll want to
+   publish Eureka as a repo"). The skill moves from an untracked
+   `~/.claude/skills/eureka` directory to `GameCult/Eureka`. Cut 5's skill wiring
+   edits land as commits there, and every "SKILL.md" or "briefs.md" path in Cut 5
+   means that repo.
 
-Each question lists what depends on it. Hands can start Cuts 1 and 2 before any
-answer. Cut 3a needs Q1 and Q5, Cut 3c needs Q3, Cut 3a's epoch text needs Q2,
-and Cut 7 needs Q4.
+## Operator questions (ruled; see ruling 8)
+
+Each question lists what depends on it. Cut 3a needs Q1 and Q5, Cut 3c needs
+Q3, Cut 3a's epoch text needs Q2, and Cut 7 needs Q4.
 
 - **Q1. Store layout.** Candidates:
   - **A.** One single-file `.cc` per repo, merged by an explicit admission-replay
