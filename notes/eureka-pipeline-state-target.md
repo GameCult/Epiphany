@@ -81,13 +81,17 @@ own design, and Eureka inherits it.
     lease, no git-attribute precondition, and no divergence between clones.
 16. **The organ depends on Qdrant directly, not on voidbot.** It owns its own
     collections and indexes at admission time. voidbot keeps its read-only
-    public-repo retrieval; it is not in this path. Embeddings come from Ollama on
-    Nightwing, the same stack GameCult already runs.
+    public-repo retrieval; it is not in this path. Embeddings come from the
+    Ollama endpoint the map names. Epiphany's own service embeds against a
+    Yggdrasil-local endpoint with the same model, and only voidbot uses
+    Nightwing; follow the local precedent and name the endpoint, not the host.
 17. **Huginn is the memory organ.** The dormant `.cc`-to-Eve CLI is retired and
     generic `.cc` inspection belongs to CultCache Studio in CultLib. Huginn
-    becomes the Rust service that owns instance minds, admission and the index,
-    which also ends the standing authority vacancy where doctrine named Huginn
-    the Persona-state steward of a runtime that never existed.
+    becomes the Rust service that owns instance minds, admission and the index.
+    That gives Huginn a real runtime for the first time, but it closes the
+    authority vacancy only for pipeline state: doctrine still names Huginn the
+    Persona-state steward, and this campaign builds none of that. Recorded as a
+    follow-up, not solved here.
 
 ### Shape decided with those rulings
 
@@ -96,14 +100,17 @@ own design, and Eureka inherits it.
   the service protocol stays typed.
 - **Unreachable organ:** refuse loudly and let the campaign stall on that step.
   No local spool, because that reintroduces two writers.
-- **Cut 3a code:** keep the document kinds, keys, validation and typed refusals.
-  Delete the store, lease and git layers, and re-point admission at the organ.
+- **Cut 3a code:** keep the document kinds, keys, validation and the refusals
+  that survive the layer. Six of the thirteen typed refusals exist only for the
+  repo store and die with it. Delete the store, lease and git layers, and
+  re-point admission at the organ.
 
 ## End state
 
 - **Documents.** Epiphany defines the typed pipeline documents: campaign, target,
-  question, ruling, cut spec, cut report, verdict, finding, follow-up,
-  resolution. Each has a stable schema id and version, a derived key, and a live
+  question, ruling, cut spec, cut report, verdict, finding, follow-up and
+  resolution, plus the three ruling 14 requires: instance, stewardship and
+  hand-off. Each has a stable schema id and version, a derived key, and a live
   Eureka consumer. Schemas are derived from the Rust types and published in
   `schemas/cultnet/index.json`.
 - **Instance identity.** A mind carries the instance that owns it and the repos
@@ -115,7 +122,8 @@ own design, and Eureka inherits it.
     supersession, time), "open items", and "rulings in force";
   - semantic search over its own Qdrant collections, indexed at admission;
   - a typed hand-off for reassigning stewardship, and an import path for
-    another instance's mind;
+    another instance's mind. Import is not a merge: with one owner per mind,
+    two copies cannot diverge, so nothing needs reconciling;
   - supervised by Idunn, with a named backup owner for its volume.
 - **Eureka.** The skill's briefs tell Self, Imagination, Hands and Soul to admit
   and query typed state instead of relaying prose. `eureka-state` is the thin

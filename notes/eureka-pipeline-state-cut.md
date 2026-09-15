@@ -1,1402 +1,1676 @@
 # Eureka pipeline state: cut map
 
-Date: 2026-09-15 (first Imagination pass).
+Date: 2026-09-15 (first Imagination pass), remapped 2026-09-16 after the
+operator rejected the repo-owned store.
 
 Status: cut map. The ends are owned by `notes/eureka-pipeline-state-target.md`;
 this document owns the means. Self updates this header in every landing commit.
 
-**Cut 1 landed** at `2b76c2e7` (re-pin) and `df82992c` (pin tests), and passed
-Soul.
-- **Verification:** core tests 156/156 with 0 warnings; the four library
-  packages and all 9 bins check; `?` is propagated at all 8
-  `add_generic_backing_store` sites (fail-closed; no site can hit the new
-  refusals).
-- **Soul found no drift on a live path.** Recorded:
-  - **F1 (medium, latent).** Under cultcache-rs 0.2.0 a cache with no store
-    accepts `put`/`put_envelope`/`delete` in memory only; at `e171eca3` it
-    refused. Epiphany's read caches (`state_cache`, `persona_social_cache`,
-    `runtime_spine_schema_cache`, and the cache in
-    `require_store_retirement_receipt`) have no mutating caller today, but a
-    future `put` on one would vanish silently.
-  - **F2 (low).** The two pin tests prove "this store file is not rewritten",
-    not "no store is attached": a store attached at a shadow path survives all
-    156 tests. Fixed before Cut 2.
-  - **F5 (gap).** Typed reads of current-epoch Mind and resident stores under
-    0.2.0 are unproven, because no current-epoch store exists locally. Raw
-    reads of 8 real stores are byte-identical, and the ledger's typed read
-    works.
+**Cuts 1, 2 and 3a landed. Everything from Cut 4 on is unbuilt.** The old Cuts
+3b-7 described a repo-owned store and are dead; they are kept, clearly marked,
+under "History" at the end of this file. Nothing above that section describes
+the old model.
 
-**Cut 2 landed** at `00991c1b` (F2 fix: storeless reads are pinned by a
-directory snapshot) and `46460efc` (`TypedCommitStore` profile on the one
-commit owner).
-- **Verification:** 158/158.
-- **Soul confirmed Mind is unchanged:** the pin test run verbatim at base
-  `589e71c3` yields the same receipt id.
-- **Being fixed before Cut 3a:**
-  - The Mind profile's epoch check is unpinned, so dropping
-    `validate_runtime_store_epoch` passes.
-  - "Validation before replay" is unpinned.
-  - Reads go through the profile's `open_cache`, but the CAS and the conflict
-    re-read hard-code `runtime_spine_backing_store`, so a profile could read one
-    store and write another.
-- **Carried into Cut 3a/3b:**
-  - The profile's implicit contracts: register `EpiphanyMindCommitReceipt`, and
-    register every stored type or the load refuses.
-  - Owner errors say "Mind mutation", so pipeline code maps them to its own
-    refusal.
-  - The owner takes a path, not a writer-lease handle, so lease binding for
-    `pipeline.cc` needs a structural guard, not grep.
-- **Recorded (low):** the F2 snapshot cannot see a store attached in another
-  directory. This is F1's mirror; it takes a deliberately misplaced attach.
-- **Spec correction:** six owner call sites, not five, including
-  `commit_mind_mutation`.
+- **Cut 1 landed** at `2b76c2e7`, `df82992c`. CultLib re-pinned to `a0813c6`.
+- **Cut 2 landed** at `00991c1b`, `46460efc`, `cb6ef5d2`. One commit owner,
+  parameterised by a `TypedCommitStore` profile.
+- **Cut 3a landed** at `a1473c45`, `ad18c385`, then fixes at `b4f88d29`,
+  `187e01e7`, `a317d4cf`. Ten document kinds, ten derived schemas, plus the
+  store opener, writer lease and git preconditions that **Cut 4 now deletes**.
+- **Target rewritten** at `5fb4eb22`.
 
-**Cut 2 fixes landed** at `cb6ef5d2` and passed Soul (160/160).
-- **What changed:**
-  - The profile owns its backing store (`backing_store: fn(&Path)`), and the
-    opener receives the resolved store.
-  - The Mind epoch refusal is pinned; M2b drops the check from the Mind opener
-    only.
-  - Validation-before-replay is pinned.
-- **Every mutation was caught,** including two of Soul's own.
-- **Open decisions for the Cut 3b spec:**
-  - **Replay under a changed validator.** Validation-before-replay means a
-    newer, stricter binary refuses a retry of a batch that was already admitted,
-    for example after a lost response. For `pipeline-merge` that refusal is
-    intended. For a plain retry it probably is not. Cut 3b decides whether an
-    exact stored receipt short-circuits validation for same-store retries.
-  - **Lost race between identical commits.** The loser gets `Conflict`, not the
-    replayed receipt (`reasoning_context.rs:1680-1721`). This predates Cut 2.
-    Cut 3b should map it to `AlreadyAdmitted` if the receipt matches.
-- **Recorded (low):** an opener can still ignore the resolved store and attach
-  none. The CAS protects the file, so the worst case is a spurious conflict.
-
-**Cut 3a landed** at `a1473c45` and `ad18c385`: 10 document kinds, the opener,
-the writer lease, and 10 derived schemas; tests 171/171.
-
-Soul found:
-- **F1 (high):** an identity-less first commit bricks the store.
-- **F2:** key collisions through dotted attempt, pass and finding labels.
-- **F3:** parent ids only prefix-checked; the wrong-kind check is untested.
-- **F4:** resolution keys skip label validation, and the subject kind is not
-  tied to its id.
-- **F5:** the pipeline store is writable without the lease or admission, both
-  from inside the crate and through the exported wrappers.
-- **F6:** a worktree can take the lease and write its own tree's store.
-- **Low:** a stale holder can be named after a crash; git reads local excludes
-  and global attribute files; macro field lists are duplicated; repo fields are
-  unchecked; `LandedNameKind` and two caps have no consumer.
-
-**Rulings (operator, 2026-09-15: "all recommendations, go ahead"):**
-
-10. **One store per clone.** The store always lives in the clone's main working
-    tree. The session's MCP process holds the single per-clone lease, and a
-    caller in a worktree admits into the main tree's store.
-11. **Numeric attempt and pass.** `attempt` and `pass` are numeric, and attempts
-    count up per cut across spec revisions.
-12. **The profile owns identity-on-first-write.** The commit profile's
-    validation, which is the single owner, enforces that the first write carries
-    the pipeline identity, so it can never admit a store its opener refuses.
-
-13. **The operator channel is the Claude Code session; notification only.**
-    Eureka has no Persona. The root session is Self and the operator surface,
-    because spec iteration works best where the question and the tree share a
-    context. Questions and rulings are typed documents, so the channel is a
-    rendering choice, not an architecture.
-    - When a blocking question is admitted while the operator is away, Eureka
-      calls whatever notification MCP tool the user has configured. Eureka owns
-      no transport and names no provider, so anyone can swap in their own.
-    - Answers come back in the session and become rulings there.
-    - Answering over a chat channel is a later campaign, and it needs identity
-      binding before a reply can become a ruling.
-    - The operator's framing: "A big draw of Epiphany is each repo having a
-      recognizable identity and memories and a Persona you can talk to, but
-      Eureka is the cut-down Claude-native version anyone can use". Repo
-      identity and Persona stay Epiphany's.
-
-**The Cut 3a fixes landed** at `b4f88d29`, `187e01e7` and `a317d4cf`: rulings
-10-12, findings F1-F8, and the low items. Tests 180/180, 27 mutations defined
-and caught. Soul is verifying.
-
-Two Hands deviations, both accepted by Self:
-- The `SubtractionEstimate` and `StructuralDelta` lists stay, since D1 names
-  them; only their invented cap numbers were unified to one documented default
-  of 64.
-- `attach(repo_root, host, session)` replaces D3's `attach(repo_root, holder)`,
-  so a caller cannot declare a false process identity. Liveness is taken from
-  the live process.
-
-A Hands pass fixes F1-F8. It also makes the document wrappers crate-private,
-unifies the macro field list, validates `repo` fields, deletes `LandedNameKind`
-and the unconsumed caps, and nulls git's exclude and attribute files.
-
-Pins. Code anchors are `file:line` against Epiphany `81be7a2f`. HEAD has since
-moved to `0636176a`, but only the target and `state/map.yaml` changed, so every
-code anchor still holds. The other pins:
+Pins for this pass. Code anchors are `file:line` against Epiphany
+`5fb4eb22`, tree clean, branch `codex/eureka-pipeline-state`.
 
 - CultLib `main` `a0813c6`.
-- VoidBot `main` `46d891b`.
-- gamecult-ops `main` `647e57e`.
-- The Eureka skill at `~/.claude/skills/eureka`, which is not a git repository.
+- Huginn `main` `91b7fcf` at `F:\Projects\Huginn` (upstream public, default
+  branch `main`, last pushed 2026-06-21).
+- VoidBot `main`. gamecult-ops `main`.
+- The Eureka skill is now a git repo: `GameCult/Eureka`, public, `main` at
+  `6ca7882`, checked out at `~/.claude/skills/eureka`.
 
-## Rulings in force (operator, 2026-09-15)
+## What the rewrite changed
 
-1. Epiphany owns the schemas and admission.
-2. The store serves agents first. Exact and filtered queries live in Epiphany;
-   voidbot indexes a projection for semantic search. The typed store is the truth.
-3. There are two campaigns. This one covers schemas, store, admission, the MCP
-   server, the voidbot projection, the skill wiring, and a proof. Epiphany's own
-   organs consuming the documents belong to the second.
-4. The MCP server is Rust, stdio, launched per Claude Code session, built as an
-   Epiphany package, and adds no daemon. It writes through a public admission
-   path under organ provenance `eureka`.
-5. **The store lives in the repo where the task runs.** It is committed on the
-   campaign's working branch and is separate from the runtime and Mind stores,
-   with its own epoch. Knowledge crosses repos only through explicit sharing. The
-   operator's words: "have the pipeline store sit in the repo where the task
-   takes place. Each Epiphany learns for itself, with affordances for sharing
-   knowledge, same when running Eureka. Then the Eureka working branch can sync
-   with Yggdrasil".
-   (This supersedes the earlier same-day ruling of one user-level store. Nothing
-   below describes that design.)
-6. **One runner per repo, plus a merge tool.** The operator's words: "There
-   should only ever be one Epiphany/Eureka running in any one repo. Nonetheless,
-   we should have a merge tool in case it ever happens."
-7. Re-pin CultLib from `e171eca3` to `a0813c6` first.
-8. **Q1-Q5 are all ruled A (operator, 2026-09-15: "all recommendations, go
-   ahead").**
-   - Q1: one single-file `.cc` per repo plus the admission-replay merge command.
-   - Q2: additive changes keep the epoch; a breaking bump refuses the old store.
-   - Q3: an all-or-nothing merge, settled through a typed `merge_exclusion`.
-   - Q4: voidbot indexes the default branch only.
-   - Q5: `schemars` becomes an unconditional `epiphany-core` dependency.
+The first model made a repo own the store. Nothing owned the state, so the
+machinery grew to compensate. The operator's correction is that **an instance
+owns its mind**, a **service owns that state**, and **minds leave git**.
 
-   The question text below is the record of the choice, not open work.
-9. **Eureka is published as its own repo** (operator, 2026-09-15: "we'll want to
-   publish Eureka as a repo"). The skill moves from an untracked
-   `~/.claude/skills/eureka` directory to `GameCult/Eureka`. Cut 5's skill wiring
-   edits land as commits there, and every "SKILL.md" or "briefs.md" path in Cut 5
-   means that repo.
+The mechanical consequence, which drives Cut 4: every layer that existed only to
+make a *repo-resident, git-committed, multi-clone* store safe is now dead
+weight. That is the writer lease, the main-work-tree resolution, the committed
+`.gitattributes` / `.gitignore` preconditions, the branch binding, and the merge
+tool that was never built.
 
-## Operator questions (ruled; see ruling 8)
+## Rulings in force
 
-Each question lists what depends on it. Cut 3a needs Q1 and Q5, Cut 3c needs
-Q3, Cut 3a's epoch text needs Q2, and Cut 7 needs Q4.
+Numbering follows the target. Rulings 5, 6, 10, 11 and 13's store clauses are
+superseded by 14-17; see History.
 
-- **Q1. Store layout.** Candidates:
-  - **A.** One single-file `.cc` per repo, merged by an explicit admission-replay
-    command.
-  - **B.** Port C#'s v4 directory store to cultcache-rs.
-  - **C.** One single-file `.cc` per record, with receipts acting as batch
-    manifests.
+1. **Epiphany owns the schemas** for pipeline state.
+2. **Searchable state serves agents first.** Rehydration and precedent checks
+   come before operator browsing.
+3. **Two campaigns.** This one covers schemas, the memory organ, admission, the
+   MCP client and a proof. Epiphany adopting Eureka's habits is the second.
+4. **Re-pin first.** Landed.
+7. **Eureka is published** as `GameCult/Eureka`, MIT.
+8. **Q2 and Q5 survive the rewrite.** Additive schema changes keep the epoch and
+   a breaking bump refuses the old store (Q2). `schemars` is an unconditional
+   dependency and published JSON schemas are derived from the Rust types (Q5).
+9. **The operator channel is the Claude Code session.** Eureka has no Persona.
+   Blocking questions may be pushed through any notification MCP; Eureka owns no
+   transport and names no provider. Answers come back in the session.
+11. **Numeric attempt and pass.** `attempt` and `pass` are numeric, and attempts
+    count up per cut across spec revisions. (Survives; it is a key rule, not a
+    store rule.)
+14. **An instance owns its mind.** A store is canonical to exactly one instance.
+    Identity lives in the state, not in a path. Admission refuses a write
+    carrying another instance's identity, whatever the transport. Stewardship
+    over repos is an assignment recorded in that mind, and one instance may
+    steward several repos. Reassignment is an explicit typed hand-off recorded
+    in both minds.
+15. **A service owns the state, on Yggdrasil.** The memory organ is a daemon. No
+    per-clone lease, no git-attribute precondition, no divergence between clones.
+16. **The organ depends on Qdrant directly, not on voidbot.** It owns its own
+    collections and indexes at admission time. Embeddings come from Ollama.
+17. **Huginn is the memory organ.** The dormant `.cc`-to-Eve CLI is retired and
+    generic `.cc` inspection belongs to CultCache Studio in CultLib.
 
-  **Recommended: A.** Git never merges the bytes of a binary file, so every
-  divergent merge is forced through the merge command, which is Epiphany's
-  admission. B and C both let git silently union two branches' records around
-  admission.
-  - B also adds a CultLib foundation store with C# wire parity, and its manifest
-    is one hot file that conflicts on every divergent branch anyway
-    (`DirectoryMessagePackBackingStore.cs:15-18`, `WriteManifest` at `:287-295`).
-  - C loses batch atomicity: a multi-file batch cannot meet cultcache-rs's
-    atomic `push_all` contract (`lib.rs:307-336`).
-  - Probes, 300 documents of about 1 KB each, 30 commits, after
-    `git gc --aggressive`:
+## Probes and source reads this pass
 
-    | Layout | Pack size |
-    |---|---|
-    | single file | 20 KiB |
-    | per record | 46 KiB |
+No cargo build ran this pass. Every new mechanism claim below was settled by a
+source read; the one build-dependent claim (rmcp as a stdio server) was settled
+by P4 in the first pass and is unchanged. No build outputs were created, so
+none were deleted. Claims are marked **(source read)** or **(probe)**.
 
-    The payload was highly compressible, so these are lower bounds. The per-record
-    layout merged disjoint branches cleanly, and a same-subject resolution raised
-    an add/add conflict. Single-writer (ruling 6) removes the case per-record was
-    built for.
-  - Depends on it: Cut 3a's store module, Cut 3c, and Cut 7's discovery path.
-- **Q2. An older repo store meets a newer schema.** Candidates:
-  - **A.** Additive changes (new named fields carrying `#[serde(default)]`) keep
-    the epoch. A breaking change bumps it, and the new binary refuses the old
-    store for reads and writes with `ForeignEpoch`. The old store stays in git
-    history and remains readable by the binary tagged at its epoch. The operator
-    decides per repo whether to re-author live state.
-  - **B.** A breaking bump ships a one-release `pipeline-migrate` that
-    re-admits old documents through admission.
-  - **C.** A compatibility reader.
-
-  **Recommended: A.** It keeps "no compatibility reader" (target, Store) and
-  Epiphany's no-migrator precedent (`state/map.yaml:118`, "No compatibility
-  reader, bootstrap aggregate, schema migrator, or dual reader survives").
-  Nested values are named MessagePack maps, which tolerate added fields
-  (`cultcache-rs` `prepare_entry_named` docs, `lib.rs:2176-2180`). B is the
-  fallback if a live campaign ever straddles a breaking bump.
-  - Depends on it: Cut 3a's opener refusal text and the README's evolution rule.
-- **Q3. Settling a merge conflict.** Candidates:
-  - **A.** The merge is all-or-nothing. It reports every conflict and writes
-    nothing. The operator settles by admitting, on ours, an explicit typed
-    `merge_exclusion` naming the theirs receipt and the reason, then re-runs the
-    merge. The merge skips excluded batches and reports their dependents as
-    conflicts too. The excluded documents are re-authored by hand.
-  - **B.** The merge only refuses and reports. Settlement happens outside the
-    tool.
-
-  **Recommended: A.** Under B, a conflicted binary store cannot be merged at
-  all, because neither side's history can be rewritten. A keeps the settlement
-  typed, dated and queryable, and never lets the last writer win.
-  - Depends on it: whether Cut 3c adds the eleventh kind, `merge_exclusion`.
-- **Q4. voidbot index scope.** The target says pushing the working branch is the
-  sync. The Body says otherwise: the mirror catalogs only public repos and fetches
-  only each repo's `default_branch` (gamecult-ops
-  `scripts/refresh-voidbot-sources.sh:84-89`,
-  `scripts/sync-gamecult-org-repos.sh:24-57`). Candidates:
-  - **A.** Index the default branch only, so learning becomes searchable across
-    repos when the campaign branch merges.
-  - **B.** Also mirror and index branches that carry a pipeline store.
-
-  **Recommended: A.** Inside the running repo, Self reads the branch store
-  directly through `eureka-state`. Cross-repo discovery should surface settled,
-  merged learning, not abandoned or rebased campaign state. Private repos such as
-  gamecult-ops are never indexed under either option.
-  - Depends on it: Cut 7's scope.
-- **Q5. `schemars` in `epiphany-core`.** Commit `07529fb5` deleted unused
-  `schemars` from Epiphany (`state/map.yaml:96-108`). Candidates:
-  - **A.** Make it an unconditional core dependency, derived on the pipeline
-    value types. Published JSON schemas and MCP tool schemas then come from one
-    Rust authority.
-  - **B.** Put it behind a core feature enabled only by the MCP package.
-  - **C.** Hand-write the JSON schemas and give MCP its own DTOs.
-
-  **Recommended: A.** It now has two live consumers: the schema publication and
-  rmcp tool schemas, since rmcp's `server` feature already pulls `schemars` 1.x.
-  - B compiles `epiphany-core` twice in the shared target, because a
-    dependency's features change core's fingerprint.
-  - C creates a second owner of every field.
-  - Depends on it: Cut 3a's dependency line and Cut 4's tool types.
-
-## Probes and what they established
-
-All probes ran under the scratchpad at
-`...\scratchpad\eureka-imagination\`. Cargo used
-`CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex`, one invocation at a time.
-Afterwards 3,796 probe outputs (2.1 GiB) were deleted. The shared target is back
-to 5.6 GiB, with `debug\epiphany-state.exe` (1,776,640 bytes, 2026-08-24)
-preserved. The scratch worktree was removed.
-
-| # | Probe | Result |
+| # | Claim | Evidence |
 |---|---|---|
-| P1 | Detached worktree at `81be7a2f`, pins sed-replaced to `a0813c6`, then `cargo check -p epiphany-core --lib` and `--lib --tests` | 12 × E0599 `load_envelope` not found; nothing else. `Cargo.lock` changes 5+/5−. |
-| P2 | P1 plus `load_envelope` → `put_envelope` at the 12 sites | Lib builds clean except 3 `unused Result` warnings; lib tests add 5 more (8 total). |
-| P3 | P2: `cargo test -p epiphany-core --lib`; `cargo check --lib` for `epiphany-model-adapter`, `epiphany-tool-adapter`, `epiphany-openai-runtime`, `epiphany-tool-mcp-runtime` | 154/154 tests pass; all four checks pass. Test children read before running: `git`, a PowerShell sleep, `cargo metadata`. None re-launches itself. |
-| P4 | `rmcpprobe`: rmcp 2.2.0 with `default-features=false, features=["server","macros","transport-io"]`; one `#[tool]` returning `Json<T>`; driven over stdin with JSON-RPC | Handshake at `protocolVersion 2025-06-18` works. `tools/list` carries both `inputSchema` and `outputSchema` from schemars. The call returns `structuredContent` plus a text copy. `ErrorData::invalid_params` becomes JSON-RPC `-32602`. The binary spawns nothing. |
-| P5 | `lockprobe`: `SingleFileMessagePackBackingStore` at `a0813c6`; 4 writer processes × 200 (a disjoint insert plus a read-modify-CAS counter), 2 reader processes × 500 | 800/800 rows, counter 800/800, 0 read errors. Each writer lost about 500 CAS races, which it retried. The store lock is held per operation (`lib.rs:705-722`), so it serializes commits but excludes nothing at session scope. |
-| P6 | `layoutprobe`: per-record files, a store-wide fs2 lock, receipt written last; 4 writers × 60 batches with 2 overlapping unlocked auditors | 240/240 receipts, 720/720 records, about 2.6M audited reads, 0 violations. On Windows, atomic replace is safe under concurrent unlocked readers. Kept as evidence for Q1-C, which is not recommended. |
-| P7 | cultcache-ts `inspectCultCacheBytes` (CultLib dist 0.14.0) on a Rust-written record (a `DatabaseEntry` wrapper around a named nested struct holding an enum and an `Option`) | Format is `cultcache.store.v1`. The payload decodes as `[ {id, text, confidence: "Plausible", locations: [...], cut: null} ]`. Rust writes an empty member catalog (`members: []`), so the TS decode is generic, not typed. |
-| P8 | Git with `* text=auto` (Epiphany's `.gitattributes`); system `core.autocrlf=true` on this machine | A 434-byte record holds no NUL, so git classified it `text: auto` (numstat `1 0`). With `binary` set, numstat is `- -` and `text/diff/merge` are unset. |
-| P9 | Git merge rehearsal on per-record files | Disjoint branches merge cleanly; two branches writing the same resolution key conflict add/add. |
-| P10 | Session lease: process A takes fs2 `try_lock_exclusive` and writes a sibling holder file; process B tries; A is killed with `-9`; B tries again | B is refused with `os error 33`, and the holder file is readable while the lock is held. After the kill, B acquires. The OS releases on death, so no repair step is needed. |
-| P11 | Git history growth (Q1) | See Q1. |
+| R1 | **No Rust Qdrant client exists anywhere under `F:\Projects`.** | (source read) `grep -rn qdrant --include=Cargo.toml --include=Cargo.lock --include=*.rs` over `F:\Projects` returns nothing in any live tree. |
+| R2 | **Epiphany had one, and deleted it.** `856648de` "Delete unused semantic projection subsystem" removed `semantic_backend.rs` (1,018 lines), "Typed boundary around the Qdrant and Ollama HTTP APIs", plus 8,800 more lines of projector. | (source read) `git show 856648de --stat`; `git show 856648de^:epiphany-core/src/semantic_backend.rs`. |
+| R3 | **That client was plain `reqwest::blocking` against Qdrant's REST API**, not a Qdrant crate: `PUT/GET/DELETE {base}/collections/{name}`, `PUT {base}/collections/{name}/points`, `POST .../points/query`, `.../points/scroll`, `.../points/delete`. Embeddings were `POST {base}/api/embed` returning `.embeddings`. | (source read) `856648de^:.../semantic_backend.rs:116,130,157,207,244,262,287,318,351,397,535,560`; deps at `856648de^:epiphany-core/Cargo.toml:37` (`reqwest = { version = "0.12", features = ["blocking","json"] }`). |
+| R4 | **Epiphany has no CultNet *server* for documents.** Its live `cultnet_rs::` usage is service identity and trust anchors only. Its only UDP binds are the Persona Discord permit issuer, the Persona delivery client and Atlas publication. | (source read) `grep cultnet_rs::` over `epiphany-core/src` yields only `ServiceIdentitySigner`, `GameCultServiceTrustAnchorRecord`, `open/enroll_service_identity_at`, `derive_service_identity_id`. `UdpSocket::bind` appears only at `atlas/transport.rs:245`, `bin/epiphany-persona-discord-permit.rs:38`, `persona_discord_crossing.rs:322`. |
+| R5 | **The permit issuer is a hand-rolled request/response loop**, not a reusable document server: `serve_persona_discord_permit_rudp` loops `transport.receive_once()`, matches one `DocumentPutRaw`, and replies with another. | (source read) `persona_discord_permit.rs:330-400`. |
+| R6 | **Odin is the real harness to copy.** `odin-daemon` runs `CultMeshRudpDocumentServer::new(socket, SinkHandle, SnapshotHandle, CultMeshSystemClock, options)` and a `poll_once` loop, with Idunn activation, a process write lease, signal handling and presence-health publication. | (source read) `Odin/crates/odin-daemon/src/main.rs:14-40,542-560,600-700`. |
+| R7 | **CultMesh's document server is port-shaped and mockable.** `CultMeshRudpRawDocumentSink::accept_raw_document(receipt)` and `CultMeshRudpSnapshotSource::raw_snapshot(&query)` are traits with blanket impls for closures; the clock is a trait. | (source read) `CultLib/packages/cultmesh-rs/src/rudp_document_server.rs:51-95`. |
+| R8 | **A lean CultNet daemon needs six dependencies.** `odin-daemon` is `signal-hook, anyhow, chrono, cultcache-rs, cultmesh-rs, cultnet-rs, fs2, rmp-serde, serde`, and Odin's whole lock file is 156 packages. Epiphany's is 295. | (source read) `Odin/crates/odin-daemon/Cargo.toml`; `grep -c '^\[\[package\]\]' Cargo.lock` in both repos. |
+| R9 | **`epiphany-core` is 40,941 lines across 37 modules with 39 `mod` declarations**, and pulls Ghostlight, `ed25519-dalek`, `ignore`, `semver`, `cultmesh-rs`, `cultnet-rs` and `windows-sys`. | (source read) `wc -l epiphany-core/src/*.rs`; `epiphany-core/Cargo.toml`. |
+| R10 | **Epiphany's commit owner and its profile are crate-private**, so no external crate can reuse admission as it stands. | (source read) `reasoning_context.rs:1590` `pub(crate) struct TypedCommitStore`, `:1606` `pub(crate) const MIND_COMMIT_STORE`, `:1613` `pub(crate) fn commit_authorized_mind_mutation`. |
+| R11 | **`RedbMessagePackBackingStore` stores one redb row per `(type, key)`**, transactionally, and creates parent directories. redb permits one writable handle per path, and the CultCache lock owns the open/transaction/close interval. | (source read) `cultcache-rs/src/lib.rs:960-1013`, `:979-982`. |
+| R12 | **Nothing consumes `@gamecult/huginn`.** The only `package.json` naming it is Huginn's own. Eve's Huginn entry points at a checked-in fixture file, not the package. | (source read) Grep over every `package.json` under `F:\Projects`; `Eve/web/local-provider-catalog.json:72-83` gives `"url": "./fixtures/huginn-cc-surface.eve"`. |
+| R13 | **Eve's Huginn fixture is static and already stale.** It describes `E:\Projects\CultCacheTS\.voidbot\state\huginn.cc` and declares `"freshness": {"state": "fixture"}`, `"splitTarget": "Huginn"`. | (source read) `Eve/web/fixtures/huginn-cc-surface.eve:16`; `huginn-cc-surface.conformance.json`. |
+| R14 | **CultCache Studio exists** as a Unity editor surface in CultLib. | (source read) `CultLib/src/GameCult.Unity/Assets/Caching/Editor/CultCacheStudioWindow.cs`, `CultCacheStudioDrawers.cs`. |
+| R15 | **Qdrant on Yggdrasil is voidbot's container**, `qdrant/qdrant:v1.17.1`, host network, bound `127.0.0.1`, storage `/srv/voidbot/qdrant`, started by `voidbot-retrieval.service`. | (source read) `gamecult-ops/compose/voidbot-retrieval.yggdrasil.yaml`; `systemd/voidbot-retrieval.service`. |
+| R16 | **Two Ollama endpoints exist, and the Yggdrasil precedent is the local one.** `epiphany.service` embeds against `http://10.77.0.1:11435` with `qwen3-embedding:0.6b`; voidbot's indexer uses Nightwing `10.77.0.3:11434` with the same model. | (source read) `gamecult-ops/systemd/epiphany.service:14-15`; `runbooks/yggdrasil-replacement-2026-07.md:184,193`; `runbooks/voidbot-retrieval-recovery-yggdrasil.md:42-62`. |
+| R17 | **Idunn v2 is recipe-plus-binding.** A repo publishes `deployment/idunn/recipe.toml` (`gamecult.idunn.target_declaration.v1`: steps, artifacts, `[service]`, `[state.slots]`, `[[provides]]`, `[[dependencies]]`); Yggdrasil admits a paired `gamecult.idunn.operator_binding.v2` naming runners, workload roots, route, brakes, rollout and placement. | (source read) `Odin/deployment/idunn/recipe.toml`; `Ghostlight/deployment/idunn/recipe.toml:168-187`; `gamecult-ops/idunn/yggdrasil/bindings/odin.toml.in`, `bindings/README.md`. |
+| R18 | **Idunn brakes are typed and already separated.** `idunn.deployment_brake.v1` (scope `deployment`) and `idunn.lifecycle_brake.v1` (scope `continuity-restart`) are distinct records with distinct authorities. | (source read) `cultnet-rs/src/idunn_deployment_brake.rs:9-15`; `idunn_lifecycle_brake.rs:4-7`. |
+| R19 | **The authority backup is an explicit path list, daily at 03:20 UTC.** It tars a fixed set including `var/lib/gamecult/epiphany` and `srv/voidbot/state`; a path not listed is not backed up. | (source read) `gamecult-ops/scripts/backup-gamecult-authority-yggdrasil.sh:80-105`; `systemd/gamecult-authority-backup.timer`. |
+| R20 | **The workstation reaches Yggdrasil by a supervised SSH tunnel with a fixed forward table**, scheduled task `GameCult-Yggdrasil-Tunnel`. It already forwards `17875` (voidbot MCP) and `16333/16334` (Qdrant). | (source read) `gamecult-ops/scripts/start-yggdrasil-tunnel.ps1:13-26`; `runbooks/yggdrasil-ssh-tunnel.md:86-88`. |
+| R21 | **Allocated `178xx` RUDP/service ports** are 17870 Idunn health, 17871 Odin rendezvous, 17873 VoidBot swarm publisher, 17874 Hermodr, 17875 voidbot MCP, 17876 Epiphany permit listener, 17877 Starfire permit requester, 17878 dings. **17872 and 17879 are unallocated.** | (source read) `gamecult-ops/inventory.md:247,455,502,537`; `runbooks/yggdrasil-replacement-2026-07.md:315-321`; `idunn/yggdrasil/bindings/*.in`. |
 
-Source reads that mechanism claims rely on:
+Carried forward from the first pass and still load-bearing:
 
-- **Every `load_envelope` site uses a storeless cache.** Each builds
-  `CultCache::new()` and feeds it envelopes it pulled separately:
-  `persona_conversation.rs:959-961`, `persona_social_state.rs:231-251` then
-  `:846-866`, and `resident_self.rs:764-815`. `put_envelope` with zero stores
-  inserts into memory only (`home_index` returns `None`, `lib.rs:2425-2432`),
-  which is exactly the deleted `load_envelope` (CultLib `4ed9871`: "it had no
-  callers and admitted records into the view without a store").
-- **The old pin already refused unregistered types at pull**
-  (`e171eca3` `lib.rs:1965-1986`). The re-pin adds only the home-store check,
-  and every Epiphany cache has a single generic store.
-- **Cargo.lock has one CultLib source** (`Cargo.lock:367,385,395,406`). No
-  second revision arrives through codex-connector or ghostlight.
-- **VoidBot's vendored cultcache-ts is 0.1.0** and decodes only the legacy
-  envelope array (`vendor/cultcache-ts/dist/single-file-messagepack-backing-store.js:31`).
-  It cannot read a `cultcache.store.v1` store.
+- **P4 (probe).** rmcp 2.2.0 with `features = ["server","macros","transport-io"]` serves stdio JSON-RPC, handshakes at `2025-06-18`, emits both `inputSchema` and `outputSchema` from schemars, returns `structuredContent`, maps `ErrorData::invalid_params` to `-32602`, and spawns nothing.
+- **P7 (probe).** cultcache-ts `inspectCultCacheBytes` decodes a Rust-written `cultcache.store.v1` record; Rust writes an empty member catalog, so the TS decode is generic.
 
-Not probed: the working directory Claude Code gives a user-scope stdio server.
-The design does not depend on it, because every tool takes an explicit
-`repo_root`.
+Superseded probes: P5, P6, P8, P9, P10 and P11 all measured git layout, store locking at session scope, or git attribute classification. They were evidence for a repo-committed store and no longer bear on any live design. P1-P3 were Cut 1 and landed.
 
-## Shared design (cuts cite these sections)
+## D1. Package boundaries and where admission lives
 
-### D1. Documents
+This is the decision the brief asks for, so it is stated first.
 
-Every pipeline document follows the Mind value-wrapper pattern
-(`mind_documents.rs:129-137`). A `DatabaseEntry` has one slot:
+**Ruling 1 says Epiphany owns the schemas. The target's End state assigns
+admission, queries and the index to the organ** ("**The organ (Huginn).** One
+service owns every mind it hosts: admission, with per-document rules and typed
+refusals; ... queries ...; semantic search ...; a typed hand-off"). Those are
+consistent, and together they settle the split:
 
-```rust
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(type = "epiphany.pipeline.ruling.v1", schema = "EpiphanyPipelineRulingDocument")]
-pub struct EpiphanyPipelineRulingDocument { #[cultcache(key = 0)] pub value: PipelineRuling }
-```
+- **Epiphany owns the document types, their keys, their bounds and the published
+  JSON schemas.**
+- **Huginn owns admission rules, receipts, storage, queries, the index, the
+  hand-off and the CultNet surface.**
 
-Encoding and schema follow from that shape:
+**Admission does not live in `epiphany-core`, and Huginn does not depend on it.**
+Three source-grounded reasons:
 
-- The value is a plain `serde` + `schemars::JsonSchema` struct.
-- It is always prepared with `prepare_entry_named` (`lib.rs:2181-2200`).
-- On the wire the payload is a one-element MessagePack array whose element is a
-  named map (P7, derive `lib.rs:216-245`).
-- There are no per-field slot numbers: the named map is the evolution surface,
-  and slot 0 is the only slot.
-- The published JSON Schema describes the value, which is exactly what MCP
-  clients send and receive and what cultcache-ts decodes as
-  `payloadPreview[0]`.
+1. **It cannot.** The commit owner, its profile and the wrappers are all
+   `pub(crate)` (R10). Exposing them would publish Epiphany's Mind commit
+   machinery as a public API to make an unrelated service compile.
+2. **The weight is absurd.** Huginn would compile 40,941 lines and 295 lock
+   packages, including Ghostlight and `ed25519-dalek`, to use about 2,000 lines
+   of it (R9). Odin's comparable daemon costs 156 packages total (R8). This is
+   exactly the build fan-out AGENTS.md's Source And Build Economy forbids.
+3. **The rules are not the same rules.** Epiphany's admission is bound to a
+   scheduler: launch requests, sealed reasoning bases, decision contexts.
+   Pipeline admission is bound to an instance and a campaign. Sharing the
+   function would mean sharing none of the interesting part.
 
-Type ids are `epiphany.pipeline.<kind>.v1`. Schema names are
-`EpiphanyPipeline<Kind>Document`. The store epoch is `epiphany.pipeline.epoch.v1`.
+**So a third package owns the shared half.** New leaf library
+`epiphany-pipeline`, in the Epiphany repo, workspace member, `autobins = false`:
 
-**Bounds, with no blob fields.** No `Vec<u8>`, no `serde_json::Value`, and no
-free-form maps. Text fields use three bounded aliases, checked in UTF-8 bytes
-following the `persona_feedback_admission.rs:994` precedent:
-
-| Alias | Bound |
+| | |
 |---|---|
-| `Short` | ≤ 200 bytes |
-| `Line` | ≤ 1,000 bytes |
-| `Para` | ≤ 4,000 bytes |
+| **Owner** | The ten document kinds plus the three new ones, their value types, bound aliases, format rules, key derivation, and the derived JSON schemas. |
+| **Dependencies** | `cultcache-rs`, `schemars`, `serde`, `rmp-serde`, `chrono`, `anyhow`. Nothing else. |
+| **Consumers** | Huginn's `huginn-mind` (admission) and `eureka-state` (typed tool schemas), both by git rev. Epiphany itself does **not** consume it in this campaign; that is campaign two. |
+| **Why a new crate** | A live cross-repo consumer needs these types without Epiphany's 295-package graph. `F:\Projects\CLAUDE.md` says authority separation alone does not justify a crate; this is not authority separation, it is a named external consumer and a hard dependency boundary. |
+| **Why in the Epiphany repo** | Ruling 1. The schema publication path, `schemas/cultnet/index.json` and the derivation test stay where they are. |
 
-Every list has a maximum count, given below. Long narrative stays in repo docs and
-is cited by `DocRef { path: Short, start_line: u32, end_line: u32, commit: Sha }`.
-A breach is refused with `FieldBound { field, limit, actual }`.
+`epiphany-core` keeps the schema-derivation test's *outputs* — the committed
+`schemas/cultnet/epiphany.pipeline.*.v1.schema.json` files are Epiphany's
+publication artifact — but the test that derives and compares them moves into
+`epiphany-pipeline`, reading `../schemas/cultnet` the way it already does
+(`pipeline_store.rs:1173`).
 
-**Shared value types.**
+**Huginn's package boundary**, applying AGENTS.md's one-package-per-production-
+entrypoint rule. Two entrypoints, so two binary-owning packages plus one library:
 
-- `Sha`: 7–40 lowercase hex characters.
-- `Date`: `YYYY-MM-DD`.
-- `PipelineKind` is a closed enum: `Campaign`, `Target`, `Question`, `Ruling`,
-  `CutSpec`, `CutReport`, `Verdict`, `Finding`, `FollowUp`, `Resolution`, plus
-  `MergeExclusion` only if Q3 is A.
-- `PipelineRef { kind, id: Short }`.
-- `CodeLocation { path: Short, line: u32, end_line: Option<u32> }`.
-- `CommitRange { base: Sha, head: Sha }`.
-- `Evidence { kind: EvidenceKind, locator: Line, result: Line }`, where
-  `EvidenceKind` is one of `Command`, `Test`, `Mutation`, `Probe`, `SourceRead`,
-  `Capture`.
-- `ForeignRef { repo: Short /* Org/Repo */, commit: Sha(40), kind, id: Short, payload_sha256: 64 hex }`:
-  the sharing citation (D6).
-- `Faculty`: `SelfFaculty`, `Imagination`, `Hands`, `Soul`, `MindSteward`,
-  `Eyes`, `Operator`.
+| Package | Kind | Owns |
+|---|---|---|
+| `huginn-mind` | library | Mind storage, admission rules, receipts, queries, derivations, the index port and the embedding port. No process, no socket. |
+| `huginn-daemon` | binary `huginn-daemon` | The CultNet surface, the Idunn lifecycle, Qdrant and Ollama adapters, the serve loop. |
+| `eureka-state` | binary `eureka-state` | The stdio MCP client. |
 
-**Keys: identity, not convenience.** Single-writer means a key only has to be
-unique within one repo's history. It must also be stable across a merge, so that
-the same document on two copies is the same key and a different document under
-the same key surfaces as a real conflict. Keys are semantic and derived from
-fields; admission recomputes each key and refuses a mismatch with
-`InvalidIdentity { kind, key, expected }`, as `validate_mind_write_envelope` does
-for Mind (`mind_documents.rs:357-382`).
+**The daemon test (`F:\Projects\CLAUDE.md`).** `huginn-daemon` earns its process:
+it outlives every Claude Code session, owns an independent resource dependency
+(Qdrant, a redb store), and isolates a dead session from a corrupted mind. That
+is lifecycle, resource and failure isolation, and it protects the named
+invariant "exactly one writer per mind". `eureka-state` earns a *separate*
+entrypoint but is **not** a daemon: it is a per-session stdio child with a
+different dependency set (rmcp, tokio) and a different lifecycle. `huginn-mind`
+earns no process at all.
+
+**Why `eureka-state` lives in Huginn, not Epiphany.** The client and the server
+share the request and response document types. Putting the client in Epiphany
+would make the wire contract have two owners in two repos. It also keeps rmcp
+and tokio out of Epiphany's release bundle, which was the original Cut 4's
+reason for a separate package anyway (`construction.rs:82-98` lists the nine
+packaged binaries; none changes).
+
+## D2. Documents
+
+Unchanged from the landed Cut 3a except as noted: the value-wrapper pattern, the
+`value_types!` single field list, the bound aliases (`Short` 200, `Line` 1,000,
+`Para` 4,000 UTF-8 bytes), the format types (`Label`, `Slug`, `OrgRepo`, `Sha`,
+`FullSha`, `Sha256Hex`, `Date`), key derivation, and the ten kinds all survive
+verbatim. The epoch stays `epiphany.pipeline.epoch.v1`; every change here is
+additive, so Q2 keeps the epoch.
+
+**Deleted from the set:** `PipelineWriterHolder` and its wrapper
+`EpiphanyPipelineWriterHolder` (`pipeline_documents.rs:334-349,492-497`). They
+were the display record of the per-clone lease.
+
+**Added: three kinds, each with a live consumer.**
+
+| Kind | Type id | Value fields | Live consumer |
+|---|---|---|---|
+| `instance` | `epiphany.pipeline.instance.v1` | `instance: Slug`, `display_name: Short`, `created_at: Date`, `host: Short` | The mind's identity document. Admission's identity check (ruling 14); `whoami` in `eureka-state`; the hand-off's `from`/`to`. |
+| `stewardship` | `epiphany.pipeline.stewardship.v1` | `instance: Slug`, `repo: OrgRepo`, `assigned_on: Date`, `note: Line` | Ruling 14's "stewardship is an assignment". Query "which repos does this instance steward"; the Rehydrate brief; admission's campaign-repo check. |
+| `hand_off` | `epiphany.pipeline.hand_off.v1` | `from_instance: Slug`, `to_instance: Slug`, `repo: OrgRepo`, `documents: Vec<Short>[256]`, `reason: Para`, `handed_on: Date` | Ruling 14's "reassignment is an explicit typed hand-off recorded in both minds". Cut 12's import path. |
+
+**Keys.**
 
 | Kind | Key |
 |---|---|
-| campaign | `<slug>` |
-| everything else | `<campaign>:<kind>:<local>` |
+| `instance` | `<instance slug>` |
+| `stewardship` | `<instance>:stewardship:<Org_Repo>` |
+| `hand_off` | `<from>:hand_off:<to>.<repo>.<date>` |
+| campaign | `<slug>` (unchanged) |
+| everything else | `<campaign>:<kind>:<local>` (unchanged) |
 
-`<slug>` and `<local>` match `[A-Za-z0-9._-]{1,64}`. `<local>` is the human label
-agents already cite:
+`<Org_Repo>` is the `OrgRepo` with `/` replaced by `_`, because `/` is not a
+`Label` byte and the key must segment unambiguously. Admission recomputes it and
+refuses a mismatch with the existing `InvalidIdentity`.
 
-| Kind | Local label | Example |
+**Resolution matrix additions.** `stewardship` resolves by
+`Superseded{by: stewardship}` or `Withdrawn`. `instance` and `hand_off` are not
+resolvable. Everything else is unchanged.
+
+**`PipelineRefusal` splits.** The landed enum (`pipeline_store.rs:41-55`) mixes
+document refusals with store, git and lease refusals. It becomes two:
+
+- `epiphany-pipeline` keeps the document half: `FieldBound`, `InvalidFormat`,
+  `InvalidIdentity`.
+- `huginn-mind` owns the service half: `MissingIdentity`, `ForeignEpoch`,
+  `ForeignStore`, plus every admission-rule refusal (`MissingReference`,
+  `WrongReferenceKind`, `IdentityCollision`, `AlreadyResolved`,
+  `IncompatibleResolution`, `CitesResolvedDocument`, `RevisionWithoutSupersession`,
+  `InvalidOptions`, `InvalidChoice`, `RepoNotInCampaign`, `DuplicateLabel`,
+  `CutReportWithoutSpec`, `RangeOutsideCommits`, `FalsifiedClaimWithoutConfirmedFinding`,
+  `UnprovenClaimWithConfirmedFinding`, `FindingWithoutRange`, `FindingWithoutEvidence`,
+  `UnknownInvariant`), plus `ForeignInstance { declared, mind }` (ruling 14) and
+  `Unavailable`.
+
+**Deleted refusals:** `NotRepoRoot`, `NoMainWorkTree`, `StoreNotMarkedBinary`,
+`LockNotIgnored`, `WrongBranch`, `WriterLeaseHeld`. Every one of them is a
+statement about a repo-resident store.
+
+## D3. The organ's storage and admission
+
+**One mind per instance, one redb store per mind.**
+`<state_root>/minds/<instance>/mind.cc` as a `RedbMessagePackBackingStore`
+(R11). Redb, not the single-file store, because a mind grows without bound and
+the single-file backing store rewrites the whole snapshot on every write; that
+is the monolithic-store footgun `~/.claude/CLAUDE.md` names under
+Infrastructure. Odin uses the single-file store, but its topology store is small
+and bounded.
+
+**Identity.** The first write to a mind carries both the
+`EpiphanyPipelineIdentity` (epoch) and the `instance` document, in one batch.
+The opener refuses records-without-identity (`MissingIdentity`), a foreign epoch
+(`ForeignEpoch`) and any unregistered type (`ForeignStore`), exactly as the
+landed `pipeline_cache` does (`pipeline_store.rs:87-120`) — that logic moves
+almost verbatim; only its backing store changes.
+
+**Admission.** One public entry:
+
+```
+admit(&mut Mind, PipelineAdmissionBatch) -> PipelineAdmissionOutcome
+```
+
+with `PipelineAdmissionBatch { instance, provenance, documents (1..64) }` and the
+outcome one of `Committed { receipt_id, committed_at, writes }`,
+`AlreadyAdmitted { receipt_id }`, `Refused(PipelineRefusal)` or
+`Conflict { identities }`.
+
+Steps, in order:
+
+1. **Identity check (ruling 14).** `batch.instance` must equal the mind's
+   `instance` document, or `ForeignInstance`. This is the check that replaces
+   the whole lease.
+2. Validate bounds and formats.
+3. Recompute keys.
+4. Check references against the store image plus the batch.
+5. Apply the per-kind rules (unchanged from the old D4, minus the campaign
+   `origin` check, which no longer has a repo to inspect — `repo` must instead
+   be one the instance stewards, giving `RepoNotInCampaign` a new source).
+6. Derive writes (the `Answered` resolution for a ruling that answers a
+   question; the paired `stewardship` records on a `hand_off`).
+7. Commit.
+
+**Receipts stay, and Huginn owns its own commit primitive.** `huginn-mind`
+defines `HuginnCommitReceipt` with its own type id
+`huginn.mind_commit_receipt.v1`, carrying the same shape that earned its keep in
+Epiphany: authority, invariant owner, strong reads, writes, a content-digest
+receipt id, and `committed_at`. It replays idempotently on an exact match and
+returns typed `Conflict` on a lost CAS.
+
+This is deliberately **not** a reuse of `EpiphanyMindCommitReceipt`. The landed
+Cut 3a reused it with `store_id = "epiphany-pipeline"` because both lived in one
+crate; across a repo boundary that reuse would drag the whole crate (D1).
+Roughly 120 lines of receipt/replay/CAS logic are re-implemented. That is a real
+duplication and it is the honest price of the service boundary — it is named
+here, in the subtraction ledger, and as follow-up FU-3, rather than hidden.
+
+**Admission time** lives on the receipt, never in a document, so exact replay
+stays byte-identical. Unchanged.
+
+**Concurrency.** The organ is the only writer to any mind it hosts, and it is
+single-process. CAS stays as defence in depth against its own bugs and against
+the import path. The old session lease has no successor: there is nothing left
+for it to exclude.
+
+## D4. Queries
+
+`huginn-mind` owns every derivation; no client re-derives status.
+
+- `get(id) -> Option<PipelineDocumentView>`
+- `query(&PipelineQuery) -> Vec<PipelineDocumentView>`
+- `open_items(campaign) -> PipelineOpenItems`
+- `rulings_in_force(Option<campaign>) -> Vec<PipelineDocumentView>`
+- `stewardship(instance) -> Vec<OrgRepo>`
+
+`PipelineDocumentView` is
+`{ id, kind, document, resolution: Option<(id, PipelineResolution)>, receipt_id, admitted_at, faculty }`,
+its admission fields joined from the receipts naming the document.
+
+`PipelineQuery` keeps its landed field set — `campaign`, `repo`, `cut`, `kinds`,
+`status`, `outcome`, `faculty`, `admitted_after/before`, `text_contains`,
+`limit` ≤ 200 — and gains `instance` and `semantic: Option<{ text, top_k }>`.
+When `semantic` is set the query runs through the index (D5) and the hit ids are
+resolved back through the typed store, so the store stays the truth.
+
+Derived state, never stored, unchanged from the landed design: a document is
+**in force** when no resolution names it; **open items** are unresolved
+questions, findings and follow-ups, in-force cut specs with no report, and cut
+reports with no verdict.
+
+## D5. The index
+
+**Owner:** `huginn-daemon`, through two ports defined in `huginn-mind` so the
+library stays testable without either service:
+
+```
+trait EmbeddingPort { fn embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>>; }
+trait IndexPort { fn upsert(&self, points: Vec<IndexPoint>) -> Result<()>;
+                  fn search(&self, vector: Vec<f32>, top_k: u32, filter: IndexFilter) -> Result<Vec<IndexHit>>;
+                  fn delete(&self, ids: Vec<String>) -> Result<()>; }
+```
+
+**Adapters.** `QdrantIndex` and `OllamaEmbedding`, both plain `reqwest::blocking`
+against the REST endpoints R3 establishes, ported in shape from the deleted
+`semantic_backend.rs`. That module is the precedent: it confined JSON to one
+xenos-facing boundary and treated Qdrant as "a rebuildable projection rather
+than canonical authority", which is exactly this design's relationship to it.
+
+**Collections.** `huginn_pipeline_documents`, one point per document, vector
+size 1,024 (`qwen3-embedding:0.6b`, R16). Payload `{ instance, campaign, repo,
+kind, doc_id, admitted_at }`, with payload indexes on `instance`, `campaign`,
+`repo` and `kind`. Receipts, identity and provenance are never indexed.
+In-force status is never indexed; clients resolve it through `get`.
+
+**Indexing is at admission, in the same call, but not in the same transaction.**
+The typed commit lands first; the index upsert follows. If the upsert fails the
+admission still succeeded, and the organ records the document id in a
+`pending_index` slot and retries on its next poll. The index is a projection, so
+a stale index is a degraded read, never a lost write. The reverse order would
+let an index failure reject an admitted document.
+
+**Rebuild.** `huginn-daemon --reindex <instance>` drops and rebuilds the
+collection from the typed store. This is the affordance that makes the
+projection disposable, and it is the negative proof that the index is not truth.
+
+## D6. The CultNet surface
+
+**Copy Odin's harness (R6, R7).** `huginn-daemon` binds one loopback UDP socket
+from `GAMECULT_IDUNN_CANDIDATE_BIND`, constructs
+`CultMeshRudpDocumentServer::new(socket, sink, snapshot, CultMeshSystemClock::default(), options)`,
+and runs a `poll_once` loop with `signal-hook` handling SIGTERM/SIGINT.
+
+Requests arrive as `DocumentPutRaw` and replies go back as `DocumentPutRaw`,
+the shape Epiphany's permit issuer already uses (R5) and that the document
+server routes natively. Two request documents and two response documents:
+
+| Document | Type id | Payload |
 |---|---|---|
-| target | `r<N>` | `r2` |
-| question | `Q<cut>-<n>` | `Q10-1` |
-| ruling | label | `R6` |
-| cut spec | `cut-<label>.r<N>` | `cut-3a.r1` |
-| cut report | `cut-<label>.h<N>` | `cut-3a.h1` |
-| verdict | `cut-<label>.s<N>` | `cut-3a.s2` |
-| finding | `cut-<label>.s<N>.F<n>` | `cut-3a.s2.F4` |
-| follow-up | `FU-<n>` | `FU-4` |
-| resolution | `resolution:<subject id>` | — |
+| request | `huginn.mind_request.v1` | `instance`, `operation: Admit \| Get \| Query \| OpenItems \| RulingsInForce \| Stewardship \| HandOff \| Import`, and the operation's typed argument |
+| response | `huginn.mind_response.v1` | `request_id`, `outcome: Ok(payload) \| Refused(PipelineRefusal)` |
 
-A resolution is keyed by its subject, so a subject is resolved at most once, by
-identity. Content-digest keys were rejected: two different "Q5"s would coexist
-silently after a merge instead of conflicting, and digests are not citable in
-briefs.
+Read operations are also served through `CultMeshRudpSnapshotSource`, so a
+plain CultNet snapshot client can read a mind without speaking the request
+document at all. That is the affordance that keeps the MCP surface swappable.
 
-**Document set.** Every kind has a live consumer in the Eureka skill.
+**Schema publication.** `huginn.mind_request.v1` and `huginn.mind_response.v1`
+are Huginn's contracts and are published from Huginn, not Epiphany. Ruling 1
+covers pipeline *state* schemas, which stay in `schemas/cultnet/`. The organ's
+transport contracts belong to the provider that owns the boundary, which is
+exactly what `schemas/cultnet/README.md:52-56` already says.
 
-| Kind | Value fields (lists capped) | Live consumer (skill) |
+**Port.** `rudp://10.77.0.1:17872`, the lower of the two unallocated `178xx`
+ports (R21), with a private candidate range `27880-27887` by analogy with
+Odin's `27872-27879`.
+
+## D7. `eureka-state`
+
+A stdio MCP server that is a thin CultNet client. It owns no state, no cache and
+no fallback.
+
+| Tool | Input | Output |
 |---|---|---|
-| `campaign` | `slug`, `title: Short`, `repos: Vec<Short>` (1..8, `Org/Repo`), `working_branch: Short`, `target_doc: DocRef` | Query root for every tool. §0 (the scope boundary), §6 (land and record). |
-| `target` | `campaign`, `revision: u32`, `invariants: Vec<{label: Short, statement: Line}>` (≤32), `not_in_scope: Vec<Line>` (≤32), `canonical_implementations: Vec<Line>` (≤16), `doc: DocRef` | Soul brief "Operator invariants" (briefs.md:121); Imagination "Read first: target" (briefs.md:25-28); §6 reconcile. A finding cites invariant labels. |
-| `question` | `campaign`, `label`, `question: Para`, `options: Vec<{label: Short, text: Line}>` (2..8), `recommended: Short`, `depends: Vec<Line>` (≤8), `raised_in: Option<PipelineRef /* cut_spec */>`, `asked_on: Date` | §1 "explicit operator questions with a recommended option" (SKILL.md:116-117); §2 bundling (SKILL.md:127-131); `open_items`. |
-| `ruling` | `campaign`, `label`, `answers: Option<question id>`, `choice: Option<Short>`, `ruling: Para`, `operator_quote: Option<Para>`, `ruled_on: Date`, `precedents: Vec<ForeignRef>` (≤8) | §2 "Record every ruling … dated, with the operator's words" (SKILL.md:128-131); Hands brief "Standing rulings" (briefs.md:71); `rulings_in_force`. |
-| `cut_spec` | `campaign`, `cut: Short`, `revision: u32`, `title: Short`, `repo`, `branch: Short`, `base: Sha`, `depends_on: Vec<Short>` (≤8), `first: Vec<Line>` (≤16), `deletes: Vec<{path: Short, lines: u32, note: Line}>` (≤64), `keeps_moves`, `adds: Vec<Line>` (≤64 each), `file_changes: Vec<{location: CodeLocation, change: Line}>` (≤256), `authority_map: Option<{owner: Line, inputs, outputs, derived_state, forbidden_writers, shared_paths: Vec<Line> (≤16 each), deletion_line: Line}>`, `verification: {builds: Vec<Line>, tests: Vec<{name: Short, pins: Line}>, negative: Vec<{pattern: Short, scope: Line}>, operator: Vec<Line>}` (≤64 each), `subtraction_estimate: {lines_removed: u32, lines_added: u32, removed: Vec<Short>, added: Vec<Short>}`, `rulings: Vec<ruling id>` (≤32), `questions: Vec<question id>` (≤16) | §1 per-cut fields (SKILL.md:73-85); Hands brief "The spec is …" (briefs.md:63). |
-| `cut_report` | `campaign`, `cut_spec: id`, `attempt: Short`, `repo`, `branch`, `commits: Vec<{sha: Sha, subject: Line, builds: bool}>` (1..128), `range: CommitRange`, `verification: Vec<Evidence>` (≤64), `mutations: Vec<{rule: Line, mutation: Line, failed_as_expected: bool}>` (≤64), `deviations: Vec<{what: Line, why: Line}>` (≤32), `forks: Vec<question id>` (≤8), `structural_delta: {lines_added, lines_removed: u32, dependencies_added, dependencies_removed, formats_added, formats_removed, targets_added, targets_removed: Vec<Short>}`, `landed_names: Vec<{name: Short, kind: LandedNameKind, location: CodeLocation}>` (≤128), `undone: Vec<Line>` (≤32) | Hands report list (SKILL.md:153-155, briefs.md:97-104). The landed-names digest (lessons :159-161) is a field here, not its own document: it has no identity or lifecycle apart from its report. |
-| `verdict` | `campaign`, `cut_report: id`, `pass: Short`, `range: CommitRange`, `claims: Vec<{claim: Line, outcome: Holds \| Falsified \| Unproven, evidence: Vec<Evidence> (1..8), findings: Vec<finding id> (≤16)}>` (1..64) | Soul "then lists the promises that held" (SKILL.md:174-175); Self "Track Soul's hit rate" (SKILL.md:239-242). |
-| `finding` | `campaign`, `verdict: id`, `label`, `range: CommitRange`, `confidence: Confirmed \| Plausible`, `severity: Blocker \| High \| Medium \| Low`, `claim: Line`, `invariants: Vec<Short>` (≤8), `locations: Vec<CodeLocation>` (1..16), `failure_scenario: Para`, `evidence: Vec<Evidence>` (1..16), `precedents: Vec<ForeignRef>` (≤8) | Soul "CONFIRMED or PLAUSIBLE, with file:line, a failure scenario and severity" (SKILL.md:174); triage (SKILL.md:182-187). |
-| `follow_up` | `campaign`, `label`, `source: PipelineRef` (a finding, cut_report, verdict or ruling), `repo`, `locations: Vec<CodeLocation>` (≤16), `item: Line`, `why_it_can_wait: Line`, `owner: Short` | §5 "record as a follow-up … the file and the reason it can wait" (SKILL.md:186-187); map header "Follow-ups outside this migration" (cut-map.md:28). |
-| `resolution` | `subject: PipelineRef`, `outcome: Superseded{by} \| Answered{by} \| Fixed{by} \| Deferred{to} \| Recorded{reason: Line} \| Withdrawn{reason: Line}`, `rationale: Para`, `resolved_on: Date` | Supersession as data (target, Invariants); §2 "mark the old text as history" (SKILL.md:130-131); the §5 triage outcomes; the "in force" and "open" derivations. |
+| `admit` | `{ instance, provenance, documents }` | `PipelineAdmissionOutcome` |
+| `get` | `{ instance, id }` | `{ found, view }` |
+| `query` | `{ instance, query: PipelineQuery }` | `{ views }` |
+| `open_items` | `{ instance, campaign }` | `PipelineOpenItems` |
+| `rulings_in_force` | `{ instance, campaign? }` | `{ views }` |
+| `stewardship` | `{ instance }` | `{ repos }` |
+| `whoami` | `{}` | `{ instance, organ_endpoint, reachable }` |
 
-**Verdict vocabulary: decided, not a fork.** Both vocabularies are kept, at
-different levels:
+Input and output types are the `epiphany-pipeline` types deriving `JsonSchema`,
+returned as `Json<T>`, so tool schemas equal the published schemas (P4).
+Refusals are typed outcomes, not JSON-RPC errors; malformed input is
+`invalid_params`.
 
-- A **claim** in a Soul pass is `Holds`, `Falsified` or `Unproven`, as in the
-  lessons doc (`faculty-workflow-lessons-2026-09-04.md:152-153`).
-- A **finding** is a defect with confidence `Confirmed` (reproduced by a test,
-  mutation or probe) or `Plausible` (a source-grounded failure scenario, not
-  reproduced), as in the skill (SKILL.md:174).
+**No `repo_root` anywhere.** The old design threaded it through every tool
+because the store was a file in a repo. The mind is now addressed by instance.
 
-Admission ties the two together. A `Falsified` claim must cite at least one
-`Confirmed` finding. An `Unproven` claim may cite only `Plausible` findings.
-Collapsing either vocabulary into the other loses a real distinction: "the
-promise did not hold" versus "we reproduced it".
+**Configuration.** Two environment variables, `EUREKA_ORGAN_ENDPOINT` (default
+`rudp://127.0.0.1:17872`) and `EUREKA_INSTANCE`. No config file.
 
-**Resolution matrix.** Anything else is refused as
-`IncompatibleResolution { subject_kind, outcome }`.
+**Unreachable organ (target, "Availability is honest").** Every tool returns
+`{ refused: Unavailable { detail } }` naming the endpoint and the failure. The
+server never spools, never caches, never degrades to a local file. `whoami`
+exists so an agent can check reachability in one call before starting a
+campaign, and the Rehydrate brief calls it first.
 
-| Subject | Allowed outcomes |
-|---|---|
-| target | `Superseded{by: target}` |
-| question | `Answered{by: ruling}`, `Withdrawn` |
-| ruling | `Superseded{by: ruling}` |
-| cut_spec | `Superseded{by: cut_spec, same cut}`, `Withdrawn` |
-| finding | `Fixed{by: cut_report}`, `Deferred{to: follow_up}`, `Recorded`, `Withdrawn` |
-| follow_up | `Fixed{by: cut_report}`, `Superseded{by: follow_up}`, `Withdrawn` |
-| campaign, cut_report, verdict | not resolvable |
+**Registration is the operator's, not Hands'.** After Hands reports the binary
+path, the operator runs:
 
-Derived state, never stored:
+```
+claude mcp add --scope user --transport stdio eureka-state --env EUREKA_INSTANCE=<slug> --env EUREKA_ORGAN_ENDPOINT=rudp://127.0.0.1:17872 -- C:\Users\Meta\.eureka\bin\eureka-state.exe
+```
 
-- A document is **in force** when no resolution names it.
-- A **ruling in force** is a ruling in force.
-- **Open items** for a campaign are:
-  - unresolved questions;
-  - unresolved findings;
-  - unresolved follow-ups;
-  - in-force cut specs with no cut report citing them;
-  - cut reports with no verdict citing them.
+Unprobed: the exact `--env` spelling on CLI 2.1.268. Hands confirms it from
+`claude mcp add --help` and reports it; the operator runs the confirmed line.
 
-Admission time lives on the commit receipt (`committed_at`), never in a document.
-If it were in the document, replaying the same content after a lost response
-would change the payload and read as a collision.
+## D8. The trust boundary
 
-### D2. Store, path, git attributes
+**State it plainly: on a single-operator LAN there is no authentication here,
+and the design does not pretend otherwise.**
 
-- **One store per repo:** `<repo_root>/.epiphany/pipeline/pipeline.cc`, a
-  cultcache-rs `SingleFileMessagePackBackingStore` (Q1-A). It sits beside the
-  target and cut docs on the campaign's working branch and is committed by Self
-  with explicit paths. `.epiphany-run/` is a different directory name, and no
-  `.gitignore` in Epiphany, CultLib or Aetheria ignores `.epiphany/pipeline/`
-  (checked with `git check-ignore`).
-- **Required attributes, committed by Self when a campaign starts in a repo:**
-  - `.gitattributes`: `/.epiphany/pipeline/pipeline.cc binary`. P8 shows that
-    without it, a NUL-free MessagePack store is classified as text under
-    `text=auto` on a machine with `core.autocrlf=true`.
-  - `.gitignore`: `/.epiphany/pipeline/*.lock` (the per-operation sibling lock,
-    `lib.rs:705-722`).
+The organ binds loopback on Yggdrasil and is reached from the workstation over
+the existing supervised SSH tunnel (R20). Anything that can open that socket can
+declare any instance. `ForeignInstance` is therefore a **collision and
+attribution** control — it stops instance A writing into B's mind by mistake,
+and keeps history attributable — not an access control.
 
-  The opener runs `git -C <repo_root> check-attr binary -- .epiphany/pipeline/pipeline.cc`
-  and `git check-ignore`, following the child-process precedent at
-  `repository_body_observer.rs:978`. A writer is refused with
-  `StoreNotMarkedBinary { line }` or `LockNotIgnored { line }`, where `line` is
-  the exact text to add. Admission never edits repo config files.
-- **`repo_root` must be a work-tree top level.** `git rev-parse --show-toplevel`
-  must equal it; otherwise `NotRepoRoot`. Every tool takes `repo_root`
-  explicitly: subagents in worktrees share their session's MCP process, so the
-  server's own working directory is not the repo.
-- **Branch binding.** A write is refused with
-  `WrongBranch { expected, actual }` unless
-  `git rev-parse --abbrev-ref HEAD` equals `campaign.working_branch`. This keeps
-  one store per campaign even when parallel Hands work in other worktrees: they
-  admit into the campaign's working tree root, not their own.
-- **Epoch.** `EpiphanyPipelineIdentity { schema_epoch: String }` (slot 0), keyed
-  by the epoch string, following `EpiphanyMindIdentity` (`mind_documents.rs:64-71`).
-  An absent store is empty; the first admission writes the identity doc in the
-  same CAS batch. The opener refuses in these cases:
+This matters because the alternative is available and already used in this
+codebase: `cultnet-rs` ships `ServiceIdentitySigner`, `enroll_service_identity_at`
+and trust anchors, and Epiphany's permit path signs with them (R4). Enrolling a
+per-instance identity would make `ForeignInstance` enforceable. It would also
+mean distributing and rotating a key to every workstation that runs Claude Code.
 
-  | Condition | Refusal |
-  |---|---|
-  | Records present but no identity | `MissingIdentity` |
-  | Identity at another epoch | `ForeignEpoch { found, expected }` |
-  | Any unregistered type, such as a runtime or Mind store passed by mistake | `ForeignStore { type }` |
+**This is a real fork; see Q6.** Do not let Hands invent a credential system.
 
-  Unregistered types are already refused at pull (`lib.rs:2022-2046`), and the
-  opener maps that error. Stores stay separate: the pipeline opener never calls
-  `validate_runtime_store_epoch` (`runtime_spine.rs:718-743`), and a pipeline
-  store fed to `runtime_spine_cache` fails on its unregistered types (a
-  negative test pins this). Old-store policy is Q2-A.
-
-### D3. One writer per repo (ruling 6)
-
-- **The store lock is not a session lease.** The cultcache-rs `.lock` is taken
-  and released around each operation (`lib.rs:705-722`), and P5's four writer
-  processes interleaved about 500 lost races each.
-- **The mechanism is a separate session lease.** It is an fs2
-  `try_lock_exclusive` on `<git common dir>/epiphany-pipeline-writer.lock`, where
-  the common dir comes from `git rev-parse --git-common-dir`.
-  - Placing it in the git common dir makes one lease per clone across all of its
-    worktrees, which is what "one runner in any one repo" means on one machine.
-    Two clones or two machines are not excluded; that is what the merge tool is
-    for.
-  - The holder writes `<git common dir>/epiphany-pipeline-writer.cc`, a
-    single-file store holding `EpiphanyPipelineWriterHolder { pid: u32, host: Short, session: Short, attached_at: String }`.
-    It is a sibling file because a Windows byte-range lock blocks reads of the
-    locked file itself (P10).
-  - The holder file is display-only. The OS lock owns exclusion and is released
-    when the process dies (P10), so nothing repairs it.
-- **Typed surface:**
-  `PipelineWriter::attach(repo_root, holder) -> Result<PipelineWriter, PipelineRefusal>`,
-  refused with `WriterLeaseHeld { holder: Option<EpiphanyPipelineWriterHolder> }`.
-  The handle owns the locked `File`, and dropping it releases the lease. Every
-  write function takes `&PipelineWriter`, so a write without the lease does not
-  compile.
-- **Who holds it:**
-  - `eureka-state` attaches lazily on the first write for a given common dir and
-    holds the lease until the process exits.
-  - Read tools never attach.
-  - `epiphany-state pipeline-merge` attaches for the length of the command.
-  - A second Claude Code session's first write is refused, naming the holder.
-
-### D4. Admission and the one commit owner
-
-**Commit owner.** `commit_authorized_mind_mutation` (`reasoning_context.rs:1575-1691`)
-stays the only code that builds receipts, replays, and runs batch CAS. Cut 2
-parameterises it by a store profile. A sibling was rejected because it would
-duplicate:
-
-- the receipt digest (`:1826-1840`);
-- idempotent replay (`:1649-1657`);
-- companion collision handling (`:1610-1625`);
-- conflict mapping (`:1673-1690`).
-
-Those are receipt semantics, and receipt semantics need one owner.
-
-The pipeline store reuses `EpiphanyMindCommitReceipt`
-(`epiphany.mind_commit_receipt.v1`, `reasoning_context.rs:548-601`) with
-`store_id = "epiphany-pipeline"` in each `EpiphanyMindDocumentVersion`.
-Renaming the type would bump the runtime epoch and buy nothing; the "Mind" in its
-name is a naming scar, recorded as such.
-
-**Authority.** The organ is always
-`TypedOrganProvenance { organ: "eureka", provenance }`, fixed inside core. The
-companion provenance document is
-`EpiphanyPipelineProvenance { faculty: Faculty, agent: Short, session: Short, tool: Short }`.
-`faculty` is attribution, not authority: an unauthenticated local process
-declares it. The rules below never trust it.
-
-**Public surface.** This is the whole new `pub` surface; the existing
-`pub(crate)` commit wrappers stay crate-private.
-
-- `PipelineStore::open(repo_root) -> Result<PipelineStore, PipelineRefusal>`:
-  read-only, takes no lease, and works on any repo root. That is also the
-  foreign-read sharing affordance (D6).
-- `PipelineWriter::attach` (D3).
-- `admit_pipeline_batch(&PipelineWriter, PipelineAdmissionBatch) -> Result<PipelineAdmissionOutcome>`,
-  where:
-  - `PipelineAdmissionBatch { provenance, documents: Vec<PipelineDocument> }`
-    (1..64 documents);
-  - `PipelineAdmissionOutcome` is one of
-    `Committed { receipt_id, committed_at, writes: Vec<PipelineRef> }`,
-    `AlreadyAdmitted { receipt_id }`, `Refused(PipelineRefusal)` or
-    `Conflict { identities }`.
-- The query functions in Cut 3b.
-
-**Pipeline.** Admission runs these steps in order:
-
-1. Validate bounds.
-2. Recompute keys.
-3. Check references against the in-memory image plus the batch.
-4. Apply the per-kind rules.
-5. Derive writes (for example, the `Answered` resolution for a ruling that
-   answers a question).
-6. Commit through the owner with:
-   - `strong_reads` = the exact current envelopes of every cited document, which
-     pins cited bytes into the receipt;
-   - `writes` = the new documents, plus the identity document on the first write;
-   - companions = the provenance document.
-
-If every write already exists with byte-identical payload, admission returns
-`AlreadyAdmitted` with the receipt that named them. Exact replay stays idempotent
-even when the provenance differs, as it does across sessions.
-
-**Per-kind rules.** A reference to an absent document is
-`MissingReference { kind, id }`; a reference to the wrong kind is
-`WrongReferenceKind`.
-
-| Kind | Rule | Refusal |
-|---|---|---|
-| campaign | Slug unique; `repos` non-empty; the repo root's `origin` resolves to one of `repos` | `IdentityCollision`, `RepoNotInCampaign` |
-| target | Revision 1, or revision N batched with `resolution(Superseded)` of revision N−1; invariant labels unique | `RevisionWithoutSupersession`, `DuplicateLabel` |
-| question | ≥ 2 options with unique labels; `recommended` is one of them | `InvalidOptions` |
-| ruling | `answers`, if set, names an unresolved question, and `choice` is one of its options; admission derives `Answered` | `AlreadyResolved { subject, by }`, `InvalidChoice` |
-| cut_spec | `repo` ∈ campaign repos; cited rulings in force; revision rule as for target | `RepoNotInCampaign`, `CitesResolvedDocument`, `RevisionWithoutSupersession` |
-| cut_report | **Cites its cut spec** (target rule), and the spec is in force at admission; `repo` and `branch` equal the spec's; `range.head` is one of `commits` | `CutReportWithoutSpec`, `CitesResolvedDocument`, `RangeOutsideCommits` |
-| verdict | Cites a cut report; each `Falsified` claim cites ≥ 1 `Confirmed` finding (existing or in the batch); an `Unproven` claim cites no `Confirmed` finding | `FalsifiedClaimWithoutConfirmedFinding`, `UnprovenClaimWithConfirmedFinding` |
-| finding | **Names its commit range and evidence** (target rule): `range` present, `evidence` 1..16, `locations` 1..16; invariant labels exist in the in-force target | `FindingWithoutRange`, `FindingWithoutEvidence`, `UnknownInvariant` |
-| follow_up | Source exists | `MissingReference` |
-| resolution | **Supersedes by id, never by overwriting** (target rule): the subject exists and is unresolved (the key collision enforces this under CAS); outcome fits the matrix; `by` is in force; a supersession chain cannot cycle, because `by` must be in force | `AlreadyResolved`, `IncompatibleResolution`, `CitesResolvedDocument` |
-| any | Same key, different payload | `IdentityCollision { kind, id }` |
-
-**Concurrency.**
-
-- Within a repo, a second writer is structurally refused (D3).
-- Readers take cultcache-rs's shared lock through `pull_all`; P6 showed readers
-  are safe under replace.
-- CAS stays as defence in depth. With the lease held, `Conflict` means a bug or a
-  merge in progress, and the outcome is returned typed.
-
-### D5. Merge tool (ruling 6, Q1-A, Q3)
-
-- **Owner:** `merge_pipeline_stores(&PipelineWriter, theirs: &Path) -> Result<PipelineMergeOutcome>`
-  in `epiphany-core`.
-- **Entrypoint:** a new `pipeline-merge` subcommand of the existing
-  `epiphany-state` steward CLI (`epiphany-core/src/bin/epiphany-state.rs:23-98`).
-  It adds no binary. `epiphany-state` is already the steward for repo-local
-  typed state (AGENTS.md:256-260), and merges are an operator act on that state.
-- **Explicit command, not a git merge driver.**
-  - Git runs a driver on temporary copies (`%O %A %B`) outside the repo's store
-    path, so the lease, branch and epoch checks would bind to the wrong file.
-  - Driver configuration lives in the unversioned `.git/config` of each clone.
-  - The operator expects merges to be rare.
-  - The `binary` attribute (D2) means git never merges the store's bytes: it
-    stops with a conflict, which routes the merge to the command.
-- **Procedure,** run from the repo root on the merge branch:
-  1. `git show MERGE_HEAD:.epiphany/pipeline/pipeline.cc > <scratch>/theirs.cc`
-  2. `epiphany-state pipeline-merge --theirs <scratch>/theirs.cc`
-  3. `git add .epiphany/pipeline/pipeline.cc`
-- **Algorithm:**
-  - Open theirs read-only; a different epoch is refused with `ForeignEpoch`.
-  - Collect the receipts in theirs that ours lacks. A receipt counts as present
-    when its id matches, or when all of its writes already exist byte-identical.
-  - Order them topologically by strong-read dependency: a batch that cites a
-    document written by another pending batch goes after it. Break ties by
-    `(committed_at, receipt_id)`.
-  - Replay each batch's exact write envelopes and provenance through the same D4
-    validation against a staging image of ours. No write is reserialised, so
-    fields added by a newer additive binary survive.
-  - Replay is all-or-nothing:
-    - If any batch is refused, return `Refused { conflicts: Vec<{ their_receipt, refusal }> }`
-      and leave the store byte-identical.
-    - Otherwise commit every batch in order through the commit owner, passing
-      theirs' original `committed_at`. Receipt ids are then identical to theirs.
-- **True conflicts, reported and never chosen:**
-  - `IdentityCollision`: the same key with different content.
-  - `AlreadyResolved`: two resolutions of one subject, for example two rulings
-    both superseding R0.
-  - `CitesResolvedDocument`: a supersession that would form a cycle, or cite a
-    ruling the other side superseded.
-  - `MissingReference`: a dependency of an excluded or refused batch.
-- **Settlement:** Q3. If A, an eleventh kind
-  `merge_exclusion { their_receipt: Short, reason: Para, excluded_on: Date }`
-  is admitted on ours, and the merge skips that receipt.
-- **Why supersession stays deterministic:** a resolution is keyed by its subject,
-  so each subject has at most one resolution in any merged history.
-
-### D6. Sharing across repos
-
-Three affordances, and no import:
-
-1. **Read-only foreign queries.** Every `eureka-state` read tool accepts any
-   local `repo_root`, and `PipelineStore::open` takes no lease.
-2. **Typed citations.** `ForeignRef` appears in `ruling.precedents` and
-   `finding.precedents`, with the repo, commit, id and payload SHA-256 of the
-   cited document. Admission checks the syntax only; the digest is copied from a
-   foreign `get`. A repo that "learns for itself" admits its own ruling citing
-   the precedent. It never copies the foreign document.
-3. **Discovery through voidbot** (Cut 7). Hits carry `(repoName, docId)`, which
-   resolves through `get` on a local checkout.
-
-Import was rejected because a copy is a second owner of the same truth. A repo's
-store is written only while working in that repo: D2's branch binding and D3's
-lease both bind to the repo root.
-
-## Cut 1. Re-pin CultLib to `a0813c6`
+## Cut 4. Delete the repo-store, lease and git layers
 
 - **Repo/branch:** Epiphany `codex/eureka-pipeline-state`. No dependencies.
-- **First:**
-  - Confirm `git status` is clean.
-  - Confirm `C:\Users\Meta\.cargo-target-codex\debug\epiphany-state.exe` exists.
-    It is the operator binary; the tests below rebuild it.
-- **Deletes first:** none. No pin guard exists: `git grep e171eca3` outside
-  `Cargo.lock` hits only the six manifests, the target doc and `state/map.yaml`.
-- **Keeps:**
-  - `RuntimeSpineBackingStore::push_all` already satisfies the new required
-    `push_all` (`runtime_store_backend.rs:101-106`).
-  - Old pulls already refused unregistered types, so no runtime stray-refusal
-    change reaches Epiphany.
-- **Per-file changes** (all probed in P1–P3):
-  - **Manifests.** Replace
-    `rev = "e171eca32329baa928f4a1d810401a8b4c857029"` with
-    `rev = "a0813c6eed24d30bf88073ef615b633c77ebfcd6"` at:
-    - `Cargo.toml:23-24`
-    - `epiphany-core/Cargo.toml:17-19`
-    - `epiphany-model-adapter/Cargo.toml:15`
-    - `epiphany-openai-runtime/Cargo.toml:16`
-    - `epiphany-tool-adapter/Cargo.toml:11`
-    - `epiphany-tool-mcp-runtime/Cargo.toml:14`
+- **First:** confirm `git status` is clean at `5fb4eb22`.
 
-    `Cargo.lock` then changes 5+/5− (the four CultLib source lines at
-    `:367,:385,:395,:406` plus one more).
-  - **`load_envelope` → `put_envelope`.** Commit `4ed9871` deleted
-    `load_envelope`. Every site uses a storeless cache, so the semantics are
-    identical (see Probes). The sites:
-    - `persona_conversation.rs:961`
-    - `persona_social_state.rs:849,852,855,858,861`
-    - `resident_self.rs:800,803,806,809,812,815`
-  - **Unused `Result` from `add_generic_backing_store`,** which now returns
-    `Result` (`lib.rs:1968`). Add `?` at:
-    - `atlas/store.rs:358` (in `load_cache`, which returns `Result`)
-    - `runtime_spine.rs:647` (in `runtime_spine_cache`)
-    - `state_ledger.rs:136` (in `state_ledger_cache`)
-    - tests: `persona_feedback_admission.rs:1045`, `resident_readiness.rs:791`,
-      `runtime_spine.rs:8658`, `:8694`, `:8722-8723`
-- **Authority map:** no ownership change.
-- **Verification:**
-  - **Builds**, one at a time, with
-    `$env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'`:
-    - `cargo check -p epiphany-core --lib --tests` must report zero
-      `unused_must_use` warnings.
-    - `cargo check --lib` for `-p epiphany-model-adapter`,
-      `-p epiphany-tool-adapter`, `-p epiphany-openai-runtime` and
-      `-p epiphany-tool-mcp-runtime`.
-    - Each production entrypoint on its own:
-      `cargo check -p epiphany-release-bundle --bin <name>` for
-      `epiphany-release`, `epiphany-state`, `epiphany-repository-body`,
-      `epiphany-swarm`, `epiphany-persona-discord-permit` and
-      `epiphany-mvp-coordinator`; add `--features openai-runtime` for
-      `epiphany-persona-service` and `epiphany-model-runtime`, and
-      `--features tool-mcp-runtime` for `epiphany-tool-mcp-runtime`. This
-      follows the map's per-entrypoint habit (`state/map.yaml:134`). The bins
-      were not probed.
-  - **Tests.** `cargo test -p epiphany-core --lib` must pass 154/154 (P3). These
-    tests pin specific rules:
+**Deletes first.**
 
-    | Test | Pins |
-    |---|---|
-    | `resident_self::obsolete_state_epoch_refuses_without_mutation` (`:2718`) | The storeless load path at `:800-815` |
-    | `persona_conversation::retry_requires_the_exact_store_cleanup_receipt_when_detail_is_already_absent` (`:1818`) | The retirement-receipt load at `:961` |
-    | `runtime_spine::current_runtime_refuses_old_writable_epoch_without_mutation` (`:8652`) | Epoch refusal through the new `?` sites |
-    | `resident_readiness::readiness_cas_preserves_foreign_owner_rows_and_refuses_duplicate_owner_state` (`:785`) | — |
-    | `persona_feedback_admission::imports_signed_provider_store_into_dedicated_feedback_store` (`:1035`) | — |
-    | `state_ledger::state_ledgers_add_branch_and_append_native_evidence` (`:183`) | — |
-    | `reasoning_context::disjoint_mind_mutations_merge_and_same_identity_conflicts` (`:2482`) | CAS semantics at the new store revision |
-    | `packaged_release::construction::release_bundle_lockfile_is_frozen` (`:1060`) | The lock matches the manifests |
+| Path | Lines | What dies |
+|---|---:|---|
+| `epiphany-core/src/pipeline_store.rs` | 1,251 | **The whole file.** See below. |
+| `epiphany-core/src/pipeline_documents.rs:334-349` | 16 | `PipelineWriterHolder` and its `Bounded` impl |
+| `epiphany-core/src/pipeline_documents.rs:492-497` | 6 | `EpiphanyPipelineWriterHolder` wrapper |
+| `epiphany-core/src/pipeline_documents.rs:602-617` | 16 | `validate_pipeline_writes`, the commit-profile validator |
+| `epiphany-core/src/lib.rs:21` | 1 | `mod pipeline_store;` |
+| `epiphany-core/src/lib.rs:132` | 1 | `pub use pipeline_store::{...};` |
+| `.gitattributes:1` | 1 | `/.epiphany/pipeline/pipeline.cc binary` |
+| `.gitignore:37` | 1 | `/.epiphany/pipeline/*.lock` |
 
-  - **Real-store read.** From `F:\Projects\Epiphany`, run
-    `cargo run -p epiphany-release-bundle --bin epiphany-state -- status`. It
-    reads the live `state/ledgers.msgpack` (`bin/epiphany-state.rs:13-24`)
-    through the re-pinned home-store routing.
-  - **Negative checks:**
-    - `git grep -n e171eca3 -- ':!notes' ':!state'` is empty.
-    - `rg -n "load_envelope" epiphany-core` is empty.
-  - **Mutation.** Revert one `put_envelope` back to `load_envelope`; the build
-    must fail. This pins that the old API is truly gone.
-  - **Cleanup.** Follow the map habit: delete the new compiler outputs, keep the
-    1,776,640-byte inspector, and rebuild it if `status` replaced it.
-- **Subtraction ledger:** about 23 lines changed, net 0. No dependencies or
-  formats change.
+**Yes, `pipeline_store.rs` dies whole.** Every one of its parts is a repo-store
+part:
 
-## Cut 2. One commit owner, two store profiles (behaviour-preserving)
+- `PIPELINE_COMMIT_STORE` (`:76-81`) — the commit profile, dead with Cut 5.
+- `pipeline_cache` (`:87-120`) — the epoch/foreign-type opener. Its *logic*
+  survives, but it is re-authored against redb in Cut 8; it is not moved,
+  because its signature takes a `RuntimeSpineBackingStore`.
+- `git`, `git_line`, `committed_line` (`:125-162`) — the committed-blob checks.
+- `require_repo_root`, `main_work_tree`, `common_dir_of` (`:165-201`) — ruling
+  10's resolution.
+- `PipelineStore` (`:204-226`) — the read path, now CultNet.
+- `PipelineWriter`, `attach`, `require_branch`, `Drop` (`:230-331`) — the lease
+  and branch binding.
+- `live_holder`, `current_holder`, `holder_cache`, `read/write_writer_holder`
+  (`:334-387`) — the holder record.
+- `mod tests` (`:389-1251`, 863 lines) — 15 tests, all of which pin a deleted
+  rule. The four that pin *document* rules — `every_pipeline_kind_round_trips_through_named_slot_zero`,
+  `bounds_refuse_in_utf8_bytes`, `repo_fields_must_be_org_slash_repo`,
+  `keys_are_derived_and_mismatch_refuses`, `composed_keys_cannot_collide`,
+  `parent_ids_are_parsed_strictly`, `resolution_subject_is_a_full_id_of_its_kind`
+  — **move to Cut 6**, not deleted. They are listed here as moves so the count
+  is honest.
 
-- **Repo/branch:** Epiphany, same branch. Depends on Cut 1.
-- **Why a separate cut:** this refactors the Mind commit path, which Soul must
-  be able to falsify without pipeline code in the diff.
-- **Deletes first:** from `commit_authorized_mind_mutation`, the three hard-coded
-  Mind choices:
-  - `runtime_spine_cache(store_path)` (`reasoning_context.rs:1605`);
-  - `crate::mind_documents::validate_mind_write_envelope(write)` (`:1592`);
-  - the literal `"epiphany-mind"` store ids (`:1628`, `:1632`).
-- **Adds:**
-  `pub(crate) struct TypedCommitStore { store_id: &'static str, open_cache: fn(&Path) -> Result<CultCache>, validate_write: fn(&CultCacheEnvelope) -> Result<()> }`,
-  and `pub(crate) const MIND_COMMIT_STORE: TypedCommitStore` =
-  `{ "epiphany-mind", runtime_spine_cache, validate_mind_write_envelope }`.
-  The owner signature gains `store: &TypedCommitStore` as its first argument.
-  The backing store stays `runtime_spine_backing_store(store_path)` (`:1669`,
-  `:1672`): it selects by extension and already serves `.cc`.
-- **Per-file changes:**
-  - `reasoning_context.rs:1575-1691`: use the profile.
-  - The wrappers at `:1445-1573` pass `&MIND_COMMIT_STORE`. There are five:
-    `commit_mind_mutation_with_derived_companions`,
-    `commit_operator_mind_mutation`,
-    `commit_operator_mind_mutation_with_derived_companions`,
-    `commit_typed_organ_mind_mutation`, and
-    `commit_external_typed_observation_mind_mutation`.
-  - `EpiphanyMindDocumentVersion::from_envelope(store.store_id, …)` at `:1628`
-    and `:1632`.
-- **Authority map:**
-  - **Owner:** `commit_authorized_mind_mutation`, still the only receipt/CAS
-    writer.
-  - **Inputs:** the profile, authority, invariant owner, strong reads, writes,
-    companions, and time.
-  - **Outputs:** an `EpiphanyMindCommitOutcome`.
-  - **Derived state:** `store_id` inside the receipt's document versions.
-  - **Forbidden writers:** any new function that builds an
-    `EpiphanyMindCommitReceipt` or calls `compare_and_swap_batch` with a receipt.
-  - **Shared paths:** every Mind wrapper today; the pipeline profile in Cut 3b.
-  - **Deletion line:** the three hard-coded choices above.
-- **Verification:**
-  - **Tests:** `cargo test -p epiphany-core --lib` passes 154/154, including
-    `disjoint_mind_mutations_merge_and_same_identity_conflicts` (`:2482`), which
-    pins Mind CAS and replay unchanged. Add
-    `typed_commit_store_profile_owns_open_validate_and_store_id`: a test-only
-    profile with a one-type registry and a validator that refuses one key. It
-    proves that a refused write leaves the store file byte-identical, and that a
-    committed receipt's versions carry the profile's `store_id`.
-  - **Mutation:** hard-code `"epiphany-mind"` back into the owner; the new test
-    fails.
-  - **Negative checks:**
-    - `rg -n "fn commit_authorized_mind_mutation" epiphany-core/src` returns
-      exactly one hit.
-    - `rg -n "EpiphanyMindCommitReceipt \{" epiphany-core/src` returns only the
-      owner and the tests.
-- **Subtraction ledger:** about +25 / −6 lines. No dependencies or formats
-  change.
+**Keeps.**
 
-## Cut 3a. Pipeline documents, store opener, writer lease, published schemas
+- Every document kind, value type, bound alias, format rule and key derivation
+  in `pipeline_documents.rs`.
+- `validate_pipeline_write_envelope` (`:621-645`), bounds plus key recomputation.
+- All ten `schemas/cultnet/epiphany.pipeline.*.v1.schema.json` files and their
+  `index.json` entries. Ruling 1 keeps them; Cut 6 adds three more.
+- `.gitattributes:2`, `/schemas/cultnet/epiphany.pipeline.*.schema.json text eol=lf`.
+- `process_observation::capture_process_instance` — other callers at
+  `bin/epiphany-mvp-coordinator.rs:257,1703` and `bin/epiphany-swarm.rs:211,723`.
+- `repository_body_observer::repository_git_command` — other callers at
+  `repository_body_observer.rs:734,745,1041,1054,1063,1077`.
+- `fs2` in `epiphany-core/Cargo.toml` — still used by
+  `packaged_release/construction.rs`.
+- `schemars` — Q5 keeps it; Cut 6 needs it.
 
-- **Repo/branch:** Epiphany, same branch. Depends on Cut 2, Q1 and Q5. The epoch
-  text follows Q2.
-- **Deletes first:** none. The capability is new; D4 names the subtraction it
-  buys: prose cut maps, header bookkeeping, and the relay of reports.
-- **Adds:**
-  - `epiphany-core/src/pipeline_documents.rs`, D1:
-    - the value types and ten wrappers;
-    - `EpiphanyPipelineIdentity`, `EpiphanyPipelineProvenance` and
-      `EpiphanyPipelineWriterHolder`;
-    - the bound aliases and their `validate()` methods;
-    - key derivation `fn pipeline_key(&PipelineDocument) -> String`;
-    - `pub(crate) fn register_pipeline_document_types(&mut CultCache)`, which
-      registers the ten kinds, identity, provenance and
-      `EpiphanyMindCommitReceipt`.
-  - `epiphany-core/src/pipeline_store.rs`, D2 and D3:
-    - `PipelineStore::open`;
-    - `PipelineWriter::attach`;
-    - `fn pipeline_cache(path) -> Result<CultCache>`, which checks the epoch and
-      maps load errors to `ForeignStore`;
-    - the git checks (`show-toplevel`, `git-common-dir`, `abbrev-ref HEAD`,
-      `check-attr binary`, `check-ignore`);
-    - `pub(crate) const PIPELINE_COMMIT_STORE: TypedCommitStore` =
-      `{ "epiphany-pipeline", pipeline_cache, validate_pipeline_write_envelope }`;
-    - `PipelineRefusal`, the typed enum holding every refusal named in D2–D5.
-  - `epiphany-core/Cargo.toml`: `schemars = "1"` in `[dependencies]` (Q5-A).
-  - `schemas/cultnet/epiphany.pipeline.<kind>.v1.schema.json` × 10, plus ten
-    `index.json` entries in the existing shape (`kind: document_payload`,
-    `wireContracts: [cultnet.schema.v0]`).
-  - `schemas/cultnet/README.md`: add a "Main Families" line for
-    `epiphany.pipeline.*.v1`, and a wire note. The note says:
-    - the document payload is `[value]` and the value is the named map the schema
-      describes;
-    - these contracts cross to MCP clients and voidbot;
-    - evolution is additive per Q2.
-- **Schemas are derived, not hand-written.** Test
-  `pipeline_published_schemas_match_derivation` generates each kind's schema with
-  `schemars::schema_for!` and compares it byte-for-byte with the committed file
-  (pretty JSON with a trailing newline). On mismatch it writes the derived file to
-  `std::env::temp_dir()/epiphany-pipeline-schemas/` and fails naming that path.
-  There is no bless flag.
-- **Per-file changes:**
-  - `lib.rs:1-36`: add `mod pipeline_documents; mod pipeline_store;`.
-  - `lib.rs` near `:171`: `pub use pipeline_documents::*;` and
-    `pub use pipeline_store::{PipelineStore, PipelineWriter, PipelineRefusal};`.
-- **Authority map:**
-  - **Owner:** `epiphany-core` pipeline modules, for schema, keys, epoch and
-    lease.
-  - **Inputs:** the repo root, git metadata, and the store file.
-  - **Outputs:** opened stores, writer handles, and typed refusals.
-  - **Derived state:** the holder file (display-only).
-  - **Forbidden writers:** anything that opens `pipeline.cc` with a writable
-    `CultCache` outside `pipeline_store.rs`, and any repo-config writer.
-  - **Shared paths:** `eureka-state` and `epiphany-state pipeline-merge` both use
-    `PipelineStore::open` and `PipelineWriter::attach`.
-  - **Deletion line:** n/a (new).
-- **Verification.** Tests go in `pipeline_store.rs` and use temp git repos,
-  following the `git` spawn precedent at `runtime_spine.rs:8611-8625`.
+**Per-file changes.** `pipeline_documents.rs:19` drops
+`use crate::pipeline_store::PipelineRefusal;` and gains a local `PipelineRefusal`
+holding only `FieldBound`, `InvalidFormat` and `InvalidIdentity`, with its
+`Display` and `Error` impls carried from `pipeline_store.rs:57-63`. This is a
+temporary home; Cut 6 moves the whole module out.
 
-  | Test | Pins |
-  |---|---|
-  | `every_pipeline_kind_round_trips_through_named_slot_zero` | Encode with `prepare_entry_named`, decode, check equality, and assert the payload's first MessagePack byte is a fixarray of length 1 |
-  | `bounds_refuse_in_utf8_bytes` | A 201-byte multibyte `Short` is refused |
-  | `keys_are_derived_and_mismatch_refuses` | `InvalidIdentity` |
-  | `opener_refuses_foreign_epoch_missing_identity_and_runtime_store_byte_identically` | Three refusals; file bytes unchanged |
-  | `runtime_spine_cache_refuses_a_pipeline_store` | Stores stay separate |
-  | `second_writer_is_refused_naming_the_holder_and_released_on_drop` | Uses two `PipelineWriter::attach` calls on handles in separate threads, because fs2 locks are per handle. P10 already covers cross-process exclusion and kill release. |
-  | `writer_lease_is_shared_across_worktrees_of_one_clone` | `git worktree add`; attaching from the worktree is refused |
-  | `writer_refuses_unmarked_binary_and_unignored_lock_and_wrong_branch` | Three refusals with exact fix lines |
-  | `pipeline_published_schemas_match_derivation` | The committed JSON equals the derivation |
+**Authority map.**
 
-  - **Mutations:** drop `binary` from the check; drop the common-dir lock in
-    favour of a work-tree lock; stop recomputing keys; each named test fails.
-  - **Negative check:** `rg -n "serde_json::Value|Vec<u8>" epiphany-core/src/pipeline_documents.rs`
-    is empty.
-- **Subtraction ledger:** about +900 lines of Rust (types and tests) and about
-  +1,200 lines of derived JSON. Adds the `schemars` dependency and 10 schema
-  files. No formats removed.
+- **Owner:** nothing. This cut removes an owner and installs no replacement; the
+  organ becomes the owner in Cut 8.
+- **Inputs / outputs:** none.
+- **Derived state:** none. The holder file is gone.
+- **Forbidden writers:** after this cut, no Epiphany code may open a pipeline
+  store, take a lease, or read git for pipeline purposes.
+- **Shared paths:** none remain.
+- **Deletion line:** the table above.
 
-## Cut 3b. Admission rules and queries
+**Verification.**
 
-- **Repo/branch:** Epiphany, same branch. Depends on Cut 3a.
-- **Adds:** `epiphany-core/src/pipeline_admission.rs`. It holds
-  `admit_pipeline_batch` (D4), with `validate_pipeline_write_envelope` (bounds
-  and key recomputation) wired into `PIPELINE_COMMIT_STORE`, and the query
-  functions:
-  - `get_pipeline_document(&PipelineStore, id) -> Option<PipelineDocumentView>`
-  - `query_pipeline(&PipelineStore, &PipelineQuery) -> Vec<PipelineDocumentView>`
-  - `pipeline_open_items(&PipelineStore, campaign) -> PipelineOpenItems`
-  - `pipeline_rulings_in_force(&PipelineStore, campaign: Option<&str>) -> Vec<PipelineDocumentView>`
+- **Builds:** `cargo check -p epiphany-core --lib --tests`, then
+  `cargo check -p epiphany-release-bundle --bin epiphany-state`. One at a time,
+  `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex`.
+- **Tests:** `cargo test -p epiphany-core --lib`. Expect 180 − 15 = **165**, and
+  the report states the exact number. The surviving document tests are re-added
+  in Cut 6, so this cut legitimately reduces coverage; Soul checks that only the
+  named 15 disappeared.
+- **Negative greps**, all empty:
+  - `rg -n "PipelineWriter|PipelineStore|WriterLeaseHeld|main_work_tree|check-attr|git-common-dir" epiphany-core/src`
+  - `rg -n "\.epiphany/pipeline" -- . ':!notes'`
+  - `rg -n "pipeline" .gitattributes .gitignore` returns only the schema
+    `eol=lf` line.
+- **Operator:** none.
 
-  `PipelineDocumentView` is
-  `{ id, kind, document: PipelineDocument, resolution: Option<(id, PipelineResolution)>, receipt_id, admitted_at, faculty }`.
-  Its admission fields are joined from the receipts whose `writes` name the
-  document.
+**Subtraction ledger:** −1,291 lines, +about 20 (the reduced refusal enum). No
+dependency, format or target change.
 
-  `PipelineQuery` fields:
+## Cut 5. Collapse `TypedCommitStore` back into the Mind commit owner
 
-  | Field | Type or meaning |
-  |---|---|
-  | `campaign` | `Option<Short>` |
-  | `repo` | `Option<Short>` |
-  | `cut` | `Option<Short>`, matched through the spec → report → verdict → finding chain |
-  | `kinds` | `Vec<PipelineKind>` |
-  | `status` | `InForce \| Resolved \| Any` |
-  | `outcome` | `Option<outcome tag>` |
-  | `faculty` | `Option<Faculty>` |
-  | `admitted_after`, `admitted_before` | RFC3339, from receipts |
-  | `text_contains` | Case-insensitive substring over the bounded text fields |
-  | `limit` | ≤ 200, ordered by `admitted_at` then id |
+- **Repo/branch:** Epiphany, same branch. Depends on Cut 4.
+- **Why this cut exists.** Cut 2 generalised the commit owner so a *second*
+  profile could use it. Cut 4 deletes that second profile, and D3 puts the
+  organ's receipts in another repo. `TypedCommitStore` is now a one-implementation
+  abstraction surviving only because it exists — a named STOP condition in
+  `~/.claude/CLAUDE.md`. Honest accounting: **Cut 2's generalisation did not pay
+  off**, and leaving it in place to avoid admitting that is the failure mode the
+  doctrine warns about.
+- **Why it is a separate cut.** It is pure subtraction on the Mind path, and
+  Soul must be able to falsify "Mind behaviour is unchanged" without pipeline
+  code in the diff.
 
-- **Per-file changes:** `lib.rs`: add `mod pipeline_admission;` and
-  `pub use pipeline_admission::{…}`.
-- **Authority map:**
-  - **Owner:** `pipeline_admission.rs`, for every per-kind rule and every
-    derivation ("in force", "open").
-  - **Inputs:** the store image and the batch.
-  - **Outputs:** outcomes, receipts, and views.
-  - **Derived state:** status, open items, admitted time.
-  - **Forbidden writers:** the MCP server, voidbot, and the skill. None may
-    re-derive in-force status or validate documents on its own.
-  - **Shared paths:** `eureka-state` tools and `pipeline-merge` replay (Cut 3c).
-  - **Deletion line:** n/a.
-- **Verification.** Each rule has a test that fails under its own mutation.
+**Deletes first.**
 
-  | Test | Rule it pins |
-  |---|---|
-  | `cut_report_without_spec_refuses` | The report must cite its spec |
-  | `cut_report_citing_superseded_spec_refuses` | — |
-  | `finding_without_range_or_evidence_refuses` | The finding must name its range and evidence |
-  | `falsified_claim_requires_confirmed_finding` / `unproven_claim_refuses_confirmed_finding` | Verdict vocabulary |
-  | `ruling_supersedes_by_resolution_never_overwrite` | Re-putting the ruling key with new content is `IdentityCollision`, and the superseded ruling stays queryable as `Resolved` |
-  | `subject_resolves_at_most_once` | — |
-  | `supersession_cycle_refuses` | — |
-  | `ruling_answering_question_derives_answered_resolution_atomically` | Inspect the receipt writes |
-  | `revision_requires_supersession_in_batch` | — |
-  | `batch_is_all_or_nothing` | A refused third document leaves the file byte-identical |
-  | `exact_replay_returns_already_admitted_across_provenance` | — |
-  | `open_items_and_rulings_in_force_follow_resolutions` | — |
-  | `query_filters` | One assertion per filter |
+| Path | Lines | What dies |
+|---|---:|---|
+| `reasoning_context.rs:1590-1597` | 8 | `struct TypedCommitStore` |
+| `reasoning_context.rs:1599-1604` | 6 | `fn validate_mind_writes` (inlined) |
+| `reasoning_context.rs:1606-1611` | 6 | `const MIND_COMMIT_STORE` |
+| `reasoning_context.rs:1614` | 1 | the `store: &TypedCommitStore` parameter |
+| `reasoning_context.rs:1435,1466,1516,1540,1566` | 5 | the `&MIND_COMMIT_STORE` argument at each of the five wrappers |
+| `reasoning_context.rs:2521-2530`, `:2599-2610` | ~20 | `TEST_COMMIT_STORE`, `NOW_REFUSING` and the profile-parameterised test harness at `:2540` |
 
-  - **Mutations:** delete each rule's check and confirm that exactly its test
-    fails. Mutate `in_force` to ignore resolutions.
-  - **Negative check:** `rg -n "prepare_entry\(" epiphany-core/src/pipeline_*.rs`
-    is empty; only `prepare_entry_named` may be used.
-- **Subtraction ledger:** about +1,100 lines (rules, queries, tests). No
-  dependencies change.
+**Per-file changes.** In `commit_authorized_mind_mutation`
+(`reasoning_context.rs:1613-1622`), re-inline the three choices the profile
+carried: `runtime_spine_backing_store` at `:1641`,
+`crate::runtime_spine::open_runtime_spine_cache` at `:1642`,
+`validate_mind_write_envelope` at `:1644`, and the literal `"epiphany-mind"` at
+`:1665` and `:1669`.
 
-## Cut 3c. Merge command
+**Keeps — and this is the part that must not be lost.** Cut 2's *tests* proved
+real rules and stay, re-expressed against the concrete owner:
 
-- **Repo/branch:** Epiphany, same branch. Depends on Cut 3b and Q3. If Q3 is A,
-  it adds the `merge_exclusion` kind to Cut 3a's set, with a schema file and a
-  test.
-- **Adds:** `epiphany-core/src/pipeline_merge.rs`, `merge_pipeline_stores` (D5).
-- **Per-file changes:**
-  - `epiphany-core/src/bin/epiphany-state.rs:23-98`: new match arm
-    `"pipeline-merge"` parsing `--theirs <path>` with the existing
-    `parse_named_args`. The repo root is the current directory, like every other
-    subcommand (`:14-17`). The arm attaches the writer and prints the typed
-    outcome.
-  - `print_usage` at `:205`.
-- **Authority map:**
-  - **Owner:** `merge_pipeline_stores`.
-  - **Inputs:** ours (lease-held) and theirs (read-only).
-  - **Outputs:** replayed receipts, or typed conflicts.
-  - **Forbidden writers:** git (the `binary` attribute), any byte copy, and any
-    last-writer-wins path.
-  - **Shared paths:** the admission rules from Cut 3b, and the commit owner from
-    Cut 2.
-  - **Deletion line:** n/a.
-- **Verification:**
+- the Mind epoch refusal is pinned (mutation M2b dropped the check and failed);
+- validation-before-replay is pinned;
+- the owner reads and writes one store, never two.
 
-  | Test | Pins |
-  |---|---|
-  | `merge_replays_disjoint_divergent_stores_with_identical_receipts` | Two temp repos diverge from one base; after the merge, ours contains theirs' documents and receipt ids equal theirs |
-  | `merge_refuses_true_conflicts_and_writes_nothing` | Three cases, each asserting store bytes unchanged and the typed conflict list: the same key with different content; two rulings superseding the same predecessor; a cross-side supersession cycle |
-  | `merge_refuses_foreign_epoch` | — |
-  | `merge_is_idempotent` | Merging twice changes nothing |
-  | `merge_requires_the_writer_lease` | A held lease refuses |
-  | `merge_preserves_unknown_additive_fields_byte_exactly` | Envelope bytes are carried, not reserialised |
-  | `merge_exclusion_skips_batch_and_reports_dependents` | Only if Q3 is A |
+Do **not** delete a verifier to make this cut smaller. AGENTS.md's Verification
+Guardrails: preserve the claim in the smallest owning surface.
 
-  - **Build:** `cargo check -p epiphany-release-bundle --bin epiphany-state`.
-  - **Mutations:** make replay last-writer-wins on collision; skip the
-    topological order.
-  - **Operator check:** one rehearsal on two scratch clones, following the D5
-    procedure.
-- **Subtraction ledger:** about +600 lines. No binaries or dependencies change.
+**Authority map.**
 
-## Cut 4. `eureka-state` MCP server package
+- **Owner:** `commit_authorized_mind_mutation`, still the only code that builds
+  receipts, replays, and runs batch CAS — now concretely, for Mind only.
+- **Inputs:** authority, invariant owner, strong reads, writes, companions, time.
+- **Outputs:** `EpiphanyMindCommitOutcome`.
+- **Derived state:** `store_id` inside the receipt's document versions, now the
+  constant `"epiphany-mind"`.
+- **Forbidden writers:** any new function building an `EpiphanyMindCommitReceipt`
+  or calling `compare_and_swap_batch` with a receipt.
+- **Shared paths:** the five Mind wrappers. There is no sixth.
+- **Deletion line:** the table above.
 
-- **Repo/branch:** Epiphany, same branch. Depends on Cut 3b. The Cut 3c merge is
-  not exposed over MCP.
-- **Earned entrypoint** (AGENTS.md:262-265).
-  - **Live consumer:** Claude Code, which launches a stdio child per session.
-    That is an independent process lifecycle with its own dependency weight
-    (rmcp, schemars, tokio stdio). The server is not a daemon.
-  - **Why not fold it into `epiphany-state`:** that binary ships in the packaged
-    Linux release (`construction.rs:82-98`) and would carry rmcp into the
-    deployed steward.
-- **Adds:**
-  - **Package `epiphany-eureka-state/`,** following the `epiphany-tool-mcp-runtime`
-    precedent. Its `Cargo.toml` has `autobins = false`,
-    `license-file = "../LICENSE"`, and dependencies `anyhow`,
-    `epiphany-core = { path }`, `rmcp = { version = "2.2.0", default-features = false, features = ["server", "macros", "transport-io"] }`
-    (P4), `schemars = "1"`, `serde`, and
-    `tokio = { features = ["macros", "rt-multi-thread", "io-std"] }`.
-  - **`src/lib.rs`:** `EurekaStateServer`, with a `ToolRouter` and a map from
-    git common dir to `PipelineWriter` for lazy, process-lifetime leases.
-  - **`src/main.rs`:** `EurekaStateServer::new().serve(rmcp::transport::stdio()).await?.waiting().await`.
-    It takes no argv.
-  - **Root `Cargo.toml`:**
-    - `:2-8`: add the workspace member.
-    - `[dependencies]`: `epiphany-eureka-state = { path, optional = true }`.
-    - `[features]` (`:41-44`): `eureka-state = ["dep:epiphany-eureka-state"]`.
-      It is **not** added to `release-runtime`, so the packaged Linux binary
-      set is unchanged.
-    - After `:86-89`: `[[bin]] name = "eureka-state"`,
-      `path = "epiphany-eureka-state/src/main.rs"`,
-      `required-features = ["eureka-state"]`.
-- **Tools.** Every tool takes `repo_root: String`. Inputs and outputs are the
-  core types from D1 and Cut 3b, deriving `JsonSchema` and returned as
-  `Json<T>`, so tool schemas equal the published schemas. Refusals are typed
-  outcomes, not JSON-RPC errors. Malformed input is `invalid_params` (P4).
+**Verification.**
 
-  | Tool | Input | Output | Core call |
-  |---|---|---|---|
-  | `admit` | `{ repo_root, provenance: EpiphanyPipelineProvenance, documents: Vec<PipelineDocument> }` | `PipelineAdmissionOutcome` | `PipelineWriter::attach` (lazy, cached), then `admit_pipeline_batch` |
-  | `get` | `{ repo_root, id }` | `{ found, view: Option<PipelineDocumentView> }` | `get_pipeline_document` |
-  | `query` | `{ repo_root, query: PipelineQuery }` | `{ views }` | `query_pipeline` |
-  | `open_items` | `{ repo_root, campaign }` | `PipelineOpenItems` | `pipeline_open_items` |
-  | `rulings_in_force` | `{ repo_root, campaign: Option }` | `{ views }` | `pipeline_rulings_in_force` |
+- **Tests:** `cargo test -p epiphany-core --lib` passes at the Cut 4 count.
+  `disjoint_mind_mutations_merge_and_same_identity_conflicts`
+  (`reasoning_context.rs:2482`) pins Mind CAS and replay unchanged.
+- **Behaviour-unchanged proof, per the Hands brief:** a Mind receipt id captured
+  by running the pin test **at base `5fb4eb22`** must equal the id after this
+  cut. A value captured from the new code is not evidence.
+- **Mutations:** drop the epoch check from the opener; make the validator a
+  no-op; make the owner read one store and write another. Each must fail its
+  named test.
+- **Negative greps:** `rg -n "TypedCommitStore|MIND_COMMIT_STORE" epiphany-core/src`
+  is empty.
 
-  Refusals that block reads (`ForeignEpoch`, `ForeignStore`, `NotRepoRoot`)
-  come back in the output as `{ refused }`. Every write is an admission: the
-  package has no other path to the store.
-- **Authority map:**
-  - **Owner:** none over state; the server is a client of core.
-  - **Inputs:** JSON-RPC requests.
-  - **Outputs:** typed JSON.
-  - **Derived state:** the lease cache.
-  - **Forbidden writers:** the package may not call `CultCache::put*`,
-    `compare_and_swap_batch` or `SingleFileMessagePackBackingStore` directly.
-  - **Shared paths:** the core surface from Cut 3.
-  - **Deletion line:** n/a.
-- **Verification:**
-  - **Build:** `cargo check -p epiphany-eureka-state --lib --tests`, then
-    `cargo check -p epiphany-release-bundle --bin eureka-state --features eureka-state`.
-  - **Tests** (lib, calling the tool methods directly):
+**Subtraction ledger:** −46 lines, +about 8 re-inlined. No dependency change.
 
-    | Test | Pins |
-    |---|---|
-    | `admit_then_get_query_open_items_rulings_round_trip` | — |
-    | `read_tools_never_attach_the_writer_lease` | A second server instance's reads succeed while the first holds the lease |
-    | `second_server_admit_refuses_naming_holder` | — |
-    | `tool_schemas_equal_published_schemas` | Compare `tools/list` schemas from the router with the committed files |
+**If Soul or Hands finds a live second consumer this cut is wrong** — stop and
+report rather than deleting. The map asserts there is none; `rg` is the check.
 
-  - **Packaged-release negative checks:** `construction.rs:1190`
-    `extra_sibling_is_rejected` still passes, and `required_packaged_release_binaries`
-    is unchanged.
-  - **Negative grep:** `rg -n "compare_and_swap_batch|put_prepared_batch|SingleFileMessagePackBackingStore" epiphany-eureka-state`
-    is empty.
-  - **JSON-RPC exchange:** pipe `initialize`, `notifications/initialized`,
-    `tools/list` and one `admit` into the built binary. Hands launches it
-    explicitly; the binary spawns nothing, as in P4.
-- **Local build and install (Hands):**
-  `cargo install --locked --path F:\Projects\Epiphany --bin eureka-state --features eureka-state --root C:\Users\Meta\.epiphany`,
-  with the shared `CARGO_TARGET_DIR`. The binary lands at
-  `C:\Users\Meta\.epiphany\bin\eureka-state.exe`. It is not left in the shared
-  target, because routine cleanup there restores only the state inspector
-  (`state/map.yaml:79-81`). Unprobed: whether `cargo install` honours
-  `CARGO_TARGET_DIR`; Hands confirms from the build log.
-- **Linux:** the same command with `--root ~/.epiphany`, run on whichever Linux
-  host runs Claude Code.
-- **Idunn:** nothing. This is not a deployment artifact, not a daemon, and not in
-  the packaged release.
-- **Registration.** This is operator-visible configuration, so the root runs it,
-  not Hands. Syntax is from `claude mcp add --help` on 2.1.268:
-  `claude mcp add --scope user --transport stdio eureka-state -- C:\Users\Meta\.epiphany\bin\eureka-state.exe`
-- **Subtraction ledger:** about +500 lines. Adds one package, one binary, the
-  `rmcp` server features, and the `eureka-state` feature.
+## Cut 6. Extract `epiphany-pipeline`
 
-## Cut 5. Eureka skill wiring
+- **Repo/branch:** Epiphany, same branch. Depends on Cut 4.
 
-- **Repo:** `~/.claude/skills/eureka`. It is not a git repo, so there is nothing
-  to commit; see the follow-ups. Depends on Cut 4 being registered.
-- **Decision on the markdown cut map: retire it for new campaigns.**
-  - The typed `cut_spec` is the truth.
-  - A committed rendering would need a renderer and a regeneration discipline.
-    That is a second owner, and it would go stale exactly the way the prose map
-    did, which is this campaign's motivation.
-  - Hands reads the spec through `get`, and Self's status header becomes
-    `open_items` and `query`.
-  - The target document stays prose (the ends).
-  - Past campaigns' cut maps, and this file, remain history.
-  - If the operator later wants means visible in git, rendering is an additive
-    cut.
-- **Per-file changes:**
-  - **`SKILL.md:8-17`.** Replace the substrate paragraph:
-    - Eureka keeps findings, rulings, cut specs and reports in typed state in
-      the task's repo, reached through the `eureka-state` MCP tools.
-    - The claim that Epiphany findings are "queried semantically" goes: Epiphany
-      has no semantic query since `856648de` (`state/map.yaml:112`).
-    - Semantic cross-repo search goes through voidbot.
-  - **§0 (`:56-69`).** Add: when a campaign starts, Self admits `campaign` and
-    `target`, and commits the `.gitattributes` and `.gitignore` lines from D2.
-  - **§1 (`:71-123`).** "Imagination produces the cut map" becomes: Imagination
-    admits `cut_spec` revisions and `question`s with `faculty: Imagination`.
-    "Commit the map" (`:120-121`) becomes: Self commits
-    `.epiphany/pipeline/pipeline.cc` with explicit paths.
-  - **§2 (`:125-135`).** Record rulings with `admit` (a `ruling` with
-    `answers`/`choice`/`operator_quote`). Supersession is an explicit
-    `resolution { Superseded }`, never an edit.
-  - **§3 (`:137-158`).** The Hands brief gives the `cut_spec` id and the
-    in-force ruling ids. Hands admits its `cut_report`, including
-    `landed_names` and `mutations`, into the campaign working tree's
-    `repo_root`.
-  - **§4 (`:160-178`).** Soul admits one `verdict` plus its `finding`s. Every
-    finding carries its `range` and `evidence`.
-  - **§5 (`:180-196`).** Triage outcomes are `resolution` documents
-    (`Fixed`, `Deferred` to a `follow_up`, `Recorded`, `Withdrawn`).
-  - **§6 (`:204-219`).** The "status header" becomes `open_items` plus `query`.
-    Self still reconciles the subtraction ledger, from `cut_report.structural_delta`.
-  - **Self's discipline (`:223-225`).** "Keep the maps committed and current"
-    becomes: keep the store committed, and never restate typed state in prose.
-    Add the one-runner rule and what a `WriterLeaseHeld` refusal means.
-  - **`briefs.md:16-58` (Imagination).** Read first: `rulings_in_force`,
-    `open_items`, and the prior `cut_spec` and `cut_report` landed names. Output:
-    admitted documents, plus a short report of ids.
-  - **`briefs.md:60-105` (Hands).** "The spec is <section> of <map>" becomes
-    "`get <cut_spec id>`". Report is `admit cut_report`, and the prose report
-    shrinks to the receipt id and blockers.
-  - **`briefs.md:107-140` (Soul).** Scope is the `cut_report` id and its
-    `range`. Report is `admit verdict` plus findings.
-  - **`briefs.md:142-158` (Steward).** Candidates come from `query` over
-    resolutions admitted since the last boundary. The steward never edits the
-    store.
-  - **New `briefs.md` section, "Rehydrate".** A fresh agent calls:
-    1. `rulings_in_force`
-    2. `open_items`
-    3. `query { kinds: [cut_report], campaign }`
+**Adds: package `epiphany-pipeline/`.**
 
-    and nothing else.
-  - **`references/cut-map.md`.** Rewrite it as "Typed campaign state": the
-    document set, keys, resolution matrix, and query recipes. It points at the
-    Epiphany schemas as owner ("the skill defers to the schema").
-  - **`references/changelog.md`.** Add a dated entry with this evidence.
-- **Verification (Soul, by reading):**
-  - No brief asks for prose relay of a typed artifact:
-    `rg -n "cut map|status header" ~/.claude/skills/eureka` hits only history and
-    changelog lines.
-  - Every document kind in D1 is named by at least one brief.
-- **Subtraction ledger:** prose shrinks, and `references/cut-map.md` is replaced
-  rather than extended.
+- `Cargo.toml`: `autobins = false`, `license-file = "../LICENSE"`, dependencies
+  `anyhow`, `chrono`, `cultcache-rs` (pinned `a0813c6`), `rmp-serde`, `schemars = "1"`,
+  `serde`. Dev-dependencies `serde_json`, `tempfile`.
+- `src/lib.rs`: the whole of `pipeline_documents.rs` (623 lines after Cut 4),
+  moved verbatim apart from the module doc's cut-map references, plus the
+  reduced `PipelineRefusal`.
+- The three new kinds from D2, their keys, and their entries in the
+  `pipeline_kinds!` macro.
 
-## Cut 6. Proof campaign
+**Moves.**
 
-- **Task:** the two CultLib follow-ups on `CultRecordRefFormatter`, recorded in
-  the Aetheria cut header
-  (`F:\Projects\Aetheria\docs\cultcache-migration-cut.md:77-83`). The first is
-  collapsing the dead empty check at
-  `src/GameCult.Caching.MessagePack/CultRecordRefFormatter.cs:15-16`, where
-  `CultRecordKey` already equates null and `""`. The second is making the
-  contract's reason for accepting nil also name code from before `452f928`.
-- **Why this task:**
-  - It is real and small, with a C#-only test build.
-  - It has one genuine operator question for the ruling path: whether nil stays
-    accepted on read indefinitely, or gets a sunset. That changes the collapsed
-    reader.
-  - It is Soul-falsifiable at the wire layer (decode a 1.0.58 nil store).
-  - CultLib is public with `main` as its default branch, so Cut 7 can index the
-    result once merged.
+- `epiphany-core/src/pipeline_documents.rs` → `epiphany-pipeline/src/lib.rs`.
+- The seven document tests named in Cut 4 → `epiphany-pipeline/src/lib.rs`
+  tests, minus their git-repo scaffolding (`campaign_repo`, `git_ok`, `attach`,
+  `holder`), which has nothing left to set up.
+- `pipeline_published_schemas_match_derivation` (`pipeline_store.rs:1172-1203`)
+  → `epiphany-pipeline`, still reading `../schemas/cultnet` via
+  `env!("CARGO_MANIFEST_DIR")`.
 
-  The Aetheria prose import was rejected: it would exercise no live Hands or Soul
-  pass.
+**Deletes.** `epiphany-core/src/lib.rs:20` (`mod pipeline_documents;`) and
+`:131` (`pub use pipeline_documents::*;`). `epiphany-core` then has no pipeline
+surface at all, which is correct: its consumption is campaign two.
+
+**Per-file changes.**
+
+- Root `Cargo.toml:2-8`: add `"epiphany-pipeline"` to workspace members. It is
+  **not** added to `[dependencies]`, and no `[[bin]]` references it.
+- `schemas/cultnet/index.json`: three new entries in the existing shape
+  (`kind: document_payload`, `wireContracts: ["cultnet.schema.v0"]`) for
+  `instance`, `stewardship` and `hand_off`.
+- Three new `schemas/cultnet/epiphany.pipeline.<kind>.v1.schema.json` files,
+  derived, never hand-written.
+- `schemas/cultnet/README.md:29-31`: the Main Families entry currently says
+  pipeline state is "stored per repo at `.epiphany/pipeline/pipeline.cc`".
+  Replace with: stored in an instance's mind, owned by the Huginn memory organ;
+  name the three added kinds.
+- `schemas/cultnet/README.md:33-41`: the wire note says these contracts "cross to
+  Eureka MCP clients and the voidbot projection". Replace the voidbot half: they
+  cross to the Huginn organ and its `eureka-state` client. Keep the `[value]`
+  payload sentence, the derivation sentence and the Q2 evolution sentence.
+
+**Authority map.**
+
+- **Owner:** `epiphany-pipeline`, for document shape, bounds, formats, keys and
+  derived schemas.
+- **Inputs:** none; it is a pure type library.
+- **Outputs:** typed documents, derived JSON schemas, `pipeline_key`.
+- **Derived state:** the published schema files.
+- **Forbidden writers:** nothing in this package may open a store, spawn a
+  process, or reach a network. It has no `std::process`, no socket and no
+  backing-store dependency beyond `cultcache-rs` types.
+- **Shared paths:** `huginn-mind` and `eureka-state`, both by git rev.
+- **Deletion line:** `epiphany-core`'s two pipeline modules and their exports.
+
+**Verification.**
+
+- **Builds:** `cargo check -p epiphany-pipeline --lib --tests`, then
+  `cargo check -p epiphany-core --lib --tests`.
+- **Tests:** `cargo test -p epiphany-pipeline --lib`. The seven moved tests plus
+  the derivation test, plus three new ones: `instance_stewardship_and_hand_off_round_trip`,
+  `stewardship_key_escapes_the_repo_slash`, `hand_off_names_both_instances`.
+- **The derivation test is the schema gate.** On mismatch it writes the derived
+  file to `std::env::temp_dir()/epiphany-pipeline-schemas/` and fails naming the
+  path. There is no bless flag. Thirteen schemas must now match.
+- **Mutations:** add a field to one value type without regenerating its schema —
+  the derivation test fails. Change `<Org_Repo>` escaping to keep the slash —
+  the key test fails.
+- **Negative greps:**
+  - `rg -n "serde_json::Value|Vec<u8>" epiphany-pipeline/src` empty
+    (`serde_json` is a dev-dependency only).
+  - `rg -n "std::process|UdpSocket|BackingStore" epiphany-pipeline/src` empty.
+  - `rg -n "pipeline" epiphany-core/src` empty.
+- **Operator:** none.
+
+**Subtraction ledger:** Epiphany-core −623 lines; new package +about 700
+including the three kinds, +about 400 derived JSON. Net repo change is small;
+the point is the dependency boundary, not the line count.
+
+## Cut 7. Retire Huginn's TypeScript body
+
+- **Repo/branch:** Huginn `main` at `91b7fcf`, on a new branch
+  `eureka/memory-organ`. No dependency on the Epiphany cuts.
+
+**Deletes first.**
+
+| Path | Lines | Note |
+|---|---:|---|
+| `src/cli.ts` | 23 | the `huginn <file>` CLI |
+| `src/huginn-eve-dsl.ts` | 57 | `buildHuginnEveDsl` |
+| `src/index.ts` | 8 | package entry |
+| `dist/` (9 tracked files) | 88 | tracked build output |
+| `package.json` | 35 | `@gamecult/huginn` |
+| `package-lock.json` | 70 | |
+| `tsconfig.json` | 26 | |
+
+Total **307 tracked lines and 16 files.**
+
+**This is safe to delete outright** because nothing consumes it (R12). The
+census's one hesitation — `src/index.ts:2` re-exporting `inspectCultCacheBytes`
+— is resolved: a grep of every `package.json` under `F:\Projects` finds no
+dependant.
+
+**Nothing needs to move to CultCache Studio.** Ruling 17 says generic `.cc`
+inspection *belongs* to CultCache Studio, and CultCache Studio already exists
+and already inspects and edits `.cc` state (R14). `buildHuginnEveDsl` is a
+57-line string builder over CultLib's `inspectCultCacheBytes`; CultLib owns the
+inspector, and the Studio owns the presentation. Porting a stale text projection
+into a working editor would be additive work that buys nothing. **Record the
+retirement; move no code.** If the operator later wants a headless `.cc`-to-Eve
+projection, it is a CultLib cut with its own consumer.
+
+**Eve's fixture and catalog entry stay, with a provenance correction.**
+
+- `Eve/web/fixtures/huginn-cc-surface.eve` and its `.conformance.json` are
+  conformance material for Eve's own lowering path, exercised by
+  `docs/renderer-parity.md:58`. They do not import or execute Huginn (R13).
+  Deleting them would remove an Eve test to tidy another repo.
+- But the conformance file's `"ownerRepo": "Huginn"` and
+  `"exitCriteria": "Move to Huginn when .cc schema inspection ... become runtime-owned"`
+  are now false: Huginn will never own that surface. **Cut 7 changes those two
+  fields** — `ownerRepo` to `Eve`, `exitCriteria` to a sentence saying the
+  surface is a retired-projection fixture retained for lowering conformance —
+  and adds one line to `docs/renderer-parity.md:58` marking it as such.
+- `Eve/web/local-provider-catalog.json:72-83` keeps its entry; it already
+  declares `"freshness": {"state": "fixture"}` and points at the file, not the
+  package. No change.
+
+**Huginn's legacy `.voidbot` Persona state is out of scope and stays untouched.**
+Recorded, not solved, per the target's Not-in-scope list:
+
+- `.voidbot/state/huginn.cc` (35,297 bytes) holds eight legacy `void.*` document
+  types and zero `gamecult.persona_state.v0` documents, and identifies its
+  jurisdiction as `repo:CultCacheTS`.
+- `.voidbot/voice/identity.json` says the Persona and repo are Huginn, and
+  carries the lost path `E:\Projects\Huginn`.
+- These two disagree about who the Persona is. That contradiction predates this
+  campaign, survives it, and belongs to whoever owns the portable-Persona
+  migration. **Hands does not touch `.voidbot/` in any cut.** Recorded as FU-1.
+
+**Adds.** An empty Rust workspace: root `Cargo.toml` with
+`members = ["crates/huginn-mind", "crates/huginn-daemon", "crates/eureka-state"]`,
+`resolver = "3"`, `[workspace.package] edition = "2024"`, `license = "MIT"`,
+`publish = false`, following Odin's layout. `.gitignore` gains `target/` and
+drops the four stale entries the census flagged (`dist-test/`, `dist-inspector/`,
+`release/`, `release-inspector/`, `.gitignore:2-5`).
+
+**Docs.** `README.md` (74 lines) and `AGENTS.md` (81 lines) are rewritten, not
+deleted: Huginn is the memory organ that owns instance minds. Both currently
+describe the `E:` drive body and deleted EpiphanyAgent commands. The rewrite
+states the new invariant, the CultNet surface, the Qdrant dependency, and that
+`.cc` inspection is CultCache Studio's.
+
+**Authority map.**
+
+- **Owner:** Huginn becomes the memory organ. Before this cut it owned a
+  projection; after it, it owns state.
+- **Inputs:** none yet; Cut 8 adds them.
+- **Outputs:** none yet.
+- **Derived state:** none.
+- **Forbidden writers:** after this cut nothing in Huginn emits Eve DSL, reads
+  `.cc` for inspection, or publishes an npm package.
+- **Shared paths:** Eve's fixture is now Eve's alone.
+- **Deletion line:** the table above, plus the two corrected Eve fields.
+
+**Verification.**
+
+- **Builds:** `cargo check --workspace` in Huginn succeeds on an empty
+  workspace (three stub crates with empty `lib.rs`/`main.rs`).
+- **Negative greps:** `rg -n "buildHuginnEveDsl|@gamecult/huginn|cultcache-ts" F:\Projects\Huginn`
+  empty; `rg -n "E:\\\\Projects" F:\Projects\Huginn --glob '!.voidbot/**'` empty.
+- **Unchanged check:** `.voidbot/` is byte-identical.
+  `git diff --stat 91b7fcf -- .voidbot` is empty.
+- **Eve:** its renderer-parity fixture check still passes.
+- **Operator:** confirm `npm` publication of `@gamecult/huginn` is not expected
+  to continue. The package was never published to a registry consumer this map
+  can find, but unpublishing is the operator's call.
+
+**Subtraction ledger:** −307 lines, −16 files, −1 npm package, −1 CLI
+entrypoint, −1 sibling `file:` dependency. +about 30 lines of workspace
+scaffolding. Two Eve fields corrected.
+
+## Cut 8. `huginn-mind`: storage, identity and admission
+
+- **Repo/branch:** Huginn `eureka/memory-organ`. Depends on Cuts 6 and 7.
+- **Deletes first:** none. This is the first new capability.
+
+**Adds: `crates/huginn-mind`.** Dependencies `anyhow`, `chrono`, `cultcache-rs`,
+`epiphany-pipeline` (git rev, pinned to the Cut 6 commit), `rmp-serde`, `serde`.
+No network dependency, no `reqwest`, no socket — the ports in D5 are traits, so
+this crate is testable with mocks (`F:\Projects\CLAUDE.md`: dependency injection
+should be boring).
+
+- `src/mind.rs`: `Mind::open(state_root, instance)` over
+  `RedbMessagePackBackingStore` at `<state_root>/minds/<instance>/mind.cc`;
+  `register_huginn_document_types`; the epoch and foreign-type refusals ported
+  from `pipeline_store.rs:87-120`.
+- `src/receipt.rs`: `HuginnCommitReceipt`, the digest, idempotent replay, batch
+  CAS and typed `Conflict`.
+- `src/admission.rs`: `admit`, the identity check, the per-kind rules, derived
+  writes.
+- `src/refusal.rs`: the service half of `PipelineRefusal` (D2).
+
+**Authority map.**
+
+- **Owner:** `huginn-mind`, for every per-kind rule, every derivation, and the
+  receipt.
+- **Inputs:** the mind image and the batch.
+- **Outputs:** outcomes, receipts, views.
+- **Derived state:** in-force status, open items, admitted time, the index
+  (Cut 11).
+- **Forbidden writers:** `huginn-daemon`, `eureka-state` and the index may not
+  validate documents, derive status, or write a mind except through `admit`.
+  Nothing outside `huginn-mind` constructs a `HuginnCommitReceipt`.
+- **Shared paths:** `admit` is the single write path for the CultNet surface
+  (Cut 10) and the import path (Cut 12).
+- **Deletion line:** n/a (new), but the *replaced* liability is named: the
+  writer lease, the git preconditions and the merge tool, all deleted in Cut 4.
+
+**Verification.** Every rule gets a test that fails under its own mutation.
+
+| Test | Rule it pins |
+|---|---|
+| `first_write_must_carry_identity_and_instance` | Ruling 14; the mind is never left un-owned |
+| `admission_refuses_a_foreign_instance` | Ruling 14's refusal, `ForeignInstance` |
+| `cut_report_without_spec_refuses` | A report cites its spec |
+| `cut_report_citing_superseded_spec_refuses` | — |
+| `finding_without_range_or_evidence_refuses` | A finding names its range and evidence |
+| `falsified_claim_requires_confirmed_finding` / `unproven_claim_refuses_confirmed_finding` | Verdict vocabulary |
+| `ruling_supersedes_by_resolution_never_overwrite` | Re-putting a ruling key is `IdentityCollision`; the superseded ruling stays queryable |
+| `subject_resolves_at_most_once` | — |
+| `supersession_cycle_refuses` | — |
+| `ruling_answering_question_derives_answered_resolution_atomically` | Inspect the receipt writes |
+| `revision_requires_supersession_in_batch` | — |
+| `batch_is_all_or_nothing` | A refused third document leaves the store byte-identical |
+| `exact_replay_returns_already_admitted_across_provenance` | — |
+| `hand_off_derives_stewardship_on_both_sides` | Ruling 14's hand-off |
+| `opener_refuses_foreign_epoch_missing_identity_and_foreign_type` | Three refusals, bytes unchanged |
+| `two_minds_in_one_state_root_stay_separate` | Instance isolation on disk |
+
+- **Mutations:** delete each rule's check and confirm exactly its test fails;
+  make `in_force` ignore resolutions; make the identity check compare against
+  the batch instead of the stored `instance` document.
+- **Negative greps:** `rg -n "reqwest|UdpSocket|qdrant" crates/huginn-mind/src`
+  empty. `rg -n "prepare_entry\(" crates/huginn-mind/src` empty — only
+  `prepare_entry_named`.
+- **Builds:** `cargo check -p huginn-mind --lib --tests`.
+
+**Subtraction ledger:** +about 1,400 lines, of which about 120 are the receipt
+duplication named in D3. No new dependency beyond `epiphany-pipeline`.
+
+## Cut 9. `huginn-mind`: queries and derivations
+
+- **Repo/branch:** Huginn, same branch. Depends on Cut 8.
+- **Deletes first:** none.
+- **Adds:** `src/query.rs` with the five functions and `PipelineDocumentView`
+  from D4. `semantic` is accepted in `PipelineQuery` but returns
+  `Unavailable { detail: "index not wired" }` until Cut 11 — a typed refusal,
+  never a silent empty result.
+
+**Authority map.** Owner `huginn-mind`; the same forbidden writers as Cut 8. The
+new statement is that **status is derived at read time, never stored**, so no
+admission writes an `in_force` field and no client computes one.
+
+**Verification.**
+
+| Test | Pins |
+|---|---|
+| `open_items_and_rulings_in_force_follow_resolutions` | The derivations |
+| `query_filters` | One assertion per filter, including `instance` |
+| `cut_filter_walks_spec_report_verdict_finding` | The `cut` chain |
+| `views_join_admission_facts_from_receipts` | `receipt_id`, `admitted_at`, `faculty` |
+| `semantic_query_refuses_typed_until_wired` | No silent empty result |
+| `limit_is_capped_and_ordering_is_stable` | ≤ 200, ordered by `admitted_at` then id |
+
+- **Mutations:** make `in_force` ignore resolutions; drop the `limit` cap; order
+  by id only.
+- **Builds:** `cargo check -p huginn-mind --lib --tests`.
+
+**Subtraction ledger:** +about 600 lines.
+
+## Cut 10. `huginn-daemon`: the CultNet surface
+
+- **Repo/branch:** Huginn, same branch. Depends on Cut 9.
+- **Deletes first:** none.
+
+**Adds: `crates/huginn-daemon`.** Dependencies mirroring Odin's lean set (R8):
+`anyhow`, `chrono`, `cultcache-rs`, `cultmesh-rs`, `cultnet-rs`, `fs2`,
+`huginn-mind`, `rmp-serde`, `serde`, `signal-hook`.
+
+- `src/wire.rs`: `HuginnMindRequest` and `HuginnMindResponse` (D6), as
+  `DatabaseEntry` documents with derived schemas.
+- `src/main.rs`: `parse_options` for `--state-root`, `--idunn-projection`,
+  `--idunn-anchor`; bind `GAMECULT_IDUNN_CANDIDATE_BIND`; construct the
+  document server; `signal-hook` for SIGTERM/SIGINT; the `poll_once` loop.
+- `src/serve.rs`: `SinkHandle` implementing `CultMeshRudpRawDocumentSink`
+  (request → `admit`/query → response) and `SnapshotHandle` implementing
+  `CultMeshRudpSnapshotSource` (read-only snapshot of one instance's mind).
+
+**Copy Odin's shape deliberately** (R6): the loopback-only candidate bind
+assertion, the signal handler with its PID-namespace comment, the bootstrap
+activation wait, the heartbeat, and `poll_server` mapping
+`CultMeshRudpPollOutcome::ApplicationRejected` to a logged non-fatal.
+
+**Authority map.**
+
+- **Owner:** `huginn-daemon` owns the socket, the process and the lifecycle. It
+  owns **no** rule: every request becomes a `huginn-mind` call.
+- **Inputs:** CultNet `DocumentPutRaw` requests and snapshot queries.
+- **Outputs:** `DocumentPutRaw` responses, snapshot responses, presence health.
+- **Derived state:** session table, the `pending_index` retry slot (Cut 11).
+- **Forbidden writers:** the daemon may not call `cultcache_rs` put/CAS
+  directly, may not construct a receipt, and may not derive status.
+- **Shared paths:** `admit` from Cut 8; the import path in Cut 12.
+- **Deletion line:** n/a.
+
+**Verification.**
+
+| Test | Pins |
+|---|---|
+| `request_round_trips_through_the_sink_and_returns_a_typed_outcome` | Wire shape |
+| `a_refusal_returns_as_a_response_not_a_transport_error` | Refusals are data |
+| `snapshot_source_serves_only_the_named_instance` | Instance isolation on the wire |
+| `a_malformed_request_document_is_rejected_without_touching_a_mind` | Store bytes unchanged |
+| `foreign_instance_on_the_wire_is_refused` | Ruling 14 across the transport |
+
+- **Mutations:** make the sink bypass `admit` and write directly; let the
+  snapshot source ignore the instance filter. Each fails its test.
+- **Builds:** `cargo check -p huginn-daemon --bin huginn-daemon`.
+- **Pipeline smoke:** start the daemon on an ephemeral loopback port against a
+  temp state root, drive one `admit` and one `query` from a CultNet client in
+  the same test, assert the typed outcomes. This is the "typed handoff between
+  adjacent organs" tier `F:\Projects\CLAUDE.md` asks for.
+- **Process-probe rule:** the smoke spawns only `huginn-daemon` with explicit
+  argv and an ephemeral port; it never re-launches the test binary. Hands
+  confirms this by reading the spawn site before running it.
+- **Negative grep:** `rg -n "compare_and_swap|put_prepared_batch|HuginnCommitReceipt \{" crates/huginn-daemon/src`
+  empty.
+
+**Subtraction ledger:** +about 900 lines. +1 binary, +`cultmesh-rs`,
+`cultnet-rs`, `signal-hook`, `fs2`.
+
+## Cut 11. Qdrant collections and Ollama embeddings
+
+- **Repo/branch:** Huginn, same branch. Depends on Cut 10 and Q5.
+- **Deletes first:** none.
+
+**Adds.**
+
+- `crates/huginn-mind/src/index.rs`: the `EmbeddingPort` and `IndexPort` traits
+  and `IndexPoint`/`IndexFilter`/`IndexHit` from D5, plus the `pending_index`
+  document and the retry rule.
+- `crates/huginn-daemon/src/qdrant.rs` and `src/ollama.rs`: `reqwest::blocking`
+  adapters over the endpoints R3 establishes. `reqwest` is added here, in the
+  daemon only, never in `huginn-mind`.
+- Daemon flags `--qdrant-url`, `--ollama-base-url`, `--ollama-model`,
+  `--embedding-dimensions`, following `epiphany.service`'s existing spelling
+  (R16) so the unit reads like its neighbour.
+
+**Collection compatibility.** Port the deleted `CollectionCompatibility` idea
+(`856648de^:semantic_backend.rs:47-57`): the collection stores its
+`managed_by`, `corpus_kind`, `projection_version`, `embedding_model` and
+`vector_size`, and the daemon refuses to write into a collection whose
+compatibility record disagrees. That is what stops a model change silently
+mixing 1,024-dim and other-dim vectors.
+
+**Authority map.**
+
+- **Owner:** the typed mind owns truth; Qdrant owns nothing.
+- **Inputs:** admitted documents' bounded text fields.
+- **Outputs:** Qdrant points; semantic hits resolved back through `get`.
+- **Derived state:** **the entire collection.** It is rebuildable by
+  `--reindex`.
+- **Forbidden writers:** nothing writes a Qdrant point except the daemon's
+  post-admission path; nothing reads a pipeline document *from* Qdrant as truth;
+  in-force status is never indexed.
+- **Shared paths:** the `semantic` branch of `query` (Cut 9).
+- **Deletion line:** n/a.
+
+**Verification.**
+
+| Test | Pins |
+|---|---|
+| `admission_succeeds_when_the_index_is_unreachable_and_records_pending` | The index never rejects a write |
+| `pending_index_is_retried_and_cleared` | — |
+| `reindex_rebuilds_the_collection_from_the_store` | The projection is disposable |
+| `semantic_hits_resolve_through_the_typed_store` | Qdrant is not truth |
+| `incompatible_collection_is_refused` | The compatibility record |
+| `receipts_identity_and_provenance_are_never_indexed` | — |
+
+The first four run against **mock ports**; `huginn-mind` has no network
+dependency, which is the point of the trait boundary.
+
+- **Live adapter check (operator or Hands, on Yggdrasil):** one end-to-end
+  admit-then-semantic-query against the real Qdrant and the real Ollama,
+  confirming 1,024 dimensions.
+- **Mutations:** index before committing; index the in-force status; drop the
+  compatibility check.
+- **Negative grep:** `rg -n "reqwest|qdrant|ollama" crates/huginn-mind/src`
+  empty.
+
+**Subtraction ledger:** +about 800 lines. +`reqwest` (daemon only), +1 Qdrant
+collection.
+
+## Cut 12. Stewardship hand-off and mind import
+
+- **Repo/branch:** Huginn, same branch. Depends on Cut 11.
+- **Deletes first:** none.
+- **Adds:** `crates/huginn-mind/src/handoff.rs`.
+  - `hand_off(&mut Mind from, &mut Mind to, HandOffRequest)` admits the
+    `hand_off` document **into both minds** in one logical operation, with the
+    superseding `stewardship` on the source side and the new `stewardship` on
+    the target side.
+  - `import(&mut Mind, foreign: &Path, HandOffRef)` replays the named
+    documents' exact envelopes through `admit` against the target mind. Envelope
+    bytes are carried, not reserialised, so additive fields written by a newer
+    binary survive.
+
+**Not a merge tool.** The deleted D5 merge tool existed because two clones could
+diverge. Two minds cannot diverge: each has one owner. Import is a *transfer* of
+named documents under a recorded hand-off, and it refuses anything not named in
+the hand-off.
+
+**Authority map.**
+
+- **Owner:** `huginn-mind`'s hand-off module, but it writes only through
+  `admit`, so the per-kind rules still apply to imported documents.
+- **Inputs:** the source mind, the target mind, a `HandOffRequest`.
+- **Outputs:** a `hand_off` in both minds, two `stewardship` writes, two
+  receipts.
+- **Derived state:** the stewardship assignments.
+- **Forbidden writers:** import may not bypass `admit`, may not reserialise an
+  envelope, and may not import a document the hand-off does not name.
+- **Shared paths:** `admit`.
+- **Deletion line:** n/a. This replaces the never-built merge tool, which Cut 4
+  deleted from the design.
+
+**Verification.**
+
+| Test | Pins |
+|---|---|
+| `hand_off_writes_both_minds_or_neither` | Atomicity across two stores |
+| `import_replays_envelope_bytes_exactly` | No reserialisation |
+| `import_refuses_a_document_the_hand_off_does_not_name` | — |
+| `imported_documents_still_pass_every_admission_rule` | No bypass |
+| `hand_off_is_idempotent` | Replay returns `AlreadyAdmitted` |
+| `hand_off_between_the_same_instance_refuses` | — |
+
+- **Mutations:** import without re-validating; reserialise on import; write the
+  target before the source and fail the source.
+- **Builds:** `cargo check -p huginn-mind --lib --tests`.
+
+**Subtraction ledger:** +about 500 lines.
+
+## Cut 13. `eureka-state`
+
+- **Repo/branch:** Huginn, same branch. Depends on Cut 10 (the wire) and Q6.
+- **Deletes first:** none.
+- **Adds: `crates/eureka-state`.** Dependencies `anyhow`, `cultnet-rs`,
+  `epiphany-pipeline`, `rmcp = { version = "2.2.0", default-features = false, features = ["server","macros","transport-io"] }`,
+  `schemars`, `serde`, `tokio = { features = ["macros","rt-multi-thread","io-std"] }`.
+  It does **not** depend on `huginn-mind`: it is a client, and linking the rule
+  engine into the client would invite a second validator.
+  - `src/lib.rs`: `EurekaStateServer` with a `ToolRouter` and the seven tools.
+  - `src/main.rs`: `EurekaStateServer::from_env()?.serve(rmcp::transport::stdio()).await?.waiting().await`.
+
+**Authority map.**
+
+- **Owner:** none over state. The server is a transport shim.
+- **Inputs:** JSON-RPC requests; two environment variables.
+- **Outputs:** typed JSON.
+- **Derived state:** none. **No lease cache, no store handle, no local file.**
+- **Forbidden writers:** the package may not open a CultCache store, may not
+  validate a document, may not derive status, and may not write anything to
+  disk. This is the structural guarantee behind "it never writes a second copy".
+- **Shared paths:** the CultNet surface from Cut 10.
+- **Deletion line:** n/a.
+
+**Verification.**
+
+| Test | Pins |
+|---|---|
+| `every_tool_round_trips_against_a_live_daemon` | Pipeline smoke on an ephemeral port |
+| `an_unreachable_organ_returns_typed_unavailable_from_every_tool` | The target's honesty invariant |
+| `tool_schemas_equal_the_published_schemas` | Compare `tools/list` with `schemas/cultnet/` |
+| `whoami_reports_unreachable_without_failing` | Rehydration can check first |
+| `a_refusal_is_an_outcome_not_a_jsonrpc_error` | P4's `structuredContent` path |
+
+- **Negative greps:** `rg -n "BackingStore|CultCache::|std::fs::write" crates/eureka-state/src`
+  empty.
+- **JSON-RPC exchange:** pipe `initialize`, `notifications/initialized`,
+  `tools/list` and one `query` into the built binary, as P4 did.
+- **Build and install (Hands):**
+  `cargo install --locked --path crates/eureka-state --root C:\Users\Meta\.eureka`
+  with the shared `CARGO_TARGET_DIR`. Unprobed: whether `cargo install` honours
+  `CARGO_TARGET_DIR`; Hands confirms from the build log and reports the path.
+- **Registration: the operator's, not Hands'.** Hands reports the binary path
+  and the confirmed `claude mcp add` line from D7; the operator runs it.
+
+**Subtraction ledger:** +about 600 lines. +1 binary, +`rmcp`, +`tokio`.
+
+## Cut 14. Deployment
+
+- **Repos:** Huginn `eureka/memory-organ` (the recipe) and gamecult-ops `main`
+  (the binding, unit inputs, backup and tunnel). Depends on Cut 11 and Q7.
+- **Deletes first:** none.
+
+**Adds, Huginn: `deployment/idunn/recipe.toml`**, `gamecult.idunn.target_declaration.v1`,
+modelled on Odin's (R17):
+
+- `[[steps]]` test then build, runner `rust-build`,
+  `cargo test --locked -p huginn-mind` and
+  `cargo build --locked --release -p huginn-daemon --bin huginn-daemon`.
+- `[[artifacts]]` `huginn-daemon` from `target/release/huginn-daemon`.
+- `[service]` with `--state-root`, `--idunn-projection`, `--idunn-anchor`,
+  `--qdrant-url`, `--ollama-base-url`, `--ollama-model`; `transport = "rudp"`;
+  `route_required = true`; required environment
+  `GAMECULT_IDUNN_CANDIDATE_BIND`, `GAMECULT_IDUNN_PROCESS_WRITE_LEASE`,
+  `GAMECULT_IDUNN_RUNTIME_BUNDLE`.
+- `[service.health] contract = "huginn.runtime-health.v1"`.
+- `[state] schema_generation = "huginn-v1"` with one slot: `minds`, relative
+  path `minds`, kind `cultcache-directory`, writer `process-bound-single-writer`,
+  recovery `preserve`, startup `create-or-open-after-write-lease`.
+  **`recovery = "preserve"` is the load-bearing line: a mind is never
+  reconstructible from a release.**
+- `[[provides]]` capability `huginn.instance-mind`, schema
+  `huginn.mind_response.v1`.
+- `[[dependencies]]` — this is where Qdrant and Ollama are declared, following
+  Ghostlight's shape (`Ghostlight/deployment/idunn/recipe.toml:168-187`): a
+  `shared-infrastructure` dependency on the Qdrant endpoint and one on the
+  embedding endpoint, both `startup = "before-promotion"`, so a candidate that
+  cannot embed is never promoted.
+
+**Adds, gamecult-ops: `idunn/yggdrasil/bindings/huginn.toml.in`**,
+`gamecult.idunn.operator_binding.v2`, modelled on `odin.toml.in`:
+
+- `[repository]` origin `https://github.com/GameCult/Huginn.git`, `admitted_ref`
+  the campaign branch until it merges, then `refs/heads/main`;
+  `minimum_revision = "PROVISIONED_HUGINN_MINIMUM_REVISION"`;
+  `recipe_path = "deployment/idunn/recipe.toml"`.
+- `[runners.rust-build]` identical to Odin's pinned rust image and caps.
+- `[workload]` `state_group = "huginn-v1-state"`, `unit_prefix = "idunn-huginn"`,
+  `release_root = "/srv/gamecult/idunn-releases/huginn"`,
+  `state_root = "/var/lib/gamecult/huginn-v1"`, `network = "host-private"`,
+  `hardening = "strict"`.
+- `[route]` `stable_endpoint = "rudp://10.77.0.1:17872"`, private range
+  `27880-27887` (R21).
+- `[brakes]` **both**, separately, per `F:\Projects\CLAUDE.md` and R18:
+  `deployment_store = "/var/lib/gamecult/idunn-brakes/huginn-deployment-brake.cc"`
+  and `lifecycle_store = ".../huginn-lifecycle-brake.cc"`. Changing the
+  artifact is deployment; restarting the admitted body is continuity. One brake
+  must not gate both.
+- `[rollout] strategy = "candidate-then-promote"`, `retain_releases = 2`.
+  `drain_seconds` is raised above Odin's 10 to let an in-flight admission finish;
+  Hands proposes a value and reports it.
+- `[placement]` `desired_replicas = 1`, `nodes = ["yggdrasil"]`. **One replica is
+  an invariant, not a capacity choice:** two replicas would be two writers to one
+  mind.
+
+**Backup owner — the target requires one, and this is it.** The daily authority
+backup is an explicit path list (R19); a path not named is not backed up.
+**One edit, not two:** `scripts/backup-gamecult-authority-yggdrasil.sh:81-105`
+gains `var/lib/gamecult/huginn-v1` to the `tar` path list.
+`systemd/gamecult-authority-backup.service:15` needs **no** change — its
+`ReadOnlyPaths` already grants the whole `/var/lib/gamecult` tree, so the new
+state root is readable the moment it exists. Hands must not add a redundant
+line there.
+The script freezes named writers before tarring (`:72-74`, currently
+`epiphany-swarm.service` and `epiphany.service`); the `idunn-huginn` unit is
+added to that loop so a mind is never captured mid-commit.
+**Named owner: `gamecult-authority-backup.service`, daily at 03:20 UTC.**
+
+**Workstation reach.** `scripts/start-yggdrasil-tunnel.ps1:13-24` gains one
+entry: `@{ Name = "huginn-organ"; LocalPort = 17872; RemoteHost = "127.0.0.1"; RemotePort = 17872 }`,
+and `runbooks/yggdrasil-ssh-tunnel.md:86-88`'s port table gains the row.
+**Caveat, and it is a real one:** the existing forwards are TCP local forwards,
+and the organ speaks RUDP over **UDP**. `runbooks/yggdrasil-ssh-tunnel.md:32-39`
+already records this exact limitation and recommends WireGuard rather than SSH
+forwards when raw UDP must cross. **See Q7:** the workstation almost certainly
+reaches the organ over the existing WireGuard mesh (`10.77.0.1`), not the SSH
+tunnel. The tunnel row is only added if Q7 chooses a TCP transport.
+
+**Adds, gamecult-ops: `runbooks/huginn-yggdrasil.md`**, following
+`runbooks/odin-yggdrasil.md`'s five headings: Authority map, Release body,
+Initial admission, Verification, plus a Recovery section naming the backup and
+the `--reindex` rebuild.
+
+**Authority map.**
+
+- **Owner:** Idunn owns deployment and continuity actuation. Huginn owns its own
+  state and health.
+- **Inputs:** the admitted revision, the binding, the brakes.
+- **Outputs:** a running `idunn-huginn` unit, published presence health.
+- **Derived state:** the release root; the Qdrant collection.
+- **Forbidden writers:** no operator script deploys Huginn directly; nothing but
+  Idunn writes the release root; nothing but the daemon writes the state root.
+- **Shared paths:** the Qdrant container (Q7), the embedding endpoint, the
+  backup timer.
+- **Deletion line:** n/a.
+
+**Verification.**
+
+- **Operator, and only the operator:** admit the binding, run `idunn up`,
+  confirm the unit reaches Ready, confirm health publishes, confirm the route
+  answers on `10.77.0.1:17872`, then run one `eureka-state whoami` from the
+  workstation.
+- **Restart-preserves-state check:** admit a document, restart the unit through
+  Idunn, query it back. This is the check that `recovery = "preserve"` is real.
+- **Backup check:** run the backup unit once and confirm
+  `var/lib/gamecult/huginn-v1` is in the archive listing.
+- **Brake check:** set the deployment brake and confirm a redeploy is refused
+  while a restart still succeeds. This falsifies the one-brake conflation.
+- **Hands does not deploy.** Deployment is an Idunn actuator gated on root and
+  `IDUNN_ACTUATOR=1` (`scripts/deploy-epiphany-yggdrasil.sh:4-8`).
+
+**Subtraction ledger:** +about 250 lines of ops configuration. +1 systemd
+workload, +1 route, +2 brake stores, +1 backup path, +1 runbook.
+
+## Cut 15. Skill wiring
+
+- **Repo:** `GameCult/Eureka` `main` at `6ca7882`, checked out at
+  `~/.claude/skills/eureka`. It is now a git repo, so Cut 15's edits land as
+  commits there. Depends on Cut 13 being registered.
+
+**`SKILL.md` — exact edits.**
+
+- **`:8-18`, the substrate paragraph.** Replace. Eureka keeps rulings, specs,
+  reports, verdicts, findings and follow-ups in an instance's mind, owned by the
+  Huginn memory organ and reached through the `eureka-state` MCP tools. Delete
+  the claim that Epiphany findings are "queried semantically" — Epiphany has no
+  semantic query since `856648de`. Delete the sentence pointing semantic search
+  at voidbot; the organ owns its own index (ruling 16).
+- **`:57-70`, §0.** Add: at campaign start Self calls `whoami`, then admits
+  `campaign` and `target`. Delete nothing about the target document: campaign
+  prose stays in the repo (target, Invariants).
+- **`:72-125`, §1.** "Imagination produces the cut map" becomes: Imagination
+  admits `cut_spec` revisions and `question`s with `faculty: Imagination`.
+  "Commit the map" (`:122-123`) becomes: nothing to commit — the mind is not in
+  git. **This is the line that must change, or agents will keep trying to commit
+  a store that no longer exists.**
+- **`:126-145`, §2.** Rulings are admitted with `answers`, `choice` and
+  `operator_quote`. Supersession is an explicit `resolution { Superseded }`,
+  never an edit.
+- **`:146-168`, §3.** The Hands brief carries the `cut_spec` id and the in-force
+  ruling ids. Hands admits its `cut_report`.
+- **`:169-188`, §4.** Soul admits one `verdict` plus its `finding`s, each with
+  `range` and `evidence`.
+- **`:189-212`, §5.** Triage outcomes are `resolution` documents.
+- **`:213-228`, §6.** The status header becomes `open_items` plus `query`. Self
+  still reconciles the subtraction ledger, from `cut_report.structural_delta`.
+- **`:230-252`, Self's discipline.** "Keep the maps committed and current"
+  becomes: keep the target committed; never restate typed state in prose. Delete
+  the one-runner rule and the `WriterLeaseHeld` line — there is no lease. Add:
+  when the organ is unreachable, stop and say so; never keep a second copy.
+
+**`references/briefs.md` — exact edits.**
+
+- **`:16-58`, Imagination.** Read first: `rulings_in_force`, `open_items`, and
+  the prior `cut_spec` and `cut_report`. Output: admitted documents plus a short
+  report of ids.
+- **`:60-113`, Hands.** "The spec is `<section>` of `<map>`" (`:63`) becomes
+  "`get <cut_spec id>`". The report becomes `admit cut_report`; the prose report
+  shrinks to the receipt id and blockers. Keep every git and mutation scar at
+  `:74-95` — those are about code, not state.
+- **`:115-148`, Soul.** Scope is the `cut_report` id and its `range`. Report is
+  `admit verdict` plus findings.
+- **`:150-166`, Mind Steward.** Candidates come from `query` over resolutions
+  admitted since the last boundary. The steward never writes the mind.
+- **New section, "Rehydrate."** A fresh agent calls, in order: `whoami`,
+  `rulings_in_force`, `open_items`, `query { kinds: [cut_report], campaign }` —
+  and nothing else.
+
+**`references/cut-map.md` — rewrite, do not delete.** It becomes "Typed campaign
+state": the document set, the keys, the resolution matrix, and query recipes,
+pointing at the Epiphany schemas as owner. The markdown cut map is retired for
+new campaigns, and the reason stands unchanged from the old Cut 5: a committed
+rendering needs a renderer and a regeneration discipline, which is a second
+owner that goes stale exactly the way this file did. The target document stays
+prose. Past cut maps, including this one, remain history.
+
+**`references/changelog.md`** gains a dated entry with this cut map's evidence.
+
+**Verification (Soul, by reading).**
+
+- `rg -n "cut map|status header|repo_root|WriterLeaseHeld|lease" ~/.claude/skills/eureka`
+  hits only history and changelog lines.
+- Every kind in D2, including `instance`, `stewardship` and `hand_off`, is named
+  by at least one brief.
+- No brief asks for prose relay of a typed artifact.
+
+**Subtraction ledger:** prose shrinks; `references/cut-map.md` is replaced rather
+than extended.
+
+## Cut 16. Proof campaign
+
+- **Task:** the two CultLib follow-ups on `CultRecordRefFormatter` recorded in
+  `F:\Projects\Aetheria\docs\cultcache-migration-cut.md:77-83`. Collapse the dead
+  empty check at `src/GameCult.Caching.MessagePack/CultRecordRefFormatter.cs:15-16`,
+  where `CultRecordKey` already equates null and `""`; and make the contract's
+  reason for accepting nil also name code from before `452f928`.
+- **Why this task, unchanged:** real and small, one genuine operator question
+  (whether nil stays accepted on read indefinitely or gets a sunset, which
+  changes the collapsed reader), Soul-falsifiable at the wire layer by decoding a
+  1.0.58 nil store, and CultLib is public with `main` as its default branch.
 - **Repo/branch:** CultLib `eureka/cultrecordref-followups` from `main`
-  `a0813c6`. Depends on Cuts 4 and 5.
-- **Run:**
-  1. Self commits the D2 attribute lines.
-  2. Self admits `campaign` (`working_branch` = the branch above) and `target`.
-  3. Imagination admits `cut_spec cut-1.r1` and `question Q1-1`.
-  4. The operator rules, and Self admits the `ruling` (which answers Q1-1).
-  5. Hands admits `cut_report cut-1.h1`.
-  6. Soul admits `verdict cut-1.s1` and its findings.
-  7. Self admits `resolution`s and `follow_up`s.
-  8. Self commits the store on the branch.
-- **Pass criteria.** All must hold.
-  1. Every artifact above exists in `CultLib/.epiphany/pipeline/pipeline.cc`,
-     with a receipt under organ `eureka`. No `*-cut.md` exists for this
-     campaign, and the Hands and Soul briefs contain ids, not spec prose.
-  2. The store opens from a fresh clone of the pushed branch, with
-     `git check-attr binary` set and no CRLF change: its SHA-256 equals the
-     workstation copy.
-  3. At least one refusal is exercised live and returned typed. For example,
-     Soul attempts a `verdict` whose `Falsified` claim lacks a `Confirmed`
-     finding, or Hands attempts a `cut_report` before the spec is admitted.
-  4. At least one resolution is admitted, and `open_items` afterwards equals
-     exactly the unresolved set Self states from its own records.
-  5. **Rehydration.** A fresh agent with no transcript, no repo docs and no
-     memory, given only the `repo_root` and the campaign slug, answers a fixed
-     questionnaire using only `rulings_in_force`, `open_items`, `query` and
-     `get`. The questionnaire:
-     - Which rulings are in force, and what did the operator say?
-     - What landed, at which SHAs?
-     - Which findings were Confirmed, and how was each resolved?
-     - What follow-ups remain, and why can each wait?
+  `a0813c6`. Depends on Cuts 14 and 15.
 
-     A Soul pass grades the answers against the store and git. The proof fails
-     on any factual miss.
-  6. **One runner.** While the proof session holds the lease, the operator starts
-     a second Claude Code session and attempts `admit` on the same repo. It is
-     refused with `WriterLeaseHeld`, naming the first session's pid and session.
-- **Fail:**
-  - any criterion misses;
-  - any agent relays a typed artifact as prose to the next agent;
-  - Self reads source to verify instead of routing to Soul.
-- **Subtraction ledger:** the CultLib diff is about −3 lines of C# plus one
-  contract sentence.
+**Run.** Note what is *absent* compared with the old Cut 6: no attribute lines
+to commit, no store to commit, no branch binding.
 
-## Cut 7. voidbot semantic projection
+1. Self calls `whoami` and confirms the organ is reachable.
+2. Self admits `campaign` and `target`. The campaign's repo must be one the
+   instance stewards, so Self admits a `stewardship` for `GameCult/CultLib`
+   first if absent.
+3. Imagination admits `cut_spec cut-1.r1` and `question Q1-1`.
+4. The operator rules; Self admits the `ruling` answering Q1-1.
+5. Hands admits `cut_report cut-1.h1`.
+6. Soul admits `verdict cut-1.s1` and its findings.
+7. Self admits `resolution`s and `follow_up`s.
 
-- **Repos:** VoidBot `main` from `46d891b` (indexer, store, tool) and
-  gamecult-ops `main` from `647e57e` (MCP allow-list). Depends on Q4 and on
-  Cut 6 having merged to a default branch (under Q4-A).
-- **Deployment:** the VoidBot map says deploys go through Idunn from upstream
-  pushes, but the retrieval runbook installs the retrieval service with its own
-  actuator. Deployment is therefore an operator check, not Hands.
-- **Discovery:** each mirrored repo root under `/srv/voidbot/source-repos/<name>`
-  may contain the fixed path `.epiphany/pipeline/pipeline.cc`. Under Q4-A the
-  mirror holds only default-branch heads.
-- **Deletes first (source crawler hazard).**
-  - `.cc` is in `SOURCE_AND_DOC_EXTENSIONS`
-    (`packages/rag/src/source-repo-crawler.ts:220`).
-  - The binary check only looks for NUL (`:341`), and P8's store holds none.
-  - So without a change, a pipeline store would be crawled as C++ text into
-    `repository_source`.
+**Pass criteria. All must hold.**
 
-  Fix: exclude the relative path prefix `.epiphany/pipeline/` next to
-  `SKIPPED_DIRECTORIES` (`:8-28`), as a path-prefix exclusion. A directory-name
-  skip is not enough, because `.epiphany` is not skipped by name.
-- **Decode runtime:** TypeScript with CultLib's cultcache-ts at ≥ 0.14.0.
-  `inspectCultCacheBytes` decodes Rust-written v1 stores (P7).
-  - VoidBot's vendored cultcache-ts 0.1.0 cannot decode v1 at all.
-  - Replace `vendor/cultcache-ts` with the CultLib `a0813c6` package; npm
-    publication of 0.14.0 is held on `NPM_TOKEN` (Aetheria cut header).
-  - The replacement also changes the vendored consumers,
-    `packages/core/package.json:9` and `apps/persona-scheduler/package.json:12`.
-    Run their persona-state tests, per "count consumers" (SKILL.md:90-93).
-- **Validation:** check each decoded value against the published
-  `epiphany.pipeline.<kind>.v1.schema.json` from the mirrored Epiphany repo
-  (`/srv/voidbot/source-repos/Epiphany/schemas/cultnet/`). Use a JSON Schema
-  validator; VoidBot currently has only zod, so Hands adds one validator
-  dependency and names it in the report. No TypeScript copy of the types is
-  written. Documents that fail validation are skipped and logged, never indexed.
-- **Projection (VoidBot):**
-  - **Chunks.** One chunk per document, from `payloadPreview[0]`:
-    - `id = pipeline:<repo>:<docId>`;
-    - text = the kind's bounded text fields joined;
-    - metadata `{ corpusKind: "pipeline_state", sourceId, repoName, campaign, kind, docId, commit }`,
-      where `commit` is the mirror head.
-    - Receipts, identity and provenance are not indexed.
-    - In-force status is **not** indexed: Epiphany owns it, and clients resolve it
-      through `get`. Resolutions are indexed as their own chunks.
-  - **Corpus kind.** Extend the `corpusKind` union at `packages/shared/src/index.ts:115`
-    and `packages/rag/src/qdrant-vector-store.ts:31,:449,:500`, with payload
-    indexes `repoName`, `campaign`, `kind` and `docId` in
-    `buildPayloadIndexDefinitions` (`:500-540`).
-  - **Config.** `packages/config/src/index.ts:58`:
-    `QDRANT_PIPELINE_STATE_COLLECTION` defaults to
-    `voidbot_pipeline_state_chunks`, plus the matching `:335-344` entries.
-  - **Store factory.** `packages/rag/src/vector-store-factory.ts:8-66` gains a
-    `pipelineState` store.
-  - **Search.** `packages/rag/src/retrieval-service.ts:7-44` gains
-    `searchPipelineState`.
-  - **Indexer.** `apps/worker/src/source-index-main.ts` runs through
-    `indexSourceRepos`. After each repo's source pass, if the store exists:
-    `deleteByFilters { corpusKind: "pipeline_state", repoName }`, then upsert.
-    Same writer, same hourly timer; no new process.
-  - **Tool.** In `apps/worker/src/mcp-server-tools.ts`, add
-    `search_pipeline_state { query, repoName?, campaign?, kind?, limit }`, which
-    returns hits with `{ repoName, campaign, kind, docId, commit, text, score }`.
-    It is read-only and follows the `search_sources` tool (`:438`).
-- **Allow-list (gamecult-ops):** append `search_pipeline_state` to
-  `VOIDBOT_MCP_TOOL_ALLOWLIST` (`compose/voidbot-retrieval.yggdrasil.yaml:26`).
-- **Resolving hits:** a hit resolves to typed state through
-  `eureka-state get { repo_root: <local checkout of repoName>, id: docId }`.
-  Epiphany needs no change.
-- **Authority map:**
-  - **Owner:** VoidBot owns the derived index only. The Epiphany store owns
-    truth, and Epiphany schemas own validation.
-  - **Inputs:** mirrored store bytes and the published schemas.
-  - **Outputs:** Qdrant points and search hits.
-  - **Derived state:** everything in the collection.
-  - **Forbidden writers:** VoidBot never writes a pipeline store and never
-    derives status.
-  - **Shared paths:** the hourly source-refresh writer.
-  - **Deletion line:** the crawler exclusion.
-- **Verification:**
-  - A VoidBot unit test decodes a fixture store written by Cut 3b's test
-    helpers. The fixture is checked in with its generating commit.
-  - The crawler test asserts `.epiphany/pipeline/pipeline.cc` is not crawled,
-    and a mutation removing the exclusion fails it.
-  - Persona-state tests pass on the refreshed cultcache-ts.
-  - `buildPayloadIndexDefinitions("pipeline_state")` has a test.
-  - **Operator:** after deployment, `search_pipeline_state` over the MCP returns a
-    Cut 6 ruling once CultLib's branch has merged, and `eureka-state get`
-    resolves its `docId`.
-- **Subtraction ledger:** about +400 TypeScript. Adds one JSON Schema validator
-  dependency. The vendored cultcache-ts 0.1.0 is replaced, not kept beside the
-  new one.
+1. Every artifact exists in the instance's mind with a receipt. No `*-cut.md`
+   exists for this campaign, and the Hands and Soul briefs contain ids, not spec
+   prose.
+2. **Nothing about this campaign is committed to CultLib except the code change.**
+   `git status` on the branch shows no `.epiphany/` path and no store file.
+   This is the negative proof that minds left git.
+3. At least one refusal is exercised live and returned typed — for example a
+   `verdict` whose `Falsified` claim lacks a `Confirmed` finding, or a
+   `cut_report` before its spec is admitted.
+4. At least one resolution is admitted, and `open_items` afterwards equals
+   exactly the unresolved set Self states from its own records.
+5. **Rehydration.** A fresh agent with no transcript, no repo docs and no memory,
+   given only the instance slug and the campaign slug, answers a fixed
+   questionnaire using only `whoami`, `rulings_in_force`, `open_items`, `query`
+   and `get`:
+   - Which rulings are in force, and what did the operator say?
+   - What landed, at which SHAs?
+   - Which findings were Confirmed, and how was each resolved?
+   - What follow-ups remain, and why can each wait?
 
-## Subtraction ledger (estimates; Self reconciles at each landing)
+   A Soul pass grades the answers against the mind and git. The proof fails on
+   any factual miss.
+6. **Unreachable is loud.** The operator stops the `idunn-huginn` unit; the next
+   `admit` returns a typed `Unavailable` naming the endpoint, the agent stops,
+   and **no local file appears anywhere**. `git status` and the scratchpad are
+   both clean. This is the target's availability invariant, proved by a
+   deliberate outage rather than asserted.
+7. **Semantic recall.** A `query` with `semantic` set returns the Cut 16 ruling
+   from a paraphrase that shares no exact words with it, and the hit resolves
+   through `get`.
+
+**Fail:**
+
+- any criterion misses;
+- any agent relays a typed artifact as prose to the next agent;
+- Self reads source to verify instead of routing to Soul;
+- any agent writes a local copy of state when the organ is unreachable.
+
+**Subtraction ledger:** the CultLib diff is about −3 lines of C# plus one
+contract sentence.
+
+## Subtraction ledger
+
+Estimates. Self reconciles each at its landing; a miss is allowed but must be
+explained.
 
 | Cut | Removed | Added | Deps / formats / targets |
 |---|---|---|---|
-| 1 | ~23 changed | ~23 | CultLib rev only |
-| 2 | ~6 | ~25 | none |
-| 3a | 0 | ~900 Rust, ~1,200 derived JSON | + `schemars`; + 10 published schemas |
-| 3b | 0 | ~1,100 | none |
-| 3c | 0 | ~600 | + one `epiphany-state` subcommand (no binary) |
-| 4 | 0 | ~500 | + package `epiphany-eureka-state`, + binary `eureka-state` (feature-gated, not packaged) |
-| 5 | skill prose shrinks | — | `references/cut-map.md` replaced |
-| 6 | ~3 C# | 1 sentence | CultLib store file added on the branch |
-| 7 | vendored cultcache-ts 0.1.0 | ~400 TS | + JSON Schema validator dep; + Qdrant collection |
+| 4 | ~1,291 | ~20 | −1 store format, −1 lease, −2 git preconditions |
+| 5 | ~46 | ~8 | none |
+| 6 | ~623 from `epiphany-core` | ~700 Rust, ~400 JSON | +1 package `epiphany-pipeline`; +3 schemas |
+| 7 | ~307, 16 files | ~30 | −1 npm package, −1 CLI, −1 sibling dep |
+| 8 | 0 | ~1,400 | +`epiphany-pipeline` |
+| 9 | 0 | ~600 | none |
+| 10 | 0 | ~900 | +1 binary; +`cultmesh-rs`, `cultnet-rs`, `signal-hook`, `fs2` |
+| 11 | 0 | ~800 | +`reqwest` (daemon only); +1 Qdrant collection |
+| 12 | 0 | ~500 | none |
+| 13 | 0 | ~600 | +1 binary; +`rmcp`, `tokio` |
+| 14 | 0 | ~250 ops | +1 workload, +1 route, +2 brakes, +1 backup path |
+| 15 | prose shrinks | — | `cut-map.md` replaced |
+| 16 | ~3 C# | 1 sentence | none |
 
-The positive delta buys an explicitly requested capability (target, End state).
-The liability it retires lives outside code: prose cut maps, header bookkeeping,
-relayed reports, and transcript crawls at postmortem.
+**Epiphany's net change across this campaign is negative**: it loses 1,960 lines
+and gains a leaf package it does not itself depend on. The growth is in Huginn,
+and it buys the capability the target names. The liability retired lives outside
+the line count: prose cut maps, header bookkeeping, relayed reports, transcript
+crawls at postmortem, and — new with this rewrite — a per-clone lease, git
+preconditions and an unbuilt merge tool.
 
-## Target contradictions (for Self to reconcile in the target doc)
+## Operator questions
 
-1. **"Laid out so that parallel branches merge cleanly"** (target, Store) is
-   contradicted by ruling 6: the layout is single-file (Q1-A), and merges go
-   through the admission-replay command.
-2. **"Pushing the branch is the sync, and voidbot's existing repo mirror indexes
-   it"** (target, rulings 6 and End state). The mirror fetches only each public
-   repo's default branch (Q4). Private repos are never indexed.
-3. **"cultcache-rs … already has cross-process locking"** (target, Not in scope)
-   is true per operation only (P5). Single-writer needs the session lease (D3).
-4. **Document set.** The landed-names digest is a field of `cut_report`, not its
-   own document. `question`, `verdict` and `resolution` are added, each with a
-   named consumer (D1).
-5. **"The MCP server resolves the store from the session's working repo"**
-   (coordinator relay). The design uses an explicit `repo_root` on every tool,
-   because subagents in worktrees share their session's server process. The
-   server's working directory was not probed.
-6. **Eureka `SKILL.md:11-12`** says Epiphany's findings are "queried
-   semantically". Epiphany has no semantic query (`856648de`). Cut 5 corrects
-   the line.
+Each has a recommendation. Q6 and Q7 are real forks; Q8 is a subtraction the
+operator may simply want recorded.
+
+- **Q6. Instance identity: declared, or signed?** Depends on: Cuts 8 and 13, and
+  D8.
+  - **A. Declared.** `eureka-state` sends its configured instance slug;
+    admission refuses a mismatch against the mind's `instance` document.
+    Attribution and collision control, not authentication.
+  - **B. Signed.** Enrol a per-instance CultNet service identity
+    (`enroll_service_identity_at`, already used by Epiphany's permit path) and
+    verify the signature at admission.
+
+  **Recommended: A**, with B as a named later cut. On a single-operator LAN
+  behind WireGuard and loopback binds, B protects against an attacker who
+  already has the machine. It also needs key distribution and rotation to every
+  workstation that runs Claude Code, and the target already defers identity
+  binding to a later campaign (ruling 9: answering over a chat channel "needs
+  identity binding first"). Choosing A means saying out loud, in the README and
+  the runbook, that instance identity is not authentication.
+- **Q7. How does the workstation reach the organ?** Depends on: Cuts 13 and 14.
+  - **A. WireGuard.** `eureka-state` talks RUDP to `10.77.0.1:17872` over the
+    existing mesh. No tunnel change.
+  - **B. SSH tunnel.** Add a forward to `start-yggdrasil-tunnel.ps1`.
+
+  **Recommended: A.** The organ speaks RUDP over UDP, and
+  `runbooks/yggdrasil-ssh-tunnel.md:32-39` already records that SSH local
+  forwards cannot carry raw UDP and recommends WireGuard for exactly this case.
+  B would require giving the organ a TCP transport it does not need. The cost of
+  A is that the workstation must have the mesh up, which it already does for
+  other services; the check belongs in `whoami`.
+- **Q8. Does `TypedCommitStore` go (Cut 5)?** Depends on: Cut 5 existing at all.
+  - **A. Collapse it,** as Cut 5 specifies.
+  - **B. Keep it.**
+
+  **Recommended: A.** It was generalised for a second profile that this rewrite
+  moves to another repo, so it is now a one-implementation abstraction — a named
+  STOP condition. Keeping it costs a parameter on every Mind commit and an
+  indirection in the owner. The honest counter-argument, which is why this is a
+  question rather than a silent cut: Cut 2 was three commits and a Soul pass, and
+  deleting it reads as churn. It is not churn; it is the correct response to the
+  ownership change. If the operator prefers B, Cut 5 is dropped and the map says
+  why.
+- **Q9. Qdrant: share voidbot's, or run Huginn's own?** Depends on: Cuts 11 and
+  14.
+  - **A. Share.** Huginn connects to `127.0.0.1:6333` and owns the
+    `huginn_pipeline_documents` collection.
+  - **B. Own.** A second Qdrant under Idunn with its own storage and port.
+
+  **Recommended: A.** Qdrant already runs on Yggdrasil, host-networked on
+  loopback, and collections are the isolation unit; ruling 16 says the organ owns
+  its own *collections*, which A satisfies. The honest cost: the container is
+  started by `voidbot-retrieval.service` and defined in voidbot's compose file
+  (R15), so Huginn's index availability is coupled to a unit Idunn does not own,
+  and that coupling must be declared as a `[[dependencies]]` entry rather than
+  left implicit. B removes the coupling and costs a second Qdrant's memory and
+  storage for one small corpus.
+
+## Target contradictions for Self to reconcile
+
+1. **"Embeddings come from Ollama on Nightwing"** (target, ruling 16). The Body
+   disagrees for a Yggdrasil daemon: `epiphany.service` embeds against
+   `http://10.77.0.1:11435`, a Yggdrasil-local Ollama, with the same
+   `qwen3-embedding:0.6b` model (R16). Only voidbot's indexer uses Nightwing
+   `10.77.0.3:11434`. **Recommendation: follow the Epiphany precedent and embed
+   locally at `10.77.0.1:11435`,** which removes a cross-host dependency from the
+   admission path. The target's sentence should name the endpoint, not the host.
+2. **"Huginn is the memory organ ... which also ends the standing authority
+   vacancy where doctrine named Huginn the Persona-state steward"** (ruling 17).
+   It ends the vacancy only for pipeline state. `F:\Projects\CLAUDE.md` names
+   Huginn the runtime steward of `gamecult.persona_state.v0` inspection and
+   migration, and this campaign builds none of that; VoidBot keeps that path.
+   The doctrine paragraph still needs a correction, and it is not this
+   campaign's. Recorded as FU-2.
+3. **"Cut 3a code: keep the document kinds, keys, validation and typed
+   refusals"** (target, Shape decided). Accurate, but the typed refusals split:
+   six of the thirteen landed variants are repo-store refusals and die (D2).
+4. **Document set.** The target's End state lists ten kinds. Ruling 14 requires
+   three more — `instance`, `stewardship`, `hand_off` — each with a live
+   consumer (D2). The target's Documents bullet should name thirteen.
+5. **"a typed hand-off for reassigning stewardship, and an import path for
+   another instance's mind"** (target). Built in Cut 12, but note it is not a
+   merge: two minds cannot diverge, so import is a transfer of named documents,
+   not a reconciliation.
 
 ## Follow-ups outside this campaign
 
-- **The Eureka skill is not under version control** (`~/.claude/skills/eureka`
-  is not a git repo). Cut 5's edits are therefore unreviewable in history. The
-  operator decides whether to version it; nothing in this campaign depends on it.
-- **The Epiphany map's epoch claim is stale.** `state/map.yaml:76-77` says
+- **FU-1. Huginn's legacy `.voidbot` Persona state.** `.voidbot/voice/identity.json`
+  says the Persona is Huginn; `.voidbot/state/huginn.cc` says the jurisdiction is
+  `repo:CultCacheTS` and holds eight legacy `void.*` types and zero
+  `gamecult.persona_state.v0` documents. Out of scope by the target. No cut
+  touches `.voidbot/`. Owner: whoever runs the portable-Persona migration.
+- **FU-2. Doctrine names Huginn the Persona-state steward.** After this campaign
+  Huginn is a real runtime, which makes the doctrine paragraph in
+  `F:\Projects\CLAUDE.md` more tempting to believe and no more true. Either build
+  the Persona path in Huginn or correct the doctrine to name VoidBot. Owner:
+  the operator, via a Mind Steward proposal.
+- **FU-3. The receipt is implemented twice.** `EpiphanyMindCommitReceipt` in
+  Epiphany and `HuginnCommitReceipt` in Huginn share a shape and about 120 lines
+  of digest, replay and CAS logic (D3). This is the price of the service
+  boundary. If a third consumer ever appears, extract the primitive into CultLib
+  rather than adding a third copy.
+- **FU-4. `EpiphanyMindCommitReceipt` naming scar** is now resolved by accident:
+  with the pipeline profile gone, the type serves only Mind again. No action.
+- **FU-5. The Epiphany map's epoch claim is stale.** `state/map.yaml:76-77` says
   runtime/Mind "v45/v11"; code has `epiphany.runtime_spine.v47`
-  (`runtime_spine.rs:58`). This is the Mind Steward's surface.
-- **`EpiphanyMindCommitReceipt` naming scar.** Its type name says "Mind" while it
-  now serves the pipeline store too. Rename it only with the next runtime epoch
-  bump that already has another reason.
+  (`runtime_spine.rs:58`). Mind Steward's surface.
+- **FU-6. `state/map.yaml:261`** carries a long prose summary of this campaign
+  that already describes the organ model. It will go stale as the cuts land.
+  Mind Steward's surface, at each phase boundary.
+
+---
+
+# History
+
+Everything below is the record of superseded design. **Nothing here is live.**
+It is kept because the rulings and probes that produced it explain why the
+current design looks the way it does.
+
+## Landed: Cut 1. Re-pin CultLib to `a0813c6`
+
+Landed at `2b76c2e7` (re-pin) and `df82992c` (pin tests). Passed Soul.
+
+Replaced `rev = "e171eca3..."` with `rev = "a0813c6..."` in six manifests,
+converted twelve `load_envelope` sites to `put_envelope` (the API was deleted by
+CultLib `4ed9871`; every site used a storeless cache, so semantics were
+identical), and added `?` at eight `add_generic_backing_store` sites.
+
+- **Verification:** core tests 156/156 with zero warnings; four library packages
+  and all nine bins check.
+- **Soul found no drift on a live path.** Recorded: **F1 (medium, latent)** —
+  under cultcache-rs 0.2.0 a cache with no store accepts `put`/`delete` in memory
+  only, where `e171eca3` refused; Epiphany's four read caches have no mutating
+  caller today. **F2 (low)** — the pin tests proved "this store file is not
+  rewritten", not "no store is attached"; fixed in Cut 2. **F5 (gap)** — typed
+  reads of current-epoch stores are unproven because no current-epoch store
+  exists locally.
+
+## Landed: Cut 2. One commit owner, two store profiles
+
+Landed at `00991c1b` (F2 fix: storeless reads pinned by directory snapshot),
+`46460efc` (the `TypedCommitStore` profile) and `cb6ef5d2` (the fixes). Passed
+Soul at 160/160, with every mutation caught including two of Soul's own.
+
+Deleted three hard-coded Mind choices from `commit_authorized_mind_mutation` and
+replaced them with a profile: `store_id`, `backing_store`, `open_cache`,
+`validate_writes`. The profile owns its backing store, so an opener cannot pick
+a different one; the Mind epoch refusal and validation-before-replay are pinned.
+
+**Cut 5 now collapses this.** The second profile it was built for moved to
+another repo. Recorded honestly rather than quietly kept.
+
+Open decisions it left for the old Cut 3b, both now moot: replay under a changed
+validator, and mapping a lost race between identical commits to `AlreadyAdmitted`.
+The organ's receipt (D3) should handle the second case from the start.
+
+## Landed: Cut 3a. Documents, opener, lease, schemas
+
+Landed at `a1473c45` and `ad18c385`, with fixes at `b4f88d29`, `187e01e7` and
+`a317d4cf`. Tests 180/180, 27 mutations defined and caught.
+
+**Surviving into the new design:** the ten document kinds, the `value_types!`
+single field list, the bound aliases, the format types, key derivation,
+`validate_pipeline_write_envelope`, and the ten derived schemas with their
+byte-for-byte derivation test.
+
+**Deleted by Cut 4:** `pipeline_store.rs` entire — the opener, the writer lease,
+the holder record, `main_work_tree`, the committed-blob attribute checks, branch
+binding, and six refusal variants.
+
+**Soul's Cut 3a findings F1-F8** were all fixed before the rewrite. Their
+disposition under the new model:
+
+| Finding | Was | Now |
+|---|---|---|
+| F1 identity-less first commit bricks the store | Fixed by ruling 12 | **Survives** as Cut 8's `first_write_must_carry_identity_and_instance` |
+| F2 key collisions through dotted labels | Fixed by ruling 11 | **Survives** into `epiphany-pipeline` (Cut 6) |
+| F3 parent ids only prefix-checked | Fixed | **Survives** into `epiphany-pipeline` |
+| F4 resolution keys skip label validation | Fixed | **Survives** into `epiphany-pipeline` |
+| F5 store writable without lease or admission | Fixed | **Moot.** There is no lease; `admit` is the only write path |
+| F6 a worktree takes its own lease | Fixed by ruling 10 | **Moot.** No worktrees, no lease |
+| F7 a stale holder is named after a crash | Fixed | **Moot.** No holder record |
+| F8 git reads local excludes and global attributes | Fixed | **Moot.** No git reads |
+
+**A later Soul pass was in flight when the operator rejected the ownership
+model.** Its findings are referred to elsewhere as S1-S4 and S8. **That
+pass's report is not on disk in this workspace** — the only `S`-labelled
+artifacts in the scratchpad are Soul's *mutation* labels from the Cut 3a fix
+pass (`c3afix-mutations-run.log:15`, mutation S1 against
+`parent_ids_are_parsed_strictly` and `resolution_subject_is_a_full_id_of_its_kind`;
+mutation S3 against the marker rule). So this map classifies by **layer**
+rather than by label, and Self should bind the labels before briefing Hands:
+
+- **Findings against key parsing, identity, bounds, formats or the resolution
+  matrix survive**, and their tests move to `epiphany-pipeline` in Cut 6.
+- **Findings against the store opener's refusals survive in substance**, and are
+  re-tested against redb in Cut 8.
+- **Findings against the lease, the holder, `main_work_tree`, the committed-blob
+  checks, branch binding, or the merge tool are moot with the layer**, and Cut 4
+  is the fix.
+
+If any S-labelled finding does not fall into one of those three buckets, it is
+not covered by this map and Self should route it back to Imagination.
+
+**Self's binding (2026-09-16).** The pass's report was in Self's context, not on
+disk. Its findings bind as follows:
+
+| Finding | Layer | Disposition |
+|---|---|---|
+| S1 `main_work_tree` resolves into a foreign work tree (`--separate-git-dir <holder>/.git`) | git resolution | **Moot.** Cut 4 deletes it |
+| S2 the parent-toplevel check is unpinned (a bare `exists()` survived the suite) | git resolution | **Moot** with S1 |
+| S3 the attribute rule reads the `HEAD` blob, not what git consults | committed-blob checks | **Moot.** No git reads |
+| S4 no-commits and detached-HEAD edge cases of that rule | committed-blob checks | **Moot** with S3 |
+| S5 the API guard is not a file guard: a scratch crate wrote `pipeline.cc` with a forged record | store file | **Moot as written** (no local store), but its substance survives: the organ must be the only writer of its mind on disk. Cut 8 owns refusing foreign records on open; Cut 14 owns volume ownership and permissions |
+| S6 ruling 12 moved Mind write validation after identity-uniqueness and after the store opens | Mind commit path | **Survives.** Untouched by subtraction, and Cut 5's collapse must preserve validation before replay and the current fail-closed order |
+| S7 the target and D6 contradicted ruling 10 | docs | **Resolved** by the 2026-09-16 target rewrite and this map |
+| S8 a lease held by another user's process reports "unknown holder" | lease | **Moot.** No lease |
+| S9 Hands' 27 mutations had no artifacts on disk, so the claim was unverifiable | process | **Standing.** The Eureka Hands brief now requires each mutation to be defined exactly in the report and reproducible from a committed script |
+
+Nothing fell outside the map, so nothing routes back to Imagination.
+
+## Superseded: the repo-owned store design
+
+The following are dead and are not reproduced: the old **D2** (store path
+`<repo_root>/.epiphany/pipeline/pipeline.cc`, required `.gitattributes` and
+`.gitignore` lines, `repo_root` work-tree checks, branch binding), the old **D3**
+(the per-clone session lease in the git common dir, the holder record, who holds
+it), the old **D5** (the merge tool and `pipeline-merge` subcommand), and the old
+**D6** (sharing across repos by foreign read, `ForeignRef` citation and voidbot
+discovery — of which only `ForeignRef` survives, as a field on `ruling` and
+`finding`).
+
+Dead cuts: **old Cut 3b** (admission and queries in `epiphany-core` — replaced by
+Cuts 8 and 9 in Huginn), **old Cut 3c** (the merge command — replaced by Cut 12's
+hand-off), **old Cut 4** (`eureka-state` as an Epiphany package — replaced by
+Cut 13 in Huginn), **old Cut 5** (skill wiring against `repo_root` — replaced by
+Cut 15), **old Cut 6** (the proof campaign with attribute commits and a lease
+check — replaced by Cut 16), and **old Cut 7** (the voidbot semantic projection,
+its crawler exclusion, its vendored cultcache-ts replacement and its
+`search_pipeline_state` tool — replaced by the organ's own Qdrant collections in
+Cut 11, per ruling 16).
+
+Dead rulings: **5** (the store lives in the repo where the task runs), **6** (one
+runner per repo plus a merge tool), **10** (one store per clone, in the main
+working tree), **12** (the profile owns identity-on-first-write — the *rule*
+survives in Cut 8, the *profile* does not), and **Q1, Q3, Q4** (store layout, merge
+settlement, voidbot index scope), all of which asked questions about a store that
+no longer exists.
+
+Dead operator question **Q2** survives as ruling 8's epoch rule; **Q5** survives
+as the `schemars` dependency, now in `epiphany-pipeline`.
