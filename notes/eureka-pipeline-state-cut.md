@@ -85,6 +85,35 @@ superseded by 14-17; see History.
 21. **The organ shares voidbot's Qdrant** (Q9 A), with the coupling declared as
     an Idunn dependency rather than left implicit.
 
+## Landed
+
+**Cut 4 landed** at `ca275c7b` (deletion) and `a9f06c2a` (mutation suite).
+Soul is verifying.
+
+- **Removed 1,302 lines, added 549.** `pipeline_store.rs` died whole (1,251),
+  plus 47 in `pipeline_documents.rs`, two `lib.rs` lines, `.gitattributes:1` and
+  `.gitignore:37`. Retired: one store format, one lease, two git preconditions.
+- **Eight tests moved** into `pipeline_documents.rs` rather than waiting for
+  Cut 6, so no rule sits unpinned between cuts. Tests 168, 0 warnings, and all
+  eight mutations killed.
+- **Orphans removed:** `MissingIdentity` and `Unavailable` lost their last
+  raiser with the opener and lease. The three named helpers all kept live
+  callers.
+
+Spec corrections from this cut, which stand against the sections above:
+
+1. **The local `PipelineRefusal` keeps five variants, not three.**
+   `ForeignStore` is raised by `decode` and `ForeignEpoch` by
+   `validate_pipeline_write_envelope`, so the spec's three-variant line does not
+   compile. Both leave with admission, as D2 already assigns them to
+   `huginn-mind`.
+2. **The deleted module held 20 tests on Windows, not 15,** so the arithmetic is
+   180 − 20 + 8 = 168, not 165.
+3. **Cut 6's estimate must grow.** Its `epiphany-core` −623 should read about
+   −1,060, because the test module now travels with the code.
+4. **`schemas/cultnet/README.md:30`** still describes a per-repo store path.
+   Cut 6 owns that rewrite, so Cut 4's negative grep cannot be empty yet.
+
 ## Probes and source reads this pass
 
 No cargo build ran this pass. Every new mechanism claim below was settled by a
