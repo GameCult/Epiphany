@@ -1432,6 +1432,7 @@ pub(crate) fn commit_mind_mutation(
         decision_context_id: decision_context_id.to_string(),
     };
     commit_authorized_mind_mutation(
+        &MIND_COMMIT_STORE,
         store_path,
         authority,
         invariant_owner,
@@ -1462,6 +1463,7 @@ pub(crate) fn commit_mind_mutation_with_derived_companions(
         .ok_or_else(|| anyhow!("Mind mutation decision context lost its basis"))?;
     context.validate(&basis)?;
     commit_authorized_mind_mutation(
+        &MIND_COMMIT_STORE,
         store_path,
         EpiphanyMindCommitAuthority::ModelDecisionContext {
             decision_context_id: decision_context_id.to_string(),
@@ -1511,6 +1513,7 @@ pub(crate) fn commit_operator_mind_mutation_with_derived_companions(
     companions.push(provenance);
     companions.extend(derived_companions);
     commit_authorized_mind_mutation(
+        &MIND_COMMIT_STORE,
         store_path,
         authority,
         invariant_owner,
@@ -1534,6 +1537,7 @@ pub(crate) fn commit_typed_organ_mind_mutation(
     let provenance_version =
         EpiphanyMindDocumentVersion::from_envelope("epiphany-organ", &provenance)?;
     commit_authorized_mind_mutation(
+        &MIND_COMMIT_STORE,
         store_path,
         EpiphanyMindCommitAuthority::TypedOrganProvenance {
             organ: organ.to_string(),
@@ -1559,6 +1563,7 @@ pub(crate) fn commit_external_typed_observation_mind_mutation(
     require_non_empty(organ, "Mind mutation organ")?;
     provenance.validate()?;
     commit_authorized_mind_mutation(
+        &MIND_COMMIT_STORE,
         store_path,
         EpiphanyMindCommitAuthority::TypedOrganProvenance {
             organ: organ.to_string(),
@@ -1572,7 +1577,22 @@ pub(crate) fn commit_external_typed_observation_mind_mutation(
     )
 }
 
+/// The store a receipt commit targets: how to open its typed cache, how to
+/// validate each write, and the store id its receipt versions carry.
+pub(crate) struct TypedCommitStore {
+    pub(crate) store_id: &'static str,
+    pub(crate) open_cache: fn(&Path) -> Result<CultCache>,
+    pub(crate) validate_write: fn(&CultCacheEnvelope) -> Result<()>,
+}
+
+pub(crate) const MIND_COMMIT_STORE: TypedCommitStore = TypedCommitStore {
+    store_id: "epiphany-mind",
+    open_cache: |path| runtime_spine_cache(path),
+    validate_write: crate::mind_documents::validate_mind_write_envelope,
+};
+
 fn commit_authorized_mind_mutation(
+    store: &TypedCommitStore,
     store_path: &Path,
     authority: EpiphanyMindCommitAuthority,
     invariant_owner: &str,
@@ -1589,7 +1609,7 @@ fn commit_authorized_mind_mutation(
         return Err(anyhow!("Mind mutation requires at least one write"));
     }
     for write in &writes {
-        crate::mind_documents::validate_mind_write_envelope(write)?;
+        (store.validate_write)(write)?;
     }
     validate_unique_envelope_identities(&strong_reads, "strong read")?;
     validate_unique_envelope_identities(&writes, "write")?;
@@ -1602,7 +1622,7 @@ fn commit_authorized_mind_mutation(
         .iter()
         .map(|entry| (entry.r#type.clone(), entry.key.clone()))
         .collect::<BTreeSet<_>>();
-    let mut cache = runtime_spine_cache(store_path)?;
+    let mut cache = (store.open_cache)(store_path)?;
     cache.pull_all_backing_stores()?;
     let mut companion_expected = Vec::new();
     let mut companion_replacements = Vec::new();
@@ -1624,11 +1644,11 @@ fn commit_authorized_mind_mutation(
 
     let strong_versions = strong_reads
         .iter()
-        .map(|entry| EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", entry))
+        .map(|entry| EpiphanyMindDocumentVersion::from_envelope(store.store_id, entry))
         .collect::<Result<Vec<_>>>()?;
     let write_versions = writes
         .iter()
-        .map(|entry| EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", entry))
+        .map(|entry| EpiphanyMindDocumentVersion::from_envelope(store.store_id, entry))
         .collect::<Result<Vec<_>>>()?;
     let receipt_id = mind_commit_receipt_id(
         &authority,
@@ -2474,6 +2494,150 @@ mod tests {
         assert_eq!(
             SingleFileMessagePackBackingStore::new(&store).pull_all()?,
             before
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn typed_commit_store_profile_owns_open_validate_and_store_id() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("profile.cc");
+        let profile = TypedCommitStore {
+            store_id: "test-store",
+            open_cache: |path| {
+                let mut cache = CultCache::new();
+                cache.register_entry_type::<crate::EpiphanyMindObservationDocument>()?;
+                cache.register_entry_type::<EpiphanyMindCommitReceipt>()?;
+                cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(path))?;
+                Ok(cache)
+            },
+            validate_write: |write| match write.key.as_str() {
+                "refused" => Err(anyhow!("test profile refuses this write")),
+                _ => Ok(()),
+            },
+        };
+        let registry = (profile.open_cache)(&store)?;
+        let observation = |key: &str| -> Result<CultCacheEnvelope> {
+            let value = crate::EpiphanyObservation {
+                id: key.into(),
+                summary: key.into(),
+                source_kind: "test".into(),
+                status: "accepted".into(),
+                code_refs: Vec::new(),
+                evidence_ids: Vec::new(),
+            };
+            Ok(registry
+                .prepare_entry(key, &crate::EpiphanyMindObservationDocument { value })?
+                .0)
+        };
+        let authority = || EpiphanyMindCommitAuthority::ModelDecisionContext {
+            decision_context_id: "test-context".into(),
+        };
+        let commit = |write: CultCacheEnvelope| {
+            commit_authorized_mind_mutation(
+                &profile,
+                &store,
+                authority(),
+                "test-owner",
+                Vec::new(),
+                vec![write],
+                Vec::new(),
+                "2026-09-15T00:00:00Z",
+            )
+        };
+        let EpiphanyMindCommitOutcome::Committed(receipt) = commit(observation("accepted")?)?
+        else {
+            panic!("the profile's first write must commit");
+        };
+        assert_eq!(receipt.writes.len(), 1);
+        assert!(receipt.writes.iter().all(|version| version.store_id == "test-store"));
+        let stored = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
+        assert!(stored.iter().any(|entry| entry.key == receipt.receipt_id));
+        let before = std::fs::read(&store)?;
+        let error = commit(observation("refused")?).unwrap_err();
+        assert!(error.to_string().contains("test profile refuses this write"));
+        assert_eq!(std::fs::read(&store)?, before);
+        Ok(())
+    }
+
+    #[test]
+    fn mind_commit_store_profile_keeps_mind_validation_receipts_replay_and_conflicts()
+    -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("mind.cc");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "mind-profile-test".into(),
+                display_name: "Mind profile test".into(),
+                created_at: "2026-09-15T00:00:00Z".into(),
+            },
+        )?;
+        let cache = runtime_spine_cache(&store)?;
+        let observation = |key: &str, id: &str, summary: &str| -> Result<CultCacheEnvelope> {
+            let value = crate::EpiphanyObservation {
+                id: id.into(),
+                summary: summary.into(),
+                source_kind: "test".into(),
+                status: "accepted".into(),
+                code_refs: Vec::new(),
+                evidence_ids: Vec::new(),
+            };
+            Ok(cache
+                .prepare_entry(key, &crate::EpiphanyMindObservationDocument { value })?
+                .0)
+        };
+        let provenance = EpiphanyMindDocumentVersion::from_envelope(
+            "epiphany-organ",
+            &observation("provenance", "provenance", "organ")?,
+        )?;
+        let commit = |reads: Vec<CultCacheEnvelope>,
+                      writes: Vec<CultCacheEnvelope>,
+                      at: &str| {
+            commit_external_typed_observation_mind_mutation(
+                &store,
+                "test-organ",
+                provenance.clone(),
+                "test-owner",
+                reads,
+                writes,
+                at,
+            )
+        };
+        let before = std::fs::read(&store)?;
+        let error = commit(
+            Vec::new(),
+            vec![observation("wrong-key", "right-id", "x")?],
+            "2026-09-15T00:00:01Z",
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("semantic identity"));
+        assert_eq!(std::fs::read(&store)?, before);
+        let first = observation("first", "first", "one")?;
+        let EpiphanyMindCommitOutcome::Committed(receipt) =
+            commit(Vec::new(), vec![first.clone()], "2026-09-15T00:00:02Z")?
+        else {
+            panic!("the first Mind write must commit");
+        };
+        assert!(receipt.writes.iter().all(|version| version.store_id == "epiphany-mind"));
+        assert_eq!(
+            receipt.receipt_id,
+            "mind-commit-sha256:415283192ba888e99ce011b5e7a2d2ff82e93d9cbf9b5c8af96eebc57acc281e"
+        );
+        assert_eq!(
+            commit(Vec::new(), vec![first.clone()], "2026-09-15T00:00:30Z")?,
+            EpiphanyMindCommitOutcome::Committed(receipt),
+            "exact replay returns the stored receipt"
+        );
+        assert_eq!(
+            commit(
+                vec![observation("first", "first", "stale")?],
+                vec![observation("second", "second", "two")?],
+                "2026-09-15T00:00:03Z",
+            )?,
+            EpiphanyMindCommitOutcome::Conflict {
+                document_identities: vec![(first.r#type.clone(), "first".into())],
+            }
         );
         Ok(())
     }
