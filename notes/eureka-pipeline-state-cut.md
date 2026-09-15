@@ -26,6 +26,31 @@ Soul.
     reads of 8 real stores are byte-identical, and the ledger's typed read
     works.
 
+**Cut 2 landed** at `00991c1b` (F2 fix: storeless reads are pinned by a
+directory snapshot) and `46460efc` (`TypedCommitStore` profile on the one
+commit owner).
+- **Verification:** 158/158.
+- **Soul confirmed Mind is unchanged:** the pin test run verbatim at base
+  `589e71c3` yields the same receipt id.
+- **Being fixed before Cut 3a:**
+  - The Mind profile's epoch check is unpinned, so dropping
+    `validate_runtime_store_epoch` passes.
+  - "Validation before replay" is unpinned.
+  - Reads go through the profile's `open_cache`, but the CAS and the conflict
+    re-read hard-code `runtime_spine_backing_store`, so a profile could read one
+    store and write another.
+- **Carried into Cut 3a/3b:**
+  - The profile's implicit contracts: register `EpiphanyMindCommitReceipt`, and
+    register every stored type or the load refuses.
+  - Owner errors say "Mind mutation", so pipeline code maps them to its own
+    refusal.
+  - The owner takes a path, not a writer-lease handle, so lease binding for
+    `pipeline.cc` needs a structural guard, not grep.
+- **Recorded (low):** the F2 snapshot cannot see a store attached in another
+  directory. This is F1's mirror; it takes a deliberately misplaced attach.
+- **Spec correction:** six owner call sites, not five, including
+  `commit_mind_mutation`.
+
 Pins. Code anchors are `file:line` against Epiphany `81be7a2f`. HEAD has since
 moved to `0636176a`, but only the target and `state/map.yaml` changed, so every
 code anchor still holds. The other pins:
