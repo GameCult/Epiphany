@@ -355,7 +355,7 @@ impl AtlasCultCacheStore {
         cache.register_entry_type::<AtlasEntanglementProjection>()?;
         cache.register_entry_type::<AtlasImpactDedupeRecord>()?;
         cache.register_entry_type::<AtlasImpactStateRecord>()?;
-        cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(&self.path));
+        cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(&self.path))?;
         cache.pull_all_backing_stores()?;
         Ok(cache)
     }

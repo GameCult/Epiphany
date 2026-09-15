@@ -846,19 +846,19 @@ fn is_persona_social_type(document_type: &str) -> bool {
 fn load_persona_social_envelope(cache: &mut CultCache, envelope: CultCacheEnvelope) -> Result<()> {
     match envelope.r#type.as_str() {
         PERSONA_SOCIAL_MENTION_TYPE => {
-            cache.load_envelope::<PersonaSocialMentionDocument>(envelope)?;
+            cache.put_envelope::<PersonaSocialMentionDocument>(envelope)?;
         }
         PERSONA_SOCIAL_TURN_REQUEST_TYPE => {
-            cache.load_envelope::<PersonaSocialTurnRequestDocument>(envelope)?;
+            cache.put_envelope::<PersonaSocialTurnRequestDocument>(envelope)?;
         }
         PERSONA_SOCIAL_TURN_TERMINAL_TYPE => {
-            cache.load_envelope::<PersonaSocialTurnTerminalDocument>(envelope)?;
+            cache.put_envelope::<PersonaSocialTurnTerminalDocument>(envelope)?;
         }
         PERSONA_SOCIAL_RETENTION_HEAD_TYPE => {
-            cache.load_envelope::<PersonaSocialRetentionHeadDocument>(envelope)?;
+            cache.put_envelope::<PersonaSocialRetentionHeadDocument>(envelope)?;
         }
         PERSONA_SOCIAL_RETENTION_PLAN_TYPE => {
-            cache.load_envelope::<PersonaSocialRetentionPlanDocument>(envelope)?;
+            cache.put_envelope::<PersonaSocialRetentionPlanDocument>(envelope)?;
         }
         _ => unreachable!("caller filtered Persona social document types"),
     }

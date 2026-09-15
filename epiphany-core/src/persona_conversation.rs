@@ -958,7 +958,7 @@ fn require_store_retirement_receipt(
         })?;
     let mut cache = CultCache::new();
     cache.register_entry_type::<PersonaConversationStoreRetirementReceipt>()?;
-    cache.load_envelope::<PersonaConversationStoreRetirementReceipt>(envelope.clone())?;
+    cache.put_envelope::<PersonaConversationStoreRetirementReceipt>(envelope.clone())?;
     if cache
         .get::<PersonaConversationStoreRetirementReceipt>(&expected.receipt_id)?
         .as_ref()

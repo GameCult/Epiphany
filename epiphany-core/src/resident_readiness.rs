@@ -788,7 +788,7 @@ mod tests {
         let store = temp.path().join("mixed.cc");
         let mut mixed = CultCache::new();
         mixed.register_entry_type::<ForeignOwnerEntry>()?;
-        mixed.add_generic_backing_store(SingleFileMessagePackBackingStore::new(&store));
+        mixed.add_generic_backing_store(SingleFileMessagePackBackingStore::new(&store))?;
         let foreign = ForeignOwnerEntry {
             value: "must survive readiness CAS".into(),
         };

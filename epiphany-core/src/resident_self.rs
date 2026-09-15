@@ -797,22 +797,22 @@ fn state_cache(path: &Path) -> Result<CultCache> {
         }
         match envelope.r#type.as_str() {
             ResidentSelfState::TYPE => {
-                cache.load_envelope::<ResidentSelfState>(envelope)?;
+                cache.put_envelope::<ResidentSelfState>(envelope)?;
             }
             ResidentSelfPressure::TYPE => {
-                cache.load_envelope::<ResidentSelfPressure>(envelope)?;
+                cache.put_envelope::<ResidentSelfPressure>(envelope)?;
             }
             ResidentSelfGrant::TYPE => {
-                cache.load_envelope::<ResidentSelfGrant>(envelope)?;
+                cache.put_envelope::<ResidentSelfGrant>(envelope)?;
             }
             ResidentSelfTerminalReceipt::TYPE => {
-                cache.load_envelope::<ResidentSelfTerminalReceipt>(envelope)?;
+                cache.put_envelope::<ResidentSelfTerminalReceipt>(envelope)?;
             }
             ResidentSelfChildClaim::TYPE => {
-                cache.load_envelope::<ResidentSelfChildClaim>(envelope)?;
+                cache.put_envelope::<ResidentSelfChildClaim>(envelope)?;
             }
             ResidentSelfRetentionHead::TYPE => {
-                cache.load_envelope::<ResidentSelfRetentionHead>(envelope)?;
+                cache.put_envelope::<ResidentSelfRetentionHead>(envelope)?;
             }
             _ => unreachable!("owned resident Self type was matched above"),
         };

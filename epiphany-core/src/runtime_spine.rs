@@ -644,7 +644,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     let backing_store = runtime_spine_backing_store(store_path)?;
     validate_runtime_store_epoch(&backing_store.pull_all()?)?;
     let mut cache = runtime_spine_schema_cache()?;
-    cache.add_generic_backing_store(backing_store);
+    cache.add_generic_backing_store(backing_store)?;
     Ok(cache)
 }
 
@@ -8655,7 +8655,7 @@ pub(crate) mod tests {
         let mut historical = CultCache::new();
         historical.register_entry_type::<crate::EpiphanyMindIdentity>()?;
         historical.register_entry_type::<EpiphanyRuntimeIdentity>()?;
-        historical.add_generic_backing_store(runtime_spine_backing_store(&store)?);
+        historical.add_generic_backing_store(runtime_spine_backing_store(&store)?)?;
         historical.put(
             "epiphany.mind.epoch.v1",
             &crate::EpiphanyMindIdentity {
@@ -8691,7 +8691,7 @@ pub(crate) mod tests {
         let mut archive_v0 = CultCache::new();
         archive_v0.register_entry_type::<crate::EpiphanyMindIdentity>()?;
         archive_v0.register_entry_type::<EpiphanyRuntimeIdentity>()?;
-        archive_v0.add_generic_backing_store(runtime_spine_backing_store(&archive_v0_store)?);
+        archive_v0.add_generic_backing_store(runtime_spine_backing_store(&archive_v0_store)?)?;
         archive_v0.put(
             crate::MIND_SCHEMA_EPOCH,
             &crate::EpiphanyMindIdentity {
@@ -8720,7 +8720,7 @@ pub(crate) mod tests {
         responses_only.register_entry_type::<crate::EpiphanyMindIdentity>()?;
         responses_only.register_entry_type::<EpiphanyRuntimeIdentity>()?;
         responses_only
-            .add_generic_backing_store(runtime_spine_backing_store(&responses_only_store)?);
+            .add_generic_backing_store(runtime_spine_backing_store(&responses_only_store)?)?;
         responses_only.put(
             crate::MIND_SCHEMA_EPOCH,
             &crate::EpiphanyMindIdentity {

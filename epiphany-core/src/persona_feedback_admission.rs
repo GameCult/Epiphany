@@ -1042,7 +1042,7 @@ mod tests {
         let delivery = signed_delivery(&signer, "epiphany")?;
         let mut source = CultCache::new();
         source.register_entry_type::<BifrostPersonaFeedbackAdmission>()?;
-        source.add_generic_backing_store(SingleFileMessagePackBackingStore::new(&source_store));
+        source.add_generic_backing_store(SingleFileMessagePackBackingStore::new(&source_store))?;
         source.put(&delivery.admission_id, &delivery)?;
         let source_lock = source_store.with_file_name(format!(
             "{}.lock",
