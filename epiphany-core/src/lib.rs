@@ -18,7 +18,6 @@ mod persona_feedback_admission;
 mod persona_social_state;
 mod persona_turn;
 mod pipeline_documents;
-mod pipeline_store;
 mod process_observation;
 mod public_source_identity;
 mod reasoning_context;
@@ -129,7 +128,6 @@ pub use persona_conversation::*;
 pub use persona_discord_crossing::*;
 pub use persona_discord_permit::*;
 pub use pipeline_documents::*;
-pub use pipeline_store::{PIPELINE_STORE_PATH, PipelineRefusal, PipelineStore, PipelineWriter};
 pub use persona_feedback_admission::{
     BIFROST_PERSONA_FEEDBACK_ADMISSION_SCHEMA_VERSION, BIFROST_PERSONA_FEEDBACK_DELIVERY_TYPE,
     BifrostPersonaFeedbackAdmission, LOCAL_PERSONA_FEEDBACK_SCHEMA_VERSION,

@@ -16,13 +16,33 @@
 //! The wrappers are crate-private: outside code reaches the store through the
 //! admission path, never by registering or preparing a pipeline type itself.
 
-use crate::pipeline_store::PipelineRefusal;
 use anyhow::Result;
 use cultcache_rs::{CultCache, CultCacheEnvelope, DatabaseEntry};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub const PIPELINE_SCHEMA_EPOCH: &str = "epiphany.pipeline.epoch.v1";
+
+/// Typed refusals of the pipeline documents. Bounds, formats and key identity
+/// are the document half (D2); `ForeignEpoch` and `ForeignStore` are raised by
+/// the decode and envelope-validation paths that still live here, and D2 hands
+/// them to the organ when admission moves there.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PipelineRefusal {
+    FieldBound { field: String, limit: u32, actual: u32 },
+    InvalidFormat { field: String, value: String },
+    InvalidIdentity { kind: PipelineKind, key: String, expected: String },
+    ForeignEpoch { found: String, expected: String },
+    ForeignStore { r#type: String },
+}
+
+impl std::fmt::Display for PipelineRefusal {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "pipeline refusal: {self:?}")
+    }
+}
+
+impl std::error::Error for PipelineRefusal {}
 
 pub(crate) trait Bounded {
     fn validate(&self, field: &str) -> Result<(), PipelineRefusal>;
@@ -328,26 +348,6 @@ impl Bounded for PipelineRef {
     }
 }
 
-/// Display-only record of the process holding a repo's writer lease (D3). The
-/// creation token is the process incarnation, so a recycled pid cannot make a
-/// dead holder look current.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct PipelineWriterHolder {
-    pub pid: u32,
-    pub creation_token: u64,
-    pub host: Short,
-    pub session: Short,
-    pub attached_at: Short,
-}
-
-impl Bounded for PipelineWriterHolder {
-    fn validate(&self, at: &str) -> Result<(), PipelineRefusal> {
-        self.host.validate(&format!("{at}.host"))?;
-        self.session.validate(&format!("{at}.session"))?;
-        self.attached_at.validate(&format!("{at}.attached_at"))
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum ResolutionOutcome {
     Superseded { by: Short },
@@ -419,7 +419,7 @@ macro_rules! pipeline_kinds {
                 match self { $(Self::$variant(value) => value.validate($name)),* }
             }
 
-            #[cfg_attr(not(test), expect(dead_code, reason = "Cut 3b admission prepares writes through this"))]
+            #[cfg_attr(not(test), expect(dead_code, reason = "the organ's admission prepares writes through this"))]
             pub(crate) fn prepare(&self, cache: &CultCache) -> Result<CultCacheEnvelope> {
                 let key = pipeline_key(self)?;
                 Ok(match self {
@@ -441,6 +441,7 @@ macro_rules! pipeline_kinds {
 
         /// Registers every type a pipeline store may hold: the ten kinds, the
         /// store identity, admission provenance, and the commit receipt.
+        #[cfg_attr(not(test), expect(dead_code, reason = "the organ registers its mind's types through this"))]
         pub(crate) fn register_pipeline_document_types(cache: &mut CultCache) -> Result<()> {
             $(cache.register_entry_type::<$document>()?;)*
             cache.register_entry_type::<EpiphanyPipelineIdentity>()?;
@@ -487,13 +488,6 @@ pub(crate) struct EpiphanyPipelineIdentity {
 pub(crate) struct EpiphanyPipelineProvenance {
     #[cultcache(key = 0)]
     pub(crate) value: PipelineProvenance,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(type = "epiphany.pipeline.writer_holder.v1", schema = "EpiphanyPipelineWriterHolder")]
-pub(crate) struct EpiphanyPipelineWriterHolder {
-    #[cultcache(key = 0)]
-    pub(crate) value: PipelineWriterHolder,
 }
 
 /// Parses a full document id. `<campaign>:<kind>:<local>` for every kind but
@@ -599,25 +593,9 @@ pub fn pipeline_key(document: &PipelineDocument) -> Result<String, PipelineRefus
     Ok(format!("{}:{kind}:{local}", campaign.0))
 }
 
-/// The pipeline commit profile's write validation (ruling 12). Every write is
-/// bounds- and key-checked, and the store's first write must carry the
-/// identity, so this owner can never admit a store its own opener refuses.
-pub(crate) fn validate_pipeline_writes(
-    cache: &CultCache,
-    writes: &[CultCacheEnvelope],
-) -> Result<()> {
-    for write in writes {
-        validate_pipeline_write_envelope(write)?;
-    }
-    let identity = |envelope: &CultCacheEnvelope| envelope.r#type == EpiphanyPipelineIdentity::TYPE;
-    if !cache.snapshot_envelopes().iter().any(identity) && !writes.iter().any(identity) {
-        return Err(PipelineRefusal::MissingIdentity.into());
-    }
-    Ok(())
-}
-
 /// Bounds, formats, then key recomputation, for one envelope. Per-kind
-/// admission rules live in Cut 3b.
+/// admission rules belong to the organ's admission path.
+#[cfg_attr(not(test), expect(dead_code, reason = "the organ's admission validates every write through this"))]
 fn validate_pipeline_write_envelope(envelope: &CultCacheEnvelope) -> Result<()> {
     if envelope.r#type == EpiphanyPipelineIdentity::TYPE {
         let identity: EpiphanyPipelineIdentity = rmp_serde::from_slice(&envelope.payload)?;
@@ -642,4 +620,419 @@ fn validate_pipeline_write_envelope(envelope: &CultCacheEnvelope) -> Result<()> 
         .into());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeSet;
+    use std::path::Path;
+
+    const CAMPAIGN: &str = "eureka-state";
+
+    fn s(value: &str) -> Short {
+        value.into()
+    }
+
+    fn l(value: &str) -> Label {
+        value.into()
+    }
+
+    fn slug(value: &str) -> Slug {
+        value.into()
+    }
+
+    fn id(kind: &str, local: &str) -> Short {
+        Short(format!("{CAMPAIGN}:{kind}:{local}"))
+    }
+
+    fn sha() -> Sha {
+        Sha("5f98228d".into())
+    }
+
+    fn date() -> Date {
+        Date("2026-09-15".into())
+    }
+
+    fn range() -> CommitRange {
+        CommitRange { base: sha(), head: sha() }
+    }
+
+    fn location() -> CodeLocation {
+        CodeLocation { path: s("epiphany-core/src/pipeline_documents.rs"), line: 1, end_line: Some(9) }
+    }
+
+    fn evidence() -> Evidence {
+        Evidence { kind: EvidenceKind::Test, locator: "cargo test".into(), result: "ok".into() }
+    }
+
+    fn doc_ref() -> DocRef {
+        DocRef { path: s("notes/eureka-pipeline-state-target.md"), start_line: 1, end_line: 9, commit: sha() }
+    }
+
+    /// One valid document of every kind, with its expected key.
+    fn samples() -> Vec<(PipelineDocument, String)> {
+        use PipelineDocument as D;
+        let repo = || OrgRepo("GameCult/Epiphany".into());
+        let branch = || s("codex/eureka-pipeline-state");
+        vec![
+            (D::Campaign(PipelineCampaign {
+                slug: slug(CAMPAIGN), title: s("Eureka pipeline state"), repos: vec![repo()],
+                working_branch: branch(), target_doc: doc_ref(),
+            }), CAMPAIGN.into()),
+            (D::Target(PipelineTarget {
+                campaign: slug(CAMPAIGN), revision: 2,
+                invariants: vec![TargetInvariant { label: l("mind-admits"), statement: "Only admission writes.".into() }],
+                not_in_scope: vec!["Eve browsing".into()], canonical_implementations: vec!["CultLib".into()], doc: doc_ref(),
+            }), format!("{CAMPAIGN}:target:r2")),
+            (D::Question(PipelineQuestion {
+                campaign: slug(CAMPAIGN), label: l("Q1"), question: "Who owns the state?".into(),
+                options: vec![
+                    QuestionOption { label: l("A"), text: "an instance".into() },
+                    QuestionOption { label: l("B"), text: "a repo".into() },
+                ],
+                recommended: l("A"), depends: vec!["Cut 3a".into()],
+                raised_in: Some(PipelineRef { kind: PipelineKind::CutSpec, id: id("cut_spec", "cut-3a.r1") }),
+                asked_on: date(),
+            }), format!("{CAMPAIGN}:question:Q1")),
+            (D::Ruling(PipelineRuling {
+                campaign: slug(CAMPAIGN), label: l("R8"), answers: Some(id("question", "Q1")), choice: Some(l("A")),
+                ruling: "An instance owns its mind.".into(), operator_quote: Some("all recommendations, go ahead".into()),
+                ruled_on: date(),
+                precedents: vec![ForeignRef {
+                    repo: OrgRepo("GameCult/Aetheria".into()), commit: FullSha("a".repeat(40)), kind: PipelineKind::Ruling,
+                    id: s("cultcache:ruling:R1"), payload_sha256: Sha256Hex("b".repeat(64)),
+                }],
+            }), format!("{CAMPAIGN}:ruling:R8")),
+            (D::CutSpec(PipelineCutSpec {
+                campaign: slug(CAMPAIGN), cut: l("3a"), revision: 1, title: s("Pipeline documents"), repo: repo(),
+                branch: branch(), base: sha(), depends_on: vec![s("2")], first: vec!["Read the spec.".into()],
+                deletes: vec![CutDelete { path: s("old.rs"), lines: 3, note: "dead".into() }],
+                keeps_moves: vec!["commit owner".into()], adds: vec!["pipeline_documents.rs".into()],
+                file_changes: vec![FileChange { location: location(), change: "add".into() }],
+                authority_map: Some(AuthorityMap {
+                    owner: "core".into(), inputs: vec!["typed documents".into()], outputs: vec!["envelopes".into()],
+                    derived_state: vec!["derived keys".into()], forbidden_writers: vec!["MCP".into()],
+                    shared_paths: vec!["admission".into()], deletion_line: "n/a".into(),
+                }),
+                verification: CutVerification {
+                    builds: vec!["cargo check".into()],
+                    tests: vec![VerificationTest { name: s("keys"), pins: "one derived key".into() }],
+                    negative: vec![NegativeCheck { pattern: s("Vec<u8>"), scope: "documents".into() }],
+                    operator: vec!["none".into()],
+                },
+                subtraction_estimate: SubtractionEstimate {
+                    lines_removed: 0, lines_added: 900, removed: vec![], added: vec![s("schemars")],
+                },
+                rulings: vec![id("ruling", "R8")], questions: vec![id("question", "Q1")],
+            }), format!("{CAMPAIGN}:cut_spec:cut-3a.r1")),
+            (D::CutReport(PipelineCutReport {
+                campaign: slug(CAMPAIGN), cut_spec: id("cut_spec", "cut-3a.r1"), attempt: 1, repo: repo(), branch: branch(),
+                commits: vec![ReportCommit { sha: sha(), subject: "Add the pipeline documents".into(), builds: true }],
+                range: range(), verification: vec![evidence()],
+                mutations: vec![MutationRecord { rule: "key derivation".into(), mutation: "drop the marker rule".into(), failed_as_expected: true }],
+                deviations: vec![Deviation { what: "names".into(), why: "glob exports".into() }],
+                forks: vec![id("question", "Q1")],
+                structural_delta: StructuralDelta {
+                    lines_added: 900, lines_removed: 0, dependencies_added: vec![s("schemars")],
+                    dependencies_removed: vec![], formats_added: vec![s("epiphany.pipeline.*.v1")],
+                    formats_removed: vec![], targets_added: vec![], targets_removed: vec![],
+                },
+                landed_names: vec![LandedName { name: s("PipelineDocument"), path: s("epiphany-core/src/pipeline_documents.rs") }],
+                undone: vec!["admission".into()],
+            }), format!("{CAMPAIGN}:cut_report:cut-3a.h1")),
+            (D::Verdict(PipelineVerdict {
+                campaign: slug(CAMPAIGN), cut_report: id("cut_report", "cut-3a.h1"), pass: 2, range: range(),
+                claims: vec![VerdictClaim {
+                    claim: "A composed key has one source.".into(), outcome: ClaimOutcome::Falsified,
+                    evidence: vec![evidence()], findings: vec![id("finding", "cut-3a.s2.F4")],
+                }],
+            }), format!("{CAMPAIGN}:verdict:cut-3a.s2")),
+            (D::Finding(PipelineFinding {
+                campaign: slug(CAMPAIGN), verdict: id("verdict", "cut-3a.s2"), label: l("F4"), range: range(),
+                confidence: FindingConfidence::Confirmed, severity: FindingSeverity::High,
+                claim: "A dotted label composes two keys.".into(), invariants: vec![l("mind-admits")],
+                locations: vec![location()], failure_scenario: "Two documents claim one key.".into(),
+                evidence: vec![evidence()], precedents: vec![],
+            }), format!("{CAMPAIGN}:finding:cut-3a.s2.F4")),
+            (D::FollowUp(PipelineFollowUp {
+                campaign: slug(CAMPAIGN), label: l("FU-4"),
+                source: PipelineRef { kind: PipelineKind::Finding, id: id("finding", "cut-3a.s2.F4") },
+                repo: repo(), locations: vec![location()], item: "Per-kind admission rules.".into(),
+                why_it_can_wait: "The organ owns admission.".into(), owner: s("Hands"),
+            }), format!("{CAMPAIGN}:follow_up:FU-4")),
+            (D::Resolution(PipelineResolution {
+                subject: PipelineRef { kind: PipelineKind::Question, id: id("question", "Q1") },
+                outcome: ResolutionOutcome::Answered { by: id("ruling", "R8") },
+                rationale: "Ruled A.".into(), resolved_on: date(),
+            }), format!("resolution:{CAMPAIGN}:question:Q1")),
+        ]
+    }
+
+    fn campaign_sample() -> PipelineDocument {
+        samples().remove(0).0
+    }
+
+    fn report_sample() -> PipelineCutReport {
+        let PipelineDocument::CutReport(report) = samples().remove(5).0 else { unreachable!() };
+        report
+    }
+
+    fn verdict_sample() -> PipelineVerdict {
+        let PipelineDocument::Verdict(verdict) = samples().remove(6).0 else { unreachable!() };
+        verdict
+    }
+
+    fn finding_sample() -> PipelineFinding {
+        let PipelineDocument::Finding(finding) = samples().remove(7).0 else { unreachable!() };
+        finding
+    }
+
+    fn resolution_sample() -> PipelineResolution {
+        let PipelineDocument::Resolution(resolution) = samples().remove(9).0 else { unreachable!() };
+        resolution
+    }
+
+    fn schema_cache() -> Result<CultCache> {
+        let mut cache = CultCache::new();
+        register_pipeline_document_types(&mut cache)?;
+        Ok(cache)
+    }
+
+    #[test]
+    fn every_pipeline_kind_round_trips_through_named_slot_zero() -> Result<()> {
+        let cache = schema_cache()?;
+        let samples = samples();
+        let kinds = samples.iter().map(|(document, _)| document.kind()).collect::<BTreeSet<_>>();
+        assert_eq!(kinds.len(), PipelineKind::ALL.len(), "every kind has a sample");
+        for (document, _) in samples {
+            document.validate()?;
+            let envelope = document.prepare(&cache)?;
+            assert_eq!(envelope.r#type, document.kind().type_id());
+            assert_eq!(envelope.payload[0], 0x91, "{:?} payload is a one-element array", document.kind());
+            assert!(
+                matches!(envelope.payload[1], 0x80..=0x8f | 0xde | 0xdf),
+                "{:?} slot 0 is a named map",
+                document.kind()
+            );
+            assert_eq!(PipelineDocument::decode(&envelope)?, document);
+            Ok::<_, anyhow::Error>(())?;
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn bounds_refuse_in_utf8_bytes() {
+        let PipelineDocument::Campaign(mut campaign) = campaign_sample() else { unreachable!() };
+        campaign.title = Short("é".repeat(100));
+        assert_eq!(PipelineDocument::Campaign(campaign.clone()).validate(), Ok(()));
+        campaign.title = Short(format!("{}a", "é".repeat(100)));
+        assert_eq!(
+            PipelineDocument::Campaign(campaign.clone()).validate(),
+            Err(PipelineRefusal::FieldBound { field: "campaign.title".into(), limit: 200, actual: 201 })
+        );
+        campaign.title = s("ok");
+        campaign.repos = vec![OrgRepo("GameCult/Epiphany".into()); 9];
+        assert_eq!(
+            PipelineDocument::Campaign(campaign).validate(),
+            Err(PipelineRefusal::FieldBound { field: "campaign.repos".into(), limit: 8, actual: 9 })
+        );
+    }
+
+    #[test]
+    fn repo_fields_must_be_org_slash_repo() {
+        let mut report = report_sample();
+        report.repo = OrgRepo("Epiphany".into());
+        assert_eq!(
+            PipelineDocument::CutReport(report).validate(),
+            Err(PipelineRefusal::InvalidFormat { field: "cut_report.repo".into(), value: "Epiphany".into() })
+        );
+        let PipelineDocument::CutSpec(mut spec) = samples().remove(4).0 else { unreachable!() };
+        spec.repo = OrgRepo("GameCult/Epiphany/extra".into());
+        assert!(matches!(
+            PipelineDocument::CutSpec(spec).validate(),
+            Err(PipelineRefusal::InvalidFormat { field, .. }) if field == "cut_spec.repo"
+        ));
+        let PipelineDocument::FollowUp(mut follow_up) = samples().remove(8).0 else { unreachable!() };
+        follow_up.repo = OrgRepo("/Epiphany".into());
+        assert!(matches!(
+            PipelineDocument::FollowUp(follow_up).validate(),
+            Err(PipelineRefusal::InvalidFormat { field, .. }) if field == "follow_up.repo"
+        ));
+    }
+
+    #[test]
+    fn keys_are_derived_and_mismatch_refuses() -> Result<()> {
+        let cache = schema_cache()?;
+        for (document, key) in samples() {
+            assert_eq!(pipeline_key(&document), Ok(key.clone()));
+            let mut envelope = document.prepare(&cache)?;
+            envelope.key = format!("{key}-forged");
+            let error = validate_pipeline_write_envelope(&envelope).unwrap_err();
+            assert_eq!(
+                error.downcast_ref::<PipelineRefusal>(),
+                Some(&PipelineRefusal::InvalidIdentity { kind: document.kind(), key: envelope.key, expected: key })
+            );
+        }
+        let mut resolution = resolution_sample();
+        let answered = pipeline_key(&PipelineDocument::Resolution(resolution.clone()));
+        resolution.outcome = ResolutionOutcome::Withdrawn { reason: "moot".into() };
+        assert_eq!(
+            pipeline_key(&PipelineDocument::Resolution(resolution)),
+            answered,
+            "a subject has one resolution key whatever the outcome"
+        );
+        Ok(())
+    }
+
+    /// F2: numeric attempt and pass, and a dot-free finding label, mean two
+    /// different documents can never compose one key. These are Soul's pairs.
+    #[test]
+    fn composed_keys_cannot_collide() {
+        let key = |document: PipelineDocument| pipeline_key(&document);
+
+        let mut wide_label = finding_sample();
+        wide_label.label = l("F1.G");
+        assert!(
+            matches!(key(PipelineDocument::Finding(wide_label)), Err(PipelineRefusal::InvalidFormat { .. })),
+            "a finding label carrying a dot is refused, not silently composed"
+        );
+        let mut deep_verdict = finding_sample();
+        deep_verdict.verdict = id("verdict", "cut-3a.s1.F1");
+        deep_verdict.label = l("G");
+        assert!(
+            matches!(key(PipelineDocument::Finding(deep_verdict)), Err(PipelineRefusal::InvalidFormat { .. })),
+            "a verdict local that is not cut-<label>.s<N> is refused"
+        );
+        let mut plain = finding_sample();
+        plain.verdict = id("verdict", "cut-3a.s1");
+        plain.label = l("F1");
+        assert_eq!(key(PipelineDocument::Finding(plain)), Ok(format!("{CAMPAIGN}:finding:cut-3a.s1.F1")));
+
+        let mut deep_spec = report_sample();
+        deep_spec.cut_spec = id("cut_spec", "cut-3a.h1.r1");
+        deep_spec.attempt = 2;
+        assert!(
+            matches!(key(PipelineDocument::CutReport(deep_spec)), Err(PipelineRefusal::InvalidFormat { .. })),
+            "a cut label carrying a dot is refused, so cut-3a.h1.h2 has one source"
+        );
+        let mut attempt_two = report_sample();
+        attempt_two.attempt = 2;
+        assert_eq!(key(PipelineDocument::CutReport(attempt_two)), Ok(format!("{CAMPAIGN}:cut_report:cut-3a.h2")));
+    }
+
+    /// F3: every parent id is parsed strictly. These are the bad parents Soul
+    /// found accepted, plus the wrong-kind and marker rules that mutations S1
+    /// and S3 remove.
+    #[test]
+    fn parent_ids_are_parsed_strictly() {
+        let refused = |parent: &str| {
+            let mut report = report_sample();
+            report.cut_spec = Short(parent.into());
+            let key = pipeline_key(&PipelineDocument::CutReport(report));
+            assert!(
+                matches!(&key, Err(PipelineRefusal::InvalidFormat { field, .. }) if field == "cut_report.cut_spec"),
+                "parent {parent:?} must be refused, got {key:?}"
+            );
+        };
+        refused(&format!("{CAMPAIGN}:cut_spec:cut-3a.r1:junk"));
+        refused(&format!("{CAMPAIGN}:cut_spec:cut-3a.rX"));
+        refused(&format!("{CAMPAIGN}:cut_spec:cut-..r1"));
+        refused(&format!("{CAMPAIGN}:cut_spec:cut-.r1"));
+        refused(&format!("{CAMPAIGN}:cut_spec:cut-3a.r1 "));
+        refused(&format!("{CAMPAIGN}:cut_spec:cut-3a.r"));
+        refused(&format!("{CAMPAIGN}:cut_report:cut-3a.h1"));
+        // Right kind and a well-formed number, but the marker belongs to
+        // another kind: the marker rule is pinned on its own.
+        refused(&format!("{CAMPAIGN}:cut_spec:cut-3a.h1"));
+        refused(&format!("{CAMPAIGN}:cut_spec:cut-3a.s1"));
+        // A well-formed number with no marker at all. Only the marker rule
+        // refuses this one: the digits rule is satisfied either way.
+        refused(&format!("{CAMPAIGN}:cut_spec:cut-3a.1"));
+        refused(&format!("{CAMPAIGN}:CUT_SPEC:cut-3a.r1"));
+        refused(&format!("EUREKA-STATE:cut_spec:cut-3a.r1"));
+        refused(&format!("{CAMPAIGN}:cut_spec:cut-3a.r1:"));
+        refused(&format!("{CAMPAIGN}::cut-3a.r1"));
+        refused("cut-3a.r1");
+        let mut other_campaign = report_sample();
+        other_campaign.campaign = slug("other-campaign");
+        assert!(
+            matches!(
+                pipeline_key(&PipelineDocument::CutReport(other_campaign)),
+                Err(PipelineRefusal::InvalidFormat { .. })
+            ),
+            "a parent in another campaign is refused"
+        );
+        let mut verdict = verdict_sample();
+        verdict.cut_report = id("cut_report", "cut-3a.r1");
+        assert!(
+            matches!(pipeline_key(&PipelineDocument::Verdict(verdict)), Err(PipelineRefusal::InvalidFormat { .. })),
+            "a verdict's parent must carry the report marker, not the spec marker"
+        );
+    }
+
+    /// F4: a resolution's subject id is a full id of the declared kind.
+    #[test]
+    fn resolution_subject_is_a_full_id_of_its_kind() {
+        let refused = |kind: PipelineKind, subject: &str| {
+            let mut resolution = resolution_sample();
+            resolution.subject = PipelineRef { kind, id: Short(subject.into()) };
+            let document = PipelineDocument::Resolution(resolution);
+            assert!(
+                matches!(document.validate(), Err(PipelineRefusal::InvalidFormat { .. })),
+                "subject {subject:?} must fail validation"
+            );
+            assert!(
+                matches!(pipeline_key(&document), Err(PipelineRefusal::InvalidFormat { .. })),
+                "subject {subject:?} must not compose a key"
+            );
+        };
+        refused(PipelineKind::Question, "");
+        refused(PipelineKind::Question, "not an id: spaces and : colons");
+        refused(PipelineKind::Question, "eureka-state:question:1１");
+        refused(PipelineKind::Question, &format!("{CAMPAIGN}:ruling:R8"));
+        refused(PipelineKind::Ruling, &format!("{CAMPAIGN}:question:Q1"));
+        refused(PipelineKind::Question, &format!("{CAMPAIGN}:question:.."));
+
+        let mut valid = resolution_sample();
+        valid.subject = PipelineRef { kind: PipelineKind::Ruling, id: id("ruling", "R8") };
+        assert_eq!(
+            pipeline_key(&PipelineDocument::Resolution(valid)),
+            Ok(format!("resolution:{CAMPAIGN}:ruling:R8"))
+        );
+    }
+
+    #[test]
+    fn pipeline_published_schemas_match_derivation() -> Result<()> {
+        let published = Path::new(env!("CARGO_MANIFEST_DIR")).join("../schemas/cultnet");
+        let index: serde_json::Value = serde_json::from_slice(&std::fs::read(published.join("index.json"))?)?;
+        let derived_dir = std::env::temp_dir().join("epiphany-pipeline-schemas");
+        let mut stale = Vec::new();
+        for kind in PipelineKind::ALL {
+            let file = format!("{}.schema.json", kind.type_id());
+            let mut schema = serde_json::to_value(kind.derived_schema())?;
+            schema["$id"] = format!("https://gamecult.dev/epiphany/cultnet/{file}").into();
+            let derived = format!("{}\n", serde_json::to_string_pretty(&schema)?);
+            if std::fs::read(published.join(&file)).ok().as_deref() != Some(derived.as_bytes()) {
+                std::fs::create_dir_all(&derived_dir)?;
+                std::fs::write(derived_dir.join(&file), &derived)?;
+                stale.push(derived_dir.join(&file));
+            }
+            let entry = serde_json::json!({
+                "schemaId": format!("https://gamecult.dev/epiphany/cultnet/{file}"),
+                "kind": "document_payload",
+                "wireContracts": ["cultnet.schema.v0"],
+                "schemaVersion": kind.type_id(),
+                "documentType": kind.type_id(),
+                "title": format!("Epiphany Pipeline {kind:?} v1"),
+                "path": file,
+            });
+            assert!(
+                index["schemas"].as_array().is_some_and(|schemas| schemas.contains(&entry)),
+                "index.json lacks {entry}"
+            );
+        }
+        assert!(stale.is_empty(), "published pipeline schemas differ from the Rust derivation; derived copies: {stale:?}");
+        Ok(())
+    }
 }
