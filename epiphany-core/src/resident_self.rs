@@ -2731,6 +2731,31 @@ mod pressure_replay_tests {
     }
 
     #[test]
+    fn state_cache_reads_without_writing_the_store() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("resident.cc");
+        let cache = state_cache(&store)?;
+        SingleFileMessagePackBackingStore::new(&store).push(
+            &cache
+                .prepare_entry(RESIDENT_SELF_STATE_KEY, &ResidentSelfState::default())?
+                .0,
+        )?;
+        let past = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_000_000_000);
+        std::fs::File::options()
+            .write(true)
+            .open(&store)?
+            .set_modified(past)?;
+        let reopened = state_cache(&store)?;
+        assert!(
+            reopened
+                .get::<ResidentSelfState>(RESIDENT_SELF_STATE_KEY)?
+                .is_some()
+        );
+        assert_eq!(std::fs::metadata(&store)?.modified()?, past);
+        Ok(())
+    }
+
+    #[test]
     fn configured_operator_pressure_replay_preserves_the_first_document() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("resident.cc");

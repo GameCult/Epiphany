@@ -891,3 +891,36 @@ fn stable_pending_mention_id(
 fn now_iso() -> String {
     chrono::Utc::now().to_rfc3339()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn persona_social_cache_reads_without_writing_the_store() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("social.cc");
+        let cache = persona_social_cache(&store)?;
+        let head = PersonaSocialRetentionHeadDocument {
+            head: PersonaConversationRetentionHead::default(),
+        };
+        SingleFileMessagePackBackingStore::new(&store).push(
+            &cache
+                .prepare_entry(PERSONA_SOCIAL_RETENTION_HEAD_KEY, &head)?
+                .0,
+        )?;
+        let past = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_000_000_000);
+        std::fs::File::options()
+            .write(true)
+            .open(&store)?
+            .set_modified(past)?;
+        let reopened = persona_social_cache(&store)?;
+        assert_eq!(
+            reopened
+                .get::<PersonaSocialRetentionHeadDocument>(PERSONA_SOCIAL_RETENTION_HEAD_KEY)?,
+            Some(head)
+        );
+        assert_eq!(std::fs::metadata(&store)?.modified()?, past);
+        Ok(())
+    }
+}
