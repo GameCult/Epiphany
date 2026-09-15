@@ -782,6 +782,10 @@ mod tests {
         refused(&format!("{CAMPAIGN}:cut_spec:cut-3a.r1 "));
         refused(&format!("{CAMPAIGN}:cut_spec:cut-3a.r"));
         refused(&format!("{CAMPAIGN}:cut_report:cut-3a.h1"));
+        // Right kind and a well-formed number, but the marker belongs to
+        // another kind: the marker rule is pinned on its own.
+        refused(&format!("{CAMPAIGN}:cut_spec:cut-3a.h1"));
+        refused(&format!("{CAMPAIGN}:cut_spec:cut-3a.s1"));
         refused(&format!("{CAMPAIGN}:CUT_SPEC:cut-3a.r1"));
         refused(&format!("EUREKA-STATE:cut_spec:cut-3a.r1"));
         refused(&format!("{CAMPAIGN}:cut_spec:cut-3a.r1:"));
@@ -1121,7 +1125,7 @@ mod tests {
     }
 
     #[test]
-    fn a_bare_clone_has_no_main_work_tree() -> Result<()> {
+    fn a_bare_clone_is_not_a_repo_root() -> Result<()> {
         let temp = tempdir()?;
         let bare = temp.path().join("bare.git");
         std::fs::create_dir_all(&bare)?;
@@ -1129,6 +1133,26 @@ mod tests {
         assert!(
             matches!(attach(&bare, "bare").err(), Some(PipelineRefusal::NotRepoRoot { .. })),
             "a bare clone refuses typed, with no worktree-only mode"
+        );
+        Ok(())
+    }
+
+    /// Ruling 10's odd-layout arm: a work-tree top level whose git dir is not a
+    /// sibling `.git` has no main working tree to resolve, and refuses typed.
+    #[test]
+    fn a_separate_git_dir_has_no_main_work_tree() -> Result<()> {
+        let temp = tempdir()?;
+        let root = temp.path().join("repo");
+        let git_dir = temp.path().join("elsewhere.git");
+        std::fs::create_dir_all(&root)?;
+        git_ok(&root, &["init", "-q", "-b", "main", "--separate-git-dir", &git_dir.to_string_lossy()])?;
+        assert!(
+            matches!(attach(&root, "separate").err(), Some(PipelineRefusal::NoMainWorkTree { .. })),
+            "a separate git dir refuses typed, with no worktree-only mode"
+        );
+        assert!(
+            matches!(PipelineStore::open(&root).err(), Some(PipelineRefusal::NoMainWorkTree { .. })),
+            "and the read path refuses it the same way"
         );
         Ok(())
     }
