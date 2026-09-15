@@ -42,8 +42,19 @@ This campaign builds them once, here, and gives Eureka agents access to them.
    launched by Claude Code per session, so no daemon is added. It writes
    through a newly public Epiphany admission path under organ provenance
    (`eureka`), so Epiphany's rules decide what is admitted.
-6. **One store.** A single user-level pipeline store, outside every repo and
-   separate from Epiphany's runtime and Mind stores, with its own epoch.
+6. **The store lives in the task's repo.** This replaces an earlier ruling from
+   the same day that put a single user-level store outside every repo. The
+   operator said: "have the pipeline store sit in the repo where the task takes
+   place. Each Epiphany learns for itself, with affordances for sharing
+   knowledge, same when running Eureka. Then the Eureka working branch can sync
+   with Yggdrasil".
+   - The pipeline store is committed in the repo where the campaign runs, on its
+     working branch, next to the target and cut documents.
+   - It is separate from Epiphany's runtime and Mind stores and has its own
+     epoch.
+   - Knowledge crosses repos only through explicit sharing.
+   - Pushing the branch is the sync, and voidbot's existing repo mirror indexes
+     it.
 7. **Re-pin first.** Epiphany's CultLib pin (`e171eca3`) is 30 commits behind
    `main` (`a0813c6`), from before one-home-store and atomic `push_all`. The
    re-pin is the first cut.
@@ -66,9 +77,15 @@ This campaign builds them once, here, and gives Eureka agents access to them.
   id and version, and a key strategy chosen for identity, not convenience.
   Each is published in `schemas/cultnet/index.json` alongside `persona_state`
   and `work_organ_state`.
-- **Store.** The pipeline store lives at one user-level path. It is written
-  only through Epiphany's admission, with batch compare-and-swap and receipts.
-  It refuses foreign epochs, with no compatibility reader.
+- **Store.** Each campaign's pipeline store sits at a fixed relative path in the
+  repo where the task runs, is committed on the campaign's working branch, and
+  is laid out so that parallel branches merge cleanly. The map decides the
+  layout. Epiphany's admission is the only writer, using batch compare-and-swap
+  with receipts. It refuses foreign epochs, with no compatibility reader.
+- **Sharing.** Knowledge crosses repos only through explicit affordances, such
+  as a read-only foreign query or a citation carrying provenance, as the map
+  decides. A repo's store is written only by admissions made while working in
+  that repo.
 - **Admission.** A public admission entry point accepts organ provenance
   (`eureka`) and applies per-document rules:
   - A finding must name its commit range and evidence.
@@ -86,9 +103,11 @@ This campaign builds them once, here, and gives Eureka agents access to them.
 
   Every write is an admission, so no tool writes to the store directly. It is
   registered for Claude Code at user scope.
-- **Semantic projection.** voidbot gains a collection that indexes a projection
-  of admitted pipeline documents. The typed store remains the only truth, and
-  the MCP server returns typed ids that voidbot hits resolve to.
+- **Semantic projection.** Pushing the working branch syncs the store with
+  Yggdrasil. voidbot's existing repo mirror finds pipeline stores in the repos
+  it already pulls and indexes a projection of their admitted documents as a new
+  collection. The typed store remains the only truth, and voidbot hits resolve to
+  typed ids in the owning repo's store.
 - **Eureka.** The skill's briefs tell Self, Imagination, Hands and Soul to read
   from and admit to this state instead of relaying prose. The cut map document
   in the target repo becomes a rendering of typed cut specs, or is retired, as
