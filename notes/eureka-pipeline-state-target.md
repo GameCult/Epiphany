@@ -82,6 +82,15 @@ This campaign builds them once, here, and gives Eureka agents access to them.
   is laid out so that parallel branches merge cleanly. The map decides the
   layout. Epiphany's admission is the only writer, using batch compare-and-swap
   with receipts. It refuses foreign epochs, with no compatibility reader.
+- **One runner per repo.** Only one Epiphany or Eureka writes a repo's pipeline
+  store at a time. The operator put it as "There should only ever be one
+  Epiphany/Eureka running in any one repo. Nonetheless, we should have a merge
+  tool in case it ever happens."
+  - A second concurrent writer is refused with a typed refusal naming the
+    holder. The map chooses the mechanism.
+  - A merge tool reconciles two divergent copies through Epiphany's admission,
+    replaying admitted documents. It reports true conflicts as typed refusals
+    and never lets the last writer win.
 - **Sharing.** Knowledge crosses repos only through explicit affordances, such
   as a read-only foreign query or a citation carrying provenance, as the map
   decides. A repo's store is written only by admissions made while working in
