@@ -90,7 +90,7 @@
       "description": "A citation of a document in another repo's pipeline store (D6).",
       "properties": {
         "commit": {
-          "$ref": "#/$defs/Sha"
+          "$ref": "#/$defs/FullSha"
         },
         "id": {
           "$ref": "#/$defs/Short"
@@ -99,10 +99,10 @@
           "$ref": "#/$defs/PipelineKind"
         },
         "payload_sha256": {
-          "type": "string"
+          "$ref": "#/$defs/Sha256Hex"
         },
         "repo": {
-          "$ref": "#/$defs/Short"
+          "$ref": "#/$defs/OrgRepo"
         }
       },
       "required": [
@@ -114,12 +114,29 @@
       ],
       "type": "object"
     },
+    "FullSha": {
+      "description": "A full git commit id: exactly 40 lowercase hex characters.",
+      "maxLength": 40,
+      "type": "string"
+    },
+    "Label": {
+      "description": "A key label: `[A-Za-z0-9_-]{1,64}`.",
+      "maxLength": 64,
+      "type": "string"
+    },
     "Line": {
       "description": "Text of at most 1,000 UTF-8 bytes.",
+      "maxLength": 1000,
+      "type": "string"
+    },
+    "OrgRepo": {
+      "description": "A GitHub repository as `Org/Repo`.",
+      "maxLength": 200,
       "type": "string"
     },
     "Para": {
       "description": "Text of at most 4,000 UTF-8 bytes; longer narrative is cited by `DocRef`.",
+      "maxLength": 4000,
       "type": "string"
     },
     "PipelineKind": {
@@ -139,10 +156,22 @@
     },
     "Sha": {
       "description": "A git commit id: 7-40 lowercase hex characters.",
+      "maxLength": 40,
+      "type": "string"
+    },
+    "Sha256Hex": {
+      "description": "A SHA-256 digest: exactly 64 lowercase hex characters.",
+      "maxLength": 64,
       "type": "string"
     },
     "Short": {
       "description": "Text of at most 200 UTF-8 bytes.",
+      "maxLength": 200,
+      "type": "string"
+    },
+    "Slug": {
+      "description": "A campaign slug or key segment: label parts joined by `.`.",
+      "maxLength": 64,
       "type": "string"
     }
   },
@@ -150,7 +179,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
     "campaign": {
-      "$ref": "#/$defs/Short"
+      "$ref": "#/$defs/Slug"
     },
     "claim": {
       "$ref": "#/$defs/Line"
@@ -162,6 +191,7 @@
       "items": {
         "$ref": "#/$defs/Evidence"
       },
+      "maxItems": 16,
       "type": "array"
     },
     "failure_scenario": {
@@ -169,23 +199,26 @@
     },
     "invariants": {
       "items": {
-        "$ref": "#/$defs/Short"
+        "$ref": "#/$defs/Label"
       },
+      "maxItems": 8,
       "type": "array"
     },
     "label": {
-      "$ref": "#/$defs/Short"
+      "$ref": "#/$defs/Label"
     },
     "locations": {
       "items": {
         "$ref": "#/$defs/CodeLocation"
       },
+      "maxItems": 16,
       "type": "array"
     },
     "precedents": {
       "items": {
         "$ref": "#/$defs/ForeignRef"
       },
+      "maxItems": 8,
       "type": "array"
     },
     "range": {

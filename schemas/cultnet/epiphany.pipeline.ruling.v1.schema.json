@@ -2,13 +2,14 @@
   "$defs": {
     "Date": {
       "description": "A calendar date, `YYYY-MM-DD`.",
+      "maxLength": 10,
       "type": "string"
     },
     "ForeignRef": {
       "description": "A citation of a document in another repo's pipeline store (D6).",
       "properties": {
         "commit": {
-          "$ref": "#/$defs/Sha"
+          "$ref": "#/$defs/FullSha"
         },
         "id": {
           "$ref": "#/$defs/Short"
@@ -17,10 +18,10 @@
           "$ref": "#/$defs/PipelineKind"
         },
         "payload_sha256": {
-          "type": "string"
+          "$ref": "#/$defs/Sha256Hex"
         },
         "repo": {
-          "$ref": "#/$defs/Short"
+          "$ref": "#/$defs/OrgRepo"
         }
       },
       "required": [
@@ -32,8 +33,24 @@
       ],
       "type": "object"
     },
+    "FullSha": {
+      "description": "A full git commit id: exactly 40 lowercase hex characters.",
+      "maxLength": 40,
+      "type": "string"
+    },
+    "Label": {
+      "description": "A key label: `[A-Za-z0-9_-]{1,64}`.",
+      "maxLength": 64,
+      "type": "string"
+    },
+    "OrgRepo": {
+      "description": "A GitHub repository as `Org/Repo`.",
+      "maxLength": 200,
+      "type": "string"
+    },
     "Para": {
       "description": "Text of at most 4,000 UTF-8 bytes; longer narrative is cited by `DocRef`.",
+      "maxLength": 4000,
       "type": "string"
     },
     "PipelineKind": {
@@ -51,12 +68,19 @@
       ],
       "type": "string"
     },
-    "Sha": {
-      "description": "A git commit id: 7-40 lowercase hex characters.",
+    "Sha256Hex": {
+      "description": "A SHA-256 digest: exactly 64 lowercase hex characters.",
+      "maxLength": 64,
       "type": "string"
     },
     "Short": {
       "description": "Text of at most 200 UTF-8 bytes.",
+      "maxLength": 200,
+      "type": "string"
+    },
+    "Slug": {
+      "description": "A campaign slug or key segment: label parts joined by `.`.",
+      "maxLength": 64,
       "type": "string"
     }
   },
@@ -74,12 +98,12 @@
       ]
     },
     "campaign": {
-      "$ref": "#/$defs/Short"
+      "$ref": "#/$defs/Slug"
     },
     "choice": {
       "anyOf": [
         {
-          "$ref": "#/$defs/Short"
+          "$ref": "#/$defs/Label"
         },
         {
           "type": "null"
@@ -87,7 +111,7 @@
       ]
     },
     "label": {
-      "$ref": "#/$defs/Short"
+      "$ref": "#/$defs/Label"
     },
     "operator_quote": {
       "anyOf": [
@@ -103,6 +127,7 @@
       "items": {
         "$ref": "#/$defs/ForeignRef"
       },
+      "maxItems": 8,
       "type": "array"
     },
     "ruled_on": {

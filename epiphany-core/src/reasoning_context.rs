@@ -1591,14 +1591,23 @@ pub(crate) struct TypedCommitStore {
     pub(crate) store_id: &'static str,
     pub(crate) backing_store: fn(&Path) -> Result<RuntimeSpineBackingStore>,
     pub(crate) open_cache: fn(RuntimeSpineBackingStore) -> Result<CultCache>,
-    pub(crate) validate_write: fn(&CultCacheEnvelope) -> Result<()>,
+    /// Validates a whole batch against the store image it will be applied to,
+    /// so a profile can require a document the first write must carry.
+    pub(crate) validate_writes: fn(&CultCache, &[CultCacheEnvelope]) -> Result<()>,
+}
+
+fn validate_mind_writes(_cache: &CultCache, writes: &[CultCacheEnvelope]) -> Result<()> {
+    for write in writes {
+        crate::mind_documents::validate_mind_write_envelope(write)?;
+    }
+    Ok(())
 }
 
 pub(crate) const MIND_COMMIT_STORE: TypedCommitStore = TypedCommitStore {
     store_id: "epiphany-mind",
     backing_store: runtime_spine_backing_store,
     open_cache: crate::runtime_spine::open_runtime_spine_cache,
-    validate_write: crate::mind_documents::validate_mind_write_envelope,
+    validate_writes: validate_mind_writes,
 };
 
 pub(crate) fn commit_authorized_mind_mutation(
@@ -1618,9 +1627,6 @@ pub(crate) fn commit_authorized_mind_mutation(
     if writes.is_empty() {
         return Err(anyhow!("Mind mutation requires at least one write"));
     }
-    for write in &writes {
-        (store.validate_write)(write)?;
-    }
     validate_unique_envelope_identities(&strong_reads, "strong read")?;
     validate_unique_envelope_identities(&writes, "write")?;
     validate_unique_envelope_identities(&companions, "companion")?;
@@ -1635,6 +1641,7 @@ pub(crate) fn commit_authorized_mind_mutation(
     let backing_store = (store.backing_store)(store_path)?;
     let mut cache = (store.open_cache)(backing_store.clone())?;
     cache.pull_all_backing_stores()?;
+    (store.validate_writes)(&cache, &writes)?;
     let mut companion_expected = Vec::new();
     let mut companion_replacements = Vec::new();
     for companion in companions {
@@ -2521,9 +2528,11 @@ mod tests {
             cache.add_generic_backing_store(backing_store)?;
             Ok(cache)
         },
-        validate_write: |write| match write.key.as_str() {
-            "refused" => Err(anyhow!("test profile refuses this write")),
-            _ => Ok(()),
+        validate_writes: |_, writes| {
+            match writes.iter().any(|write| write.key == "refused") {
+                true => Err(anyhow!("test profile refuses this write")),
+                false => Ok(()),
+            }
         },
     };
 
@@ -2588,7 +2597,7 @@ mod tests {
     #[test]
     fn typed_commit_store_validates_before_answering_a_replay() -> Result<()> {
         const NOW_REFUSING: TypedCommitStore = TypedCommitStore {
-            validate_write: |_| Err(anyhow!("test profile now refuses every write")),
+            validate_writes: |_, _| Err(anyhow!("test profile now refuses every write")),
             ..TEST_COMMIT_STORE
         };
         let temp = tempdir()?;

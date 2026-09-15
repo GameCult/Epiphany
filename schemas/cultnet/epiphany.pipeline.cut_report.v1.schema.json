@@ -1,30 +1,5 @@
 {
   "$defs": {
-    "CodeLocation": {
-      "properties": {
-        "end_line": {
-          "format": "uint32",
-          "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "line": {
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "path": {
-          "$ref": "#/$defs/Short"
-        }
-      },
-      "required": [
-        "path",
-        "line"
-      ],
-      "type": "object"
-    },
     "CommitRange": {
       "properties": {
         "base": {
@@ -86,39 +61,24 @@
       "type": "string"
     },
     "LandedName": {
+      "description": "A name the cut landed, and where it lives.",
       "properties": {
-        "kind": {
-          "$ref": "#/$defs/LandedNameKind"
-        },
-        "location": {
-          "$ref": "#/$defs/CodeLocation"
-        },
         "name": {
+          "$ref": "#/$defs/Short"
+        },
+        "path": {
           "$ref": "#/$defs/Short"
         }
       },
       "required": [
         "name",
-        "kind",
-        "location"
+        "path"
       ],
       "type": "object"
     },
-    "LandedNameKind": {
-      "enum": [
-        "Module",
-        "Type",
-        "Function",
-        "Constant",
-        "Test",
-        "Schema",
-        "Binary",
-        "File"
-      ],
-      "type": "string"
-    },
     "Line": {
       "description": "Text of at most 1,000 UTF-8 bytes.",
+      "maxLength": 1000,
       "type": "string"
     },
     "MutationRecord": {
@@ -139,6 +99,11 @@
         "failed_as_expected"
       ],
       "type": "object"
+    },
+    "OrgRepo": {
+      "description": "A GitHub repository as `Org/Repo`.",
+      "maxLength": 200,
+      "type": "string"
     },
     "ReportCommit": {
       "properties": {
@@ -161,10 +126,17 @@
     },
     "Sha": {
       "description": "A git commit id: 7-40 lowercase hex characters.",
+      "maxLength": 40,
       "type": "string"
     },
     "Short": {
       "description": "Text of at most 200 UTF-8 bytes.",
+      "maxLength": 200,
+      "type": "string"
+    },
+    "Slug": {
+      "description": "A campaign slug or key segment: label parts joined by `.`.",
+      "maxLength": 64,
       "type": "string"
     },
     "StructuralDelta": {
@@ -173,24 +145,28 @@
           "items": {
             "$ref": "#/$defs/Short"
           },
+          "maxItems": 64,
           "type": "array"
         },
         "dependencies_removed": {
           "items": {
             "$ref": "#/$defs/Short"
           },
+          "maxItems": 64,
           "type": "array"
         },
         "formats_added": {
           "items": {
             "$ref": "#/$defs/Short"
           },
+          "maxItems": 64,
           "type": "array"
         },
         "formats_removed": {
           "items": {
             "$ref": "#/$defs/Short"
           },
+          "maxItems": 64,
           "type": "array"
         },
         "lines_added": {
@@ -207,12 +183,14 @@
           "items": {
             "$ref": "#/$defs/Short"
           },
+          "maxItems": 64,
           "type": "array"
         },
         "targets_removed": {
           "items": {
             "$ref": "#/$defs/Short"
           },
+          "maxItems": 64,
           "type": "array"
         }
       },
@@ -233,18 +211,21 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
     "attempt": {
-      "$ref": "#/$defs/Short"
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
     },
     "branch": {
       "$ref": "#/$defs/Short"
     },
     "campaign": {
-      "$ref": "#/$defs/Short"
+      "$ref": "#/$defs/Slug"
     },
     "commits": {
       "items": {
         "$ref": "#/$defs/ReportCommit"
       },
+      "maxItems": 128,
       "type": "array"
     },
     "cut_spec": {
@@ -254,31 +235,35 @@
       "items": {
         "$ref": "#/$defs/Deviation"
       },
+      "maxItems": 32,
       "type": "array"
     },
     "forks": {
       "items": {
         "$ref": "#/$defs/Short"
       },
+      "maxItems": 8,
       "type": "array"
     },
     "landed_names": {
       "items": {
         "$ref": "#/$defs/LandedName"
       },
+      "maxItems": 128,
       "type": "array"
     },
     "mutations": {
       "items": {
         "$ref": "#/$defs/MutationRecord"
       },
+      "maxItems": 64,
       "type": "array"
     },
     "range": {
       "$ref": "#/$defs/CommitRange"
     },
     "repo": {
-      "$ref": "#/$defs/Short"
+      "$ref": "#/$defs/OrgRepo"
     },
     "structural_delta": {
       "$ref": "#/$defs/StructuralDelta"
@@ -287,12 +272,14 @@
       "items": {
         "$ref": "#/$defs/Line"
       },
+      "maxItems": 32,
       "type": "array"
     },
     "verification": {
       "items": {
         "$ref": "#/$defs/Evidence"
       },
+      "maxItems": 64,
       "type": "array"
     }
   },

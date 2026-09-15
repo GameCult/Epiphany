@@ -55,14 +55,22 @@
     },
     "Line": {
       "description": "Text of at most 1,000 UTF-8 bytes.",
+      "maxLength": 1000,
       "type": "string"
     },
     "Sha": {
       "description": "A git commit id: 7-40 lowercase hex characters.",
+      "maxLength": 40,
       "type": "string"
     },
     "Short": {
       "description": "Text of at most 200 UTF-8 bytes.",
+      "maxLength": 200,
+      "type": "string"
+    },
+    "Slug": {
+      "description": "A campaign slug or key segment: label parts joined by `.`.",
+      "maxLength": 64,
       "type": "string"
     },
     "VerdictClaim": {
@@ -74,12 +82,14 @@
           "items": {
             "$ref": "#/$defs/Evidence"
           },
+          "maxItems": 8,
           "type": "array"
         },
         "findings": {
           "items": {
             "$ref": "#/$defs/Short"
           },
+          "maxItems": 16,
           "type": "array"
         },
         "outcome": {
@@ -99,19 +109,22 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
     "campaign": {
-      "$ref": "#/$defs/Short"
+      "$ref": "#/$defs/Slug"
     },
     "claims": {
       "items": {
         "$ref": "#/$defs/VerdictClaim"
       },
+      "maxItems": 64,
       "type": "array"
     },
     "cut_report": {
       "$ref": "#/$defs/Short"
     },
     "pass": {
-      "$ref": "#/$defs/Short"
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
     },
     "range": {
       "$ref": "#/$defs/CommitRange"

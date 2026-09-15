@@ -2,14 +2,17 @@
   "$defs": {
     "Date": {
       "description": "A calendar date, `YYYY-MM-DD`.",
+      "maxLength": 10,
       "type": "string"
     },
     "Line": {
       "description": "Text of at most 1,000 UTF-8 bytes.",
+      "maxLength": 1000,
       "type": "string"
     },
     "Para": {
       "description": "Text of at most 4,000 UTF-8 bytes; longer narrative is cited by `DocRef`.",
+      "maxLength": 4000,
       "type": "string"
     },
     "PipelineKind": {
@@ -28,6 +31,7 @@
       "type": "string"
     },
     "PipelineRef": {
+      "description": "A reference to another document. The id is parsed as a full pipeline id of\nthe declared `kind`, so the kind and the id's kind segment cannot disagree.",
       "properties": {
         "id": {
           "$ref": "#/$defs/Short"
@@ -168,6 +172,7 @@
     },
     "Short": {
       "description": "Text of at most 200 UTF-8 bytes.",
+      "maxLength": 200,
       "type": "string"
     }
   },

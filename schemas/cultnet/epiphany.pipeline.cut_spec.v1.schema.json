@@ -9,24 +9,28 @@
           "items": {
             "$ref": "#/$defs/Line"
           },
+          "maxItems": 16,
           "type": "array"
         },
         "forbidden_writers": {
           "items": {
             "$ref": "#/$defs/Line"
           },
+          "maxItems": 16,
           "type": "array"
         },
         "inputs": {
           "items": {
             "$ref": "#/$defs/Line"
           },
+          "maxItems": 16,
           "type": "array"
         },
         "outputs": {
           "items": {
             "$ref": "#/$defs/Line"
           },
+          "maxItems": 16,
           "type": "array"
         },
         "owner": {
@@ -36,6 +40,7 @@
           "items": {
             "$ref": "#/$defs/Line"
           },
+          "maxItems": 16,
           "type": "array"
         }
       },
@@ -102,24 +107,28 @@
           "items": {
             "$ref": "#/$defs/Line"
           },
+          "maxItems": 64,
           "type": "array"
         },
         "negative": {
           "items": {
             "$ref": "#/$defs/NegativeCheck"
           },
+          "maxItems": 64,
           "type": "array"
         },
         "operator": {
           "items": {
             "$ref": "#/$defs/Line"
           },
+          "maxItems": 64,
           "type": "array"
         },
         "tests": {
           "items": {
             "$ref": "#/$defs/VerificationTest"
           },
+          "maxItems": 64,
           "type": "array"
         }
       },
@@ -146,8 +155,14 @@
       ],
       "type": "object"
     },
+    "Label": {
+      "description": "A key label: `[A-Za-z0-9_-]{1,64}`.",
+      "maxLength": 64,
+      "type": "string"
+    },
     "Line": {
       "description": "Text of at most 1,000 UTF-8 bytes.",
+      "maxLength": 1000,
       "type": "string"
     },
     "NegativeCheck": {
@@ -165,12 +180,24 @@
       ],
       "type": "object"
     },
+    "OrgRepo": {
+      "description": "A GitHub repository as `Org/Repo`.",
+      "maxLength": 200,
+      "type": "string"
+    },
     "Sha": {
       "description": "A git commit id: 7-40 lowercase hex characters.",
+      "maxLength": 40,
       "type": "string"
     },
     "Short": {
       "description": "Text of at most 200 UTF-8 bytes.",
+      "maxLength": 200,
+      "type": "string"
+    },
+    "Slug": {
+      "description": "A campaign slug or key segment: label parts joined by `.`.",
+      "maxLength": 64,
       "type": "string"
     },
     "SubtractionEstimate": {
@@ -179,6 +206,7 @@
           "items": {
             "$ref": "#/$defs/Short"
           },
+          "maxItems": 64,
           "type": "array"
         },
         "lines_added": {
@@ -195,6 +223,7 @@
           "items": {
             "$ref": "#/$defs/Short"
           },
+          "maxItems": 64,
           "type": "array"
         }
       },
@@ -229,6 +258,7 @@
       "items": {
         "$ref": "#/$defs/Line"
       },
+      "maxItems": 64,
       "type": "array"
     },
     "authority_map": {
@@ -248,49 +278,55 @@
       "$ref": "#/$defs/Short"
     },
     "campaign": {
-      "$ref": "#/$defs/Short"
+      "$ref": "#/$defs/Slug"
     },
     "cut": {
-      "$ref": "#/$defs/Short"
+      "$ref": "#/$defs/Label"
     },
     "deletes": {
       "items": {
         "$ref": "#/$defs/CutDelete"
       },
+      "maxItems": 64,
       "type": "array"
     },
     "depends_on": {
       "items": {
         "$ref": "#/$defs/Short"
       },
+      "maxItems": 8,
       "type": "array"
     },
     "file_changes": {
       "items": {
         "$ref": "#/$defs/FileChange"
       },
+      "maxItems": 256,
       "type": "array"
     },
     "first": {
       "items": {
         "$ref": "#/$defs/Line"
       },
+      "maxItems": 16,
       "type": "array"
     },
     "keeps_moves": {
       "items": {
         "$ref": "#/$defs/Line"
       },
+      "maxItems": 64,
       "type": "array"
     },
     "questions": {
       "items": {
         "$ref": "#/$defs/Short"
       },
+      "maxItems": 16,
       "type": "array"
     },
     "repo": {
-      "$ref": "#/$defs/Short"
+      "$ref": "#/$defs/OrgRepo"
     },
     "revision": {
       "format": "uint32",
@@ -301,6 +337,7 @@
       "items": {
         "$ref": "#/$defs/Short"
       },
+      "maxItems": 32,
       "type": "array"
     },
     "subtraction_estimate": {

@@ -2,14 +2,22 @@
   "$defs": {
     "Date": {
       "description": "A calendar date, `YYYY-MM-DD`.",
+      "maxLength": 10,
+      "type": "string"
+    },
+    "Label": {
+      "description": "A key label: `[A-Za-z0-9_-]{1,64}`.",
+      "maxLength": 64,
       "type": "string"
     },
     "Line": {
       "description": "Text of at most 1,000 UTF-8 bytes.",
+      "maxLength": 1000,
       "type": "string"
     },
     "Para": {
       "description": "Text of at most 4,000 UTF-8 bytes; longer narrative is cited by `DocRef`.",
+      "maxLength": 4000,
       "type": "string"
     },
     "PipelineKind": {
@@ -28,6 +36,7 @@
       "type": "string"
     },
     "PipelineRef": {
+      "description": "A reference to another document. The id is parsed as a full pipeline id of\nthe declared `kind`, so the kind and the id's kind segment cannot disagree.",
       "properties": {
         "id": {
           "$ref": "#/$defs/Short"
@@ -45,7 +54,7 @@
     "QuestionOption": {
       "properties": {
         "label": {
-          "$ref": "#/$defs/Short"
+          "$ref": "#/$defs/Label"
         },
         "text": {
           "$ref": "#/$defs/Line"
@@ -59,6 +68,12 @@
     },
     "Short": {
       "description": "Text of at most 200 UTF-8 bytes.",
+      "maxLength": 200,
+      "type": "string"
+    },
+    "Slug": {
+      "description": "A campaign slug or key segment: label parts joined by `.`.",
+      "maxLength": 64,
       "type": "string"
     }
   },
@@ -69,21 +84,23 @@
       "$ref": "#/$defs/Date"
     },
     "campaign": {
-      "$ref": "#/$defs/Short"
+      "$ref": "#/$defs/Slug"
     },
     "depends": {
       "items": {
         "$ref": "#/$defs/Line"
       },
+      "maxItems": 8,
       "type": "array"
     },
     "label": {
-      "$ref": "#/$defs/Short"
+      "$ref": "#/$defs/Label"
     },
     "options": {
       "items": {
         "$ref": "#/$defs/QuestionOption"
       },
+      "maxItems": 8,
       "type": "array"
     },
     "question": {
@@ -100,7 +117,7 @@
       ]
     },
     "recommended": {
-      "$ref": "#/$defs/Short"
+      "$ref": "#/$defs/Label"
     }
   },
   "required": [
