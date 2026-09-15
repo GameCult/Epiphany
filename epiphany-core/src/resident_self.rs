@@ -2745,13 +2745,27 @@ mod pressure_replay_tests {
             .write(true)
             .open(&store)?
             .set_modified(past)?;
+        let listing = || -> Result<Vec<(std::ffi::OsString, u64, std::time::SystemTime)>> {
+            let mut entries = std::fs::read_dir(temp.path())?
+                .map(|entry| {
+                    let entry = entry?;
+                    let metadata = entry.metadata()?;
+                    Ok((entry.file_name(), metadata.len(), metadata.modified()?))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            entries.sort();
+            Ok(entries)
+        };
+        let before = listing()?;
+        let names = before.iter().map(|entry| entry.0.clone()).collect::<Vec<_>>();
+        assert_eq!(names, ["resident.cc", "resident.cc.lock"]);
         let reopened = state_cache(&store)?;
         assert!(
             reopened
                 .get::<ResidentSelfState>(RESIDENT_SELF_STATE_KEY)?
                 .is_some()
         );
-        assert_eq!(std::fs::metadata(&store)?.modified()?, past);
+        assert_eq!(listing()?, before, "a read attached or wrote a store");
         Ok(())
     }
 

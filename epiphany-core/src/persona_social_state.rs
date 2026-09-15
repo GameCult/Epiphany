@@ -914,13 +914,27 @@ mod tests {
             .write(true)
             .open(&store)?
             .set_modified(past)?;
+        let listing = || -> Result<Vec<(std::ffi::OsString, u64, std::time::SystemTime)>> {
+            let mut entries = std::fs::read_dir(temp.path())?
+                .map(|entry| {
+                    let entry = entry?;
+                    let metadata = entry.metadata()?;
+                    Ok((entry.file_name(), metadata.len(), metadata.modified()?))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            entries.sort();
+            Ok(entries)
+        };
+        let before = listing()?;
+        let names = before.iter().map(|entry| entry.0.clone()).collect::<Vec<_>>();
+        assert_eq!(names, ["social.cc", "social.cc.lock"]);
         let reopened = persona_social_cache(&store)?;
         assert_eq!(
             reopened
                 .get::<PersonaSocialRetentionHeadDocument>(PERSONA_SOCIAL_RETENTION_HEAD_KEY)?,
             Some(head)
         );
-        assert_eq!(std::fs::metadata(&store)?.modified()?, past);
+        assert_eq!(listing()?, before, "a read attached or wrote a store");
         Ok(())
     }
 }
