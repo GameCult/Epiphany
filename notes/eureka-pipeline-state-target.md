@@ -78,8 +78,9 @@ This campaign builds them once, here, and gives Eureka agents access to them.
   Each is published in `schemas/cultnet/index.json` alongside `persona_state`
   and `work_organ_state`.
 - **Store.** Each campaign's pipeline store sits at a fixed relative path in the
-  repo where the task runs, is committed on the campaign's working branch, and
-  is laid out so that parallel branches merge cleanly. The map decides the
+  repo where the task runs and is committed on the campaign's working branch.
+  Since each repo has one runner, the layout does not need to merge in git.
+  Divergent copies are reconciled by the merge tool. The map decides the
   layout. Epiphany's admission is the only writer, using batch compare-and-swap
   with receipts. It refuses foreign epochs, with no compatibility reader.
 - **One runner per repo.** Only one Epiphany or Eureka writes a repo's pipeline
@@ -112,10 +113,11 @@ This campaign builds them once, here, and gives Eureka agents access to them.
 
   Every write is an admission, so no tool writes to the store directly. It is
   registered for Claude Code at user scope.
-- **Semantic projection.** Pushing the working branch syncs the store with
-  Yggdrasil. voidbot's existing repo mirror finds pipeline stores in the repos
-  it already pulls and indexes a projection of their admitted documents as a new
-  collection. The typed store remains the only truth, and voidbot hits resolve to
+- **Semantic projection.** Pushed stores reach Yggdrasil through git. voidbot's
+  repo mirror finds pipeline stores in the repos it pulls and indexes a
+  projection of their admitted documents as a new collection. Today the mirror
+  fetches only each public repo's default branch, so which branches and repos
+  get indexed is an operator question in the map. The typed store remains the only truth, and voidbot hits resolve to
   typed ids in the owning repo's store.
 - **Eureka.** The skill's briefs tell Self, Imagination, Hands and Soul to read
   from and admit to this state instead of relaying prose. The cut map document
