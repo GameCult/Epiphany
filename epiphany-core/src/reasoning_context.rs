@@ -1,4 +1,4 @@
-use crate::runtime_store_backend::runtime_spine_backing_store;
+use crate::runtime_store_backend::{RuntimeSpineBackingStore, runtime_spine_backing_store};
 use crate::{
     EpiphanyRoleWorkerLaunchDocument, EpiphanyRuntimeWorkerLaunchRequest,
     EpiphanyWorkerLaunchDocument, PersonaInterpreterInput, PersonaProjectorInput, PersonaTurnInput,
@@ -1577,17 +1577,27 @@ pub(crate) fn commit_external_typed_observation_mind_mutation(
     )
 }
 
-/// The store a receipt commit targets: how to open its typed cache, how to
-/// validate each write, and the store id its receipt versions carry.
+/// The store a receipt commit targets. The profile is the single owner of
+/// which backing store a path names: the owner resolves it once per commit and
+/// uses that one store for the cache load, the batch CAS, and the conflict
+/// re-read. `open_cache` receives the resolved store, not a path, so it cannot
+/// pick a different one.
+///
+/// Contracts `open_cache` must keep:
+/// - register `EpiphanyMindCommitReceipt` and every type stored in the file,
+///   or the load refuses;
+/// - refuse a store at a foreign epoch before attaching it.
 pub(crate) struct TypedCommitStore {
     pub(crate) store_id: &'static str,
-    pub(crate) open_cache: fn(&Path) -> Result<CultCache>,
+    pub(crate) backing_store: fn(&Path) -> Result<RuntimeSpineBackingStore>,
+    pub(crate) open_cache: fn(RuntimeSpineBackingStore) -> Result<CultCache>,
     pub(crate) validate_write: fn(&CultCacheEnvelope) -> Result<()>,
 }
 
 pub(crate) const MIND_COMMIT_STORE: TypedCommitStore = TypedCommitStore {
     store_id: "epiphany-mind",
-    open_cache: |path| runtime_spine_cache(path),
+    backing_store: runtime_spine_backing_store,
+    open_cache: crate::runtime_spine::open_runtime_spine_cache,
     validate_write: crate::mind_documents::validate_mind_write_envelope,
 };
 
@@ -1622,7 +1632,8 @@ fn commit_authorized_mind_mutation(
         .iter()
         .map(|entry| (entry.r#type.clone(), entry.key.clone()))
         .collect::<BTreeSet<_>>();
-    let mut cache = (store.open_cache)(store_path)?;
+    let backing_store = (store.backing_store)(store_path)?;
+    let mut cache = (store.open_cache)(backing_store.clone())?;
     cache.pull_all_backing_stores()?;
     let mut companion_expected = Vec::new();
     let mut companion_replacements = Vec::new();
@@ -1686,10 +1697,10 @@ fn commit_authorized_mind_mutation(
     replacements.push(cache.prepare_entry(&receipt_id, &receipt)?.0);
     let mut expected = strong_reads.clone();
     expected.extend(companion_expected);
-    if runtime_spine_backing_store(store_path)?.compare_and_swap_batch(&expected, replacements)? {
+    if backing_store.compare_and_swap_batch(&expected, replacements)? {
         return Ok(EpiphanyMindCommitOutcome::Committed(receipt));
     }
-    let current = runtime_spine_backing_store(store_path)?.pull_all()?;
+    let current = backing_store.pull_all()?;
     let mut conflicts = strong_reads
         .iter()
         .filter(|expected| {
@@ -2498,64 +2509,151 @@ mod tests {
         Ok(())
     }
 
+    /// A test profile whose backing store is not the commit path, so any code
+    /// that re-derives the store from the path writes the wrong file.
+    const TEST_COMMIT_STORE: TypedCommitStore = TypedCommitStore {
+        store_id: "test-store",
+        backing_store: |path| Ok(RuntimeSpineBackingStore::new(path.with_file_name("owned.cc"))),
+        open_cache: |backing_store| {
+            let mut cache = CultCache::new();
+            cache.register_entry_type::<crate::EpiphanyMindObservationDocument>()?;
+            cache.register_entry_type::<EpiphanyMindCommitReceipt>()?;
+            cache.add_generic_backing_store(backing_store)?;
+            Ok(cache)
+        },
+        validate_write: |write| match write.key.as_str() {
+            "refused" => Err(anyhow!("test profile refuses this write")),
+            _ => Ok(()),
+        },
+    };
+
+    fn test_profile_commit(
+        profile: &TypedCommitStore,
+        store: &Path,
+        key: &str,
+    ) -> Result<EpiphanyMindCommitOutcome> {
+        let registry = (profile.open_cache)((profile.backing_store)(store)?)?;
+        let value = crate::EpiphanyObservation {
+            id: key.into(),
+            summary: key.into(),
+            source_kind: "test".into(),
+            status: "accepted".into(),
+            code_refs: Vec::new(),
+            evidence_ids: Vec::new(),
+        };
+        let write = registry
+            .prepare_entry(key, &crate::EpiphanyMindObservationDocument { value })?
+            .0;
+        commit_authorized_mind_mutation(
+            profile,
+            store,
+            EpiphanyMindCommitAuthority::ModelDecisionContext {
+                decision_context_id: "test-context".into(),
+            },
+            "test-owner",
+            Vec::new(),
+            vec![write],
+            Vec::new(),
+            "2026-09-15T00:00:00Z",
+        )
+    }
+
     #[test]
     fn typed_commit_store_profile_owns_open_validate_and_store_id() -> Result<()> {
         let temp = tempdir()?;
         let store = temp.path().join("profile.cc");
-        let profile = TypedCommitStore {
-            store_id: "test-store",
-            open_cache: |path| {
-                let mut cache = CultCache::new();
-                cache.register_entry_type::<crate::EpiphanyMindObservationDocument>()?;
-                cache.register_entry_type::<EpiphanyMindCommitReceipt>()?;
-                cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(path))?;
-                Ok(cache)
-            },
-            validate_write: |write| match write.key.as_str() {
-                "refused" => Err(anyhow!("test profile refuses this write")),
-                _ => Ok(()),
-            },
-        };
-        let registry = (profile.open_cache)(&store)?;
-        let observation = |key: &str| -> Result<CultCacheEnvelope> {
-            let value = crate::EpiphanyObservation {
-                id: key.into(),
-                summary: key.into(),
-                source_kind: "test".into(),
-                status: "accepted".into(),
-                code_refs: Vec::new(),
-                evidence_ids: Vec::new(),
-            };
-            Ok(registry
-                .prepare_entry(key, &crate::EpiphanyMindObservationDocument { value })?
-                .0)
-        };
-        let authority = || EpiphanyMindCommitAuthority::ModelDecisionContext {
-            decision_context_id: "test-context".into(),
-        };
-        let commit = |write: CultCacheEnvelope| {
-            commit_authorized_mind_mutation(
-                &profile,
-                &store,
-                authority(),
-                "test-owner",
-                Vec::new(),
-                vec![write],
-                Vec::new(),
-                "2026-09-15T00:00:00Z",
-            )
-        };
-        let EpiphanyMindCommitOutcome::Committed(receipt) = commit(observation("accepted")?)?
+        let owned = temp.path().join("owned.cc");
+        let EpiphanyMindCommitOutcome::Committed(receipt) =
+            test_profile_commit(&TEST_COMMIT_STORE, &store, "accepted")?
         else {
             panic!("the profile's first write must commit");
         };
         assert_eq!(receipt.writes.len(), 1);
         assert!(receipt.writes.iter().all(|version| version.store_id == "test-store"));
-        let stored = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
+        assert!(!store.exists(), "the commit writes only the profile's backing store");
+        let stored = SingleFileMessagePackBackingStore::new(&owned).pull_all()?;
         assert!(stored.iter().any(|entry| entry.key == receipt.receipt_id));
-        let before = std::fs::read(&store)?;
-        let error = commit(observation("refused")?).unwrap_err();
+        assert_eq!(
+            test_profile_commit(&TEST_COMMIT_STORE, &store, "accepted")?,
+            EpiphanyMindCommitOutcome::Committed(receipt),
+            "replay reads the receipt from the store the commit wrote"
+        );
+        let before = std::fs::read(&owned)?;
+        let error = test_profile_commit(&TEST_COMMIT_STORE, &store, "refused").unwrap_err();
         assert!(error.to_string().contains("test profile refuses this write"));
+        assert_eq!(std::fs::read(&owned)?, before);
+        Ok(())
+    }
+
+    #[test]
+    fn typed_commit_store_validates_before_answering_a_replay() -> Result<()> {
+        const NOW_REFUSING: TypedCommitStore = TypedCommitStore {
+            validate_write: |_| Err(anyhow!("test profile now refuses every write")),
+            ..TEST_COMMIT_STORE
+        };
+        let temp = tempdir()?;
+        let store = temp.path().join("profile.cc");
+        let owned = temp.path().join("owned.cc");
+        assert!(matches!(
+            test_profile_commit(&TEST_COMMIT_STORE, &store, "accepted")?,
+            EpiphanyMindCommitOutcome::Committed(_)
+        ));
+        let before = std::fs::read(&owned)?;
+        let error = test_profile_commit(&NOW_REFUSING, &store, "accepted").unwrap_err();
+        assert!(error.to_string().contains("now refuses every write"));
+        assert_eq!(std::fs::read(&owned)?, before);
+        Ok(())
+    }
+
+    #[test]
+    fn mind_commit_store_profile_refuses_a_foreign_epoch_store() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("mind.cc");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "mind-epoch-test".into(),
+                display_name: "Mind epoch test".into(),
+                created_at: "2026-09-15T00:00:00Z".into(),
+            },
+        )?;
+        let cache = runtime_spine_cache(&store)?;
+        let backing = runtime_spine_backing_store(&store)?;
+        let current = backing
+            .pull_all()?
+            .into_iter()
+            .find(|entry| entry.r#type == crate::EpiphanyMindIdentity::TYPE)
+            .expect("an initialized store carries its Mind identity");
+        let foreign = crate::EpiphanyMindIdentity {
+            schema_epoch: "epiphany.mind.epoch.foreign".into(),
+            runtime_id: "mind-epoch-test".into(),
+        };
+        let foreign = cache.prepare_entry(&current.key, &foreign)?.0;
+        assert!(backing.compare_and_swap_batch(&[current], vec![foreign])?);
+        let value = crate::EpiphanyObservation {
+            id: "foreign".into(),
+            summary: "foreign".into(),
+            source_kind: "test".into(),
+            status: "accepted".into(),
+            code_refs: Vec::new(),
+            evidence_ids: Vec::new(),
+        };
+        let write = cache
+            .prepare_entry("foreign", &crate::EpiphanyMindObservationDocument { value })?
+            .0;
+        let provenance = EpiphanyMindDocumentVersion::from_envelope("epiphany-organ", &write)?;
+        let before = std::fs::read(&store)?;
+        let error = commit_external_typed_observation_mind_mutation(
+            &store,
+            "test-organ",
+            provenance,
+            "test-owner",
+            Vec::new(),
+            vec![write],
+            "2026-09-15T00:00:01Z",
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("unsupported writable schema epoch"));
         assert_eq!(std::fs::read(&store)?, before);
         Ok(())
     }

@@ -640,8 +640,12 @@ pub struct RuntimeSpineHeartbeatJobOptions {
 }
 
 pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
-    let store_path = store_path.as_ref();
-    let backing_store = runtime_spine_backing_store(store_path)?;
+    open_runtime_spine_cache(runtime_spine_backing_store(store_path.as_ref())?)
+}
+
+pub(crate) fn open_runtime_spine_cache(
+    backing_store: SingleFileMessagePackBackingStore,
+) -> Result<CultCache> {
     validate_runtime_store_epoch(&backing_store.pull_all()?)?;
     let mut cache = runtime_spine_schema_cache()?;
     cache.add_generic_backing_store(backing_store)?;
