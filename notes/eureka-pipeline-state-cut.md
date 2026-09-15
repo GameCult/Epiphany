@@ -114,6 +114,18 @@ Soul found:
       Eureka is the cut-down Claude-native version anyone can use". Repo
       identity and Persona stay Epiphany's.
 
+**The Cut 3a fixes landed** at `b4f88d29`, `187e01e7` and `a317d4cf`: rulings
+10-12, findings F1-F8, and the low items. Tests 180/180, 27 mutations defined
+and caught. Soul is verifying.
+
+Two Hands deviations, both accepted by Self:
+- The `SubtractionEstimate` and `StructuralDelta` lists stay, since D1 names
+  them; only their invented cap numbers were unified to one documented default
+  of 64.
+- `attach(repo_root, host, session)` replaces D3's `attach(repo_root, holder)`,
+  so a caller cannot declare a false process identity. Liveness is taken from
+  the live process.
+
 A Hands pass fixes F1-F8. It also makes the document wrappers crate-private,
 unifies the macro field list, validates `repo` fields, deletes `LandedNameKind`
 and the unconsumed caps, and nulls git's exclude and attribute files.
