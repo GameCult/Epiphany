@@ -74,6 +74,16 @@ superseded by 14-17; see History.
     collections and indexes at admission time. Embeddings come from Ollama.
 17. **Huginn is the memory organ.** The dormant `.cc`-to-Eve CLI is retired and
     generic `.cc` inspection belongs to CultCache Studio in CultLib.
+18. **Instance identity is declared, not signed** (Q6 A). On a single-operator
+    LAN this is attribution, not authentication. Hands does not invent a
+    credential system; the trust boundary is the network and the host.
+19. **The workstation reaches the organ over WireGuard** (Q7 A), because the
+    organ speaks RUDP over UDP and the existing SSH forward carries TCP only.
+20. **`TypedCommitStore` collapses** (Q8 A). Its second profile moved to another
+    repo, leaving a one-implementation abstraction. Cut 5 must preserve the Mind
+    path's fail-closed order and validation before replay (finding S6).
+21. **The organ shares voidbot's Qdrant** (Q9 A), with the coupling declared as
+    an Idunn dependency rather than left implicit.
 
 ## Probes and source reads this pass
 
