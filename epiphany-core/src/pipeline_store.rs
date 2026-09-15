@@ -786,6 +786,9 @@ mod tests {
         // another kind: the marker rule is pinned on its own.
         refused(&format!("{CAMPAIGN}:cut_spec:cut-3a.h1"));
         refused(&format!("{CAMPAIGN}:cut_spec:cut-3a.s1"));
+        // A well-formed number with no marker at all. Only the marker rule
+        // refuses this one: the digits rule is satisfied either way.
+        refused(&format!("{CAMPAIGN}:cut_spec:cut-3a.1"));
         refused(&format!("{CAMPAIGN}:CUT_SPEC:cut-3a.r1"));
         refused(&format!("EUREKA-STATE:cut_spec:cut-3a.r1"));
         refused(&format!("{CAMPAIGN}:cut_spec:cut-3a.r1:"));
@@ -1137,22 +1140,30 @@ mod tests {
         Ok(())
     }
 
-    /// Ruling 10's odd-layout arm: a work-tree top level whose git dir is not a
-    /// sibling `.git` has no main working tree to resolve, and refuses typed.
+    /// Ruling 10's odd-layout arm. A work-tree top level whose git dir is not a
+    /// sibling `.git` has no main working tree to resolve. The clone here sits
+    /// inside another campaign repo's working tree, which is the case that
+    /// matters: without the `.git` check, its common dir's parent is the
+    /// *enclosing* repo, and the store would silently land in someone else's
+    /// tree instead of refusing.
     #[test]
     fn a_separate_git_dir_has_no_main_work_tree() -> Result<()> {
-        let temp = tempdir()?;
-        let root = temp.path().join("repo");
-        let git_dir = temp.path().join("elsewhere.git");
-        std::fs::create_dir_all(&root)?;
-        git_ok(&root, &["init", "-q", "-b", "main", "--separate-git-dir", &git_dir.to_string_lossy()])?;
+        let (_temp, outer) = campaign_repo(true, true)?;
+        let inner = outer.join("inner");
+        let git_dir = outer.join("innergit.git");
+        std::fs::create_dir_all(&inner)?;
+        git_ok(&inner, &["init", "-q", "-b", "main", "--separate-git-dir", &git_dir.to_string_lossy()])?;
         assert!(
-            matches!(attach(&root, "separate").err(), Some(PipelineRefusal::NoMainWorkTree { .. })),
-            "a separate git dir refuses typed, with no worktree-only mode"
+            matches!(attach(&inner, "separate").err(), Some(PipelineRefusal::NoMainWorkTree { .. })),
+            "a separate git dir refuses typed, and never resolves to the enclosing repo"
         );
         assert!(
-            matches!(PipelineStore::open(&root).err(), Some(PipelineRefusal::NoMainWorkTree { .. })),
+            matches!(PipelineStore::open(&inner).err(), Some(PipelineRefusal::NoMainWorkTree { .. })),
             "and the read path refuses it the same way"
+        );
+        assert!(
+            !outer.join(PIPELINE_STORE_PATH).exists(),
+            "the enclosing repo's store is never created on its behalf"
         );
         Ok(())
     }
