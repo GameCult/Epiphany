@@ -1,26 +1,46 @@
 # Eureka pipeline state: target
 
-Status: target (the ends). The means will live in
-`notes/eureka-pipeline-state-cut.md`, written by Imagination. Operator rulings are
-dated 2026-09-15.
+Status: target (the ends). The means live in `notes/eureka-pipeline-state-cut.md`,
+written by Imagination. Operator rulings are dated 2026-09-15 and 2026-09-16.
+
+**This target was rewritten on 2026-09-16** after the operator rejected the
+ownership model it had been built on. Rulings 5, 6, 10 and 13's store clauses,
+which put the store in the task's repo under a per-clone lease, are superseded
+by rulings 14-17 below. The cut map's Cut 3 sections describe the old model and
+are history, not live design.
 
 ## Why
 
-Eureka is the Claude Code counterpart of this organism. It is a skill at
-`~/.claude/skills/eureka` that runs the same faculties (Self, Imagination,
-Hands, Soul, Mind Steward) over foundation changes. In its first campaign, the
-Aetheria CultCache migration, the pipeline worked, but its findings lived in
-prose: the cut map, subagent reports and memory files. Self re-read and
-re-summarised that prose at every step. Stale claims survived until a steward
-caught them. The postmortem needed a transcript crawl, and one operator quote
-survived only in a compaction summary.
+Eureka is the Claude Code counterpart of this organism. It is a skill,
+published as `GameCult/Eureka` and installed at `~/.claude/skills/eureka`, that
+runs the same faculties (Self, Imagination, Hands, Soul, Mind Steward) over
+foundation changes. In its first campaign, the Aetheria CultCache migration, the
+pipeline worked, but its findings lived in prose: the cut map, subagent reports
+and memory files. Self re-read and re-summarised that prose at every step. Stale
+claims survived until a steward caught them. The postmortem needed a transcript
+crawl, and one operator quote survived only in a compaction summary.
 
 Epiphany already has the other half: typed documents, admission and receipts.
 Her own `notes/faculty-workflow-lessons-2026-09-04.md:146-176` proposes typed
 forms of Eureka's habits (`Map`, `Spec`, `CutReport`, `Verdict`, rulings, a
 landed-names digest), but none of them are built.
 
-This campaign builds them once, here, and gives Eureka agents access to them.
+This campaign builds them once and gives Eureka agents access to them.
+
+## What the first model got wrong
+
+The store was owned by a repo. Nothing owned the state, so the machinery grew to
+compensate: a per-clone writer lease, git-directory resolution, committed
+`.gitattributes` checks, and a merge tool for divergent copies. Three Soul passes
+went into propping that up, and it still resolved a store into a directory the
+operator never named.
+
+Mind state also does not want version control. Git offers branches, merges and
+history rewriting; a mind wants one owner and an append-only record.
+
+The operator's correction: **someone owns the state**. An instance owns its mind,
+and stewardship over repos is an assignment, not an identity. That is Epiphany's
+own design, and Eureka inherits it.
 
 ## Operator rulings
 
@@ -29,134 +49,108 @@ This campaign builds them once, here, and gives Eureka agents access to them.
    it ("what rulings govern stores?", "what is still open?"). Soul and
    Imagination check precedent in it ("have nil map keys bitten us?"). Operator
    browsing across projects comes later.
-3. **Query split.** Epiphany owns the typed store and exact, filtered queries.
-   voidbot owns semantic search, by indexing a projection of these documents as
-   one more Qdrant collection. The typed store is the truth and the index is
-   only a derived copy.
-4. **Two campaigns.** This one covers the schemas, the store, admission, the
-   Eureka MCP server, and a proof on one real Eureka task. The second, Epiphany
-   adopting Eureka's habits, comes after the schema stops moving. It covers
-   ahead-of-time cut specs, adversarial Soul with mutations, rulings consumed
-   by Self, and steward triggers.
-5. **MCP hosting.** A Rust stdio MCP server, built as an Epiphany package and
-   launched by Claude Code per session, so no daemon is added. It writes
-   through a newly public Epiphany admission path under organ provenance
-   (`eureka`), so Epiphany's rules decide what is admitted.
-6. **The store lives in the task's repo.** This replaces an earlier ruling from
-   the same day that put a single user-level store outside every repo. The
-   operator said: "have the pipeline store sit in the repo where the task takes
-   place. Each Epiphany learns for itself, with affordances for sharing
-   knowledge, same when running Eureka. Then the Eureka working branch can sync
-   with Yggdrasil".
-   - The pipeline store is committed in the repo where the campaign runs, on its
-     working branch, next to the target and cut documents.
-   - It is separate from Epiphany's runtime and Mind stores and has its own
-     epoch.
-   - Knowledge crosses repos only through explicit sharing.
-   - Pushing the branch is the sync, and voidbot's existing repo mirror indexes
-     it.
-7. **Re-pin first.** Epiphany's CultLib pin (`e171eca3`) is 30 commits behind
-   `main` (`a0813c6`), from before one-home-store and atomic `push_all`. The
-   re-pin is the first cut.
+3. **Two campaigns.** This one covers the schemas, the memory organ, admission,
+   the Eureka MCP client and a proof on one real Eureka task. The second,
+   Epiphany adopting Eureka's habits, comes after the schema stops moving.
+4. **Re-pin first.** Landed: Epiphany moved from CultLib `e171eca3` to
+   `a0813c6`.
+5. **Q1-Q5 (2026-09-15), of which only Q2 and Q5 survive the rewrite:** additive
+   schema changes keep the epoch and a breaking bump refuses the old store
+   (Q2); `schemars` is an unconditional `epiphany-core` dependency and the
+   published JSON schemas are derived from the Rust types (Q5).
+6. **The operator channel is the Claude Code session.** Eureka has no Persona.
+   Self is the operator surface, because spec iteration works best where the
+   question and the tree share a context. A blocking question may be pushed
+   through whatever notification MCP the user configures; Eureka owns no
+   transport and names no provider. Answers come back in the session. Answering
+   over a chat channel is a later campaign and needs identity binding first.
+7. **Eureka is published** as `GameCult/Eureka`, MIT.
+
+### Ownership (2026-09-16)
+
+14. **An instance owns its mind.** A store is canonical to exactly one instance.
+    Identity lives in the state, not in a path. Admission refuses a write
+    carrying another instance's identity, whatever the transport. Stewardship
+    over repos is an assignment recorded in that mind, and one instance may
+    steward several repos. Reassignment is an explicit typed hand-off recorded
+    in both minds, so history stays attributable.
+15. **A service owns the state, on Yggdrasil.** The memory organ is a daemon: it
+    outlives every session, owns a real resource dependency, and isolates a dead
+    session from a corrupted mind. It earns its process under the GameCult
+    daemon test. Minds are no longer committed to git, so there is no per-clone
+    lease, no git-attribute precondition, and no divergence between clones.
+16. **The organ depends on Qdrant directly, not on voidbot.** It owns its own
+    collections and indexes at admission time. voidbot keeps its read-only
+    public-repo retrieval; it is not in this path. Embeddings come from Ollama on
+    Nightwing, the same stack GameCult already runs.
+17. **Huginn is the memory organ.** The dormant `.cc`-to-Eve CLI is retired and
+    generic `.cc` inspection belongs to CultCache Studio in CultLib. Huginn
+    becomes the Rust service that owns instance minds, admission and the index,
+    which also ends the standing authority vacancy where doctrine named Huginn
+    the Persona-state steward of a runtime that never existed.
+
+### Shape decided with those rulings
+
+- **Transport:** the organ speaks CultNet. `eureka-state` stays a local stdio MCP
+  server that is a thin CultNet client, so the MCP surface stays swappable and
+  the service protocol stays typed.
+- **Unreachable organ:** refuse loudly and let the campaign stall on that step.
+  No local spool, because that reintroduces two writers.
+- **Cut 3a code:** keep the document kinds, keys, validation and typed refusals.
+  Delete the store, lease and git layers, and re-point admission at the organ.
 
 ## End state
 
-- **Documents.** Epiphany defines typed CultCache documents for pipeline state:
-  - campaign
-  - target
-  - cut spec
-  - cut report
-  - finding (Soul, with CONFIRMED/PLAUSIBLE and HOLDS/FALSIFIED/UNPROVEN
-    decided by Imagination against the lessons doc)
-  - ruling, with supersession
-  - follow-up
-  - landed-names digest
-
-  Imagination fixes the exact set and fields, and every one must have a live
-  Eureka consumer. Each document derives `DatabaseEntry`, has a stable schema
-  id and version, and a key strategy chosen for identity, not convenience.
-  Each is published in `schemas/cultnet/index.json` alongside `persona_state`
-  and `work_organ_state`.
-- **Store.** Each campaign's pipeline store sits at a fixed relative path in the
-  repo where the task runs and is committed on the campaign's working branch.
-  Since each repo has one runner, the layout does not need to merge in git.
-  Divergent copies are reconciled by the merge tool. The map decides the
-  layout. Epiphany's admission is the only writer, using batch compare-and-swap
-  with receipts. It refuses foreign epochs, with no compatibility reader.
-- **One runner per repo.** Only one Epiphany or Eureka writes a repo's pipeline
-  store at a time. The operator put it as "There should only ever be one
-  Epiphany/Eureka running in any one repo. Nonetheless, we should have a merge
-  tool in case it ever happens."
-  - A second concurrent writer is refused with a typed refusal naming the
-    holder. The map chooses the mechanism.
-  - A merge tool reconciles two divergent copies through Epiphany's admission,
-    replaying admitted documents. It reports true conflicts as typed refusals
-    and never lets the last writer win.
-- **Sharing.** Knowledge crosses repos only through explicit affordances, such
-  as a read-only foreign query or a citation carrying provenance, as the map
-  decides. A repo's store is written only by admissions made while working in
-  that repo.
-- **Admission.** A public admission entry point accepts organ provenance
-  (`eureka`) and applies per-document rules:
-  - A finding must name its commit range and evidence.
-  - A ruling supersedes by id, never by overwriting.
-  - A cut report must cite its cut spec.
-
-  Refusals are typed.
-- **MCP server** (`eureka-state`, name to be decided in the map). It is stdio
-  and speaks Rust `rmcp` in server mode. Its tools are:
-  - admit a document;
-  - read by id;
-  - filtered query (by campaign, repo, cut, kind, status, supersession, time);
-  - "open items" for a campaign;
-  - the rulings currently in force.
-
-  Every write is an admission, so no tool writes to the store directly. It is
-  registered for Claude Code at user scope.
-- **Semantic projection.** Pushed stores reach Yggdrasil through git. voidbot's
-  repo mirror finds pipeline stores in the repos it pulls and indexes a
-  projection of their admitted documents as a new collection. Today the mirror
-  fetches only each public repo's default branch, so which branches and repos
-  get indexed is an operator question in the map. The typed store remains the only truth, and voidbot hits resolve to
-  typed ids in the owning repo's store.
-- **Eureka.** The skill's briefs tell Self, Imagination, Hands and Soul to read
-  from and admit to this state instead of relaying prose. The cut map document
-  in the target repo becomes a rendering of typed cut specs, or is retired, as
-  Imagination decides.
-- **Proof.** One real Eureka task runs end to end on the typed state: rulings
-  admitted, a cut spec, Hands' cut report, Soul findings, and the follow-ups
-  queried back. A fresh agent rehydrates from queries alone.
+- **Documents.** Epiphany defines the typed pipeline documents: campaign, target,
+  question, ruling, cut spec, cut report, verdict, finding, follow-up,
+  resolution. Each has a stable schema id and version, a derived key, and a live
+  Eureka consumer. Schemas are derived from the Rust types and published in
+  `schemas/cultnet/index.json`.
+- **Instance identity.** A mind carries the instance that owns it and the repos
+  it stewards. A campaign names its repo; the mind holds campaigns across every
+  repo that instance stewards.
+- **The organ (Huginn).** One service owns every mind it hosts:
+  - admission, with per-document rules and typed refusals;
+  - exact and filtered queries (by campaign, repo, cut, kind, status,
+    supersession, time), "open items", and "rulings in force";
+  - semantic search over its own Qdrant collections, indexed at admission;
+  - a typed hand-off for reassigning stewardship, and an import path for
+    another instance's mind;
+  - supervised by Idunn, with a named backup owner for its volume.
+- **Eureka.** The skill's briefs tell Self, Imagination, Hands and Soul to admit
+  and query typed state instead of relaying prose. `eureka-state` is the thin
+  MCP client, registered at user scope.
+- **Proof.** One real Eureka task runs end to end on typed state: rulings
+  admitted, a cut spec, Hands' cut report, Soul findings, follow-ups queried
+  back, and a fresh agent rehydrating from queries alone.
 
 ## Invariants
 
-- **Mind admits.** Only Epiphany's admission writes the pipeline store. The MCP
-  server, voidbot and Eureka agents are clients or projections, never owners.
-- **Typed, not prose.** No JSON store and no untyped blob fields where a typed
-  field exists. JSON appears only in published schemas.
-- **No new daemon.** The MCP server is a per-session process. Anything
-  long-running must earn it by independent lifecycle, privilege, resource or
-  failure isolation.
-- **One package per production entrypoint.** Build economy follows `AGENTS.md`:
-  focused single-package checks on the shared target dir, and no broad builds.
-- **Stores stay separate.** The pipeline store's epoch never gates Epiphany's
-  runtime or Mind stores, and theirs never gate it.
+- **One owner.** Exactly one instance owns a mind, and the organ is its only
+  writer. Eureka agents and the MCP client are clients; the index is a
+  projection.
+- **Identity travels with the write.** An admission carries the instance, and a
+  foreign instance is refused.
+- **Typed, not prose.** No JSON store and no blob fields where a typed field
+  exists. JSON appears only in published schemas.
+- **Mind state is not in version control.** Campaign prose (target, cut map) stays
+  in the repo; the mind does not.
 - **Supersession, not deletion.** An old ruling or finding stays queryable as
   superseded.
-- **The skill defers to the schema.** The Eureka skill describes how to use the
-  state; the schema set and admission rules are owned here.
+- **The skill defers to the schema.** Eureka describes how to use the state; the
+  schema set and admission rules are owned here.
+- **Availability is honest.** When the organ is unreachable, Eureka refuses and
+  says so. It never writes a second copy.
 
 ## Not in scope
 
 - Epiphany's own organs consuming pipeline documents: the second campaign.
 - Operator browsing surfaces (Eve/CultUI) over pipeline state.
+- Answering operator questions over a chat channel.
 - Migrating the Aetheria CultCache campaign's prose into typed documents.
-  Imagination may propose it as the proof task if it is cheaper than a new real
-  task.
-- Cleanup of `.epiphany-run/` (105 GiB) and the repo-local `target/` (39 GiB):
-  the operator's call, tracked separately.
-- CultNet over-the-wire compare-and-swap. The MCP server attaches the store
-  locally through `cultcache-rs`, which already has cross-process locking and
-  conditional commits.
+- Cleanup of `.epiphany-run/` (105 GiB) and the repo-local `target/` (39 GiB).
+- Huginn's legacy `.voidbot` Persona state, which needs its own admission
+  decision.
 
 ## Evidence
 
@@ -164,3 +158,5 @@ This campaign builds them once, here, and gives Eureka agents access to them.
   MCP and client landscape.
 - Dated comparison: `~/.claude/skills/eureka/references/epiphany-comparison-2026-09-15.md`.
 - Campaign precedent: `F:\Projects\Aetheria\docs\cultcache-migration-postmortem.md`.
+- Huginn's dormancy and authority vacancy:
+  `F:\Projects\gamecult-ops\docs\repo-census-2026-09\repos\Huginn.md`.
