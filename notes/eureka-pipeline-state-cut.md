@@ -51,6 +51,26 @@ commit owner).
 - **Spec correction:** six owner call sites, not five, including
   `commit_mind_mutation`.
 
+**Cut 2 fixes landed** at `cb6ef5d2` and passed Soul (160/160).
+- **What changed:**
+  - The profile owns its backing store (`backing_store: fn(&Path)`), and the
+    opener receives the resolved store.
+  - The Mind epoch refusal is pinned; M2b drops the check from the Mind opener
+    only.
+  - Validation-before-replay is pinned.
+- **Every mutation was caught,** including two of Soul's own.
+- **Open decisions for the Cut 3b spec:**
+  - **Replay under a changed validator.** Validation-before-replay means a
+    newer, stricter binary refuses a retry of a batch that was already admitted,
+    for example after a lost response. For `pipeline-merge` that refusal is
+    intended. For a plain retry it probably is not. Cut 3b decides whether an
+    exact stored receipt short-circuits validation for same-store retries.
+  - **Lost race between identical commits.** The loser gets `Conflict`, not the
+    replayed receipt (`reasoning_context.rs:1680-1721`). This predates Cut 2.
+    Cut 3b should map it to `AlreadyAdmitted` if the receipt matches.
+- **Recorded (low):** an opener can still ignore the resolved store and attach
+  none. The CAS protects the file, so the worst case is a spurious conflict.
+
 Pins. Code anchors are `file:line` against Epiphany `81be7a2f`. HEAD has since
 moved to `0636176a`, but only the target and `state/map.yaml` changed, so every
 code anchor still holds. The other pins:
