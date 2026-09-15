@@ -71,6 +71,37 @@ commit owner).
 - **Recorded (low):** an opener can still ignore the resolved store and attach
   none. The CAS protects the file, so the worst case is a spurious conflict.
 
+**Cut 3a landed** at `a1473c45` and `ad18c385`: 10 document kinds, the opener,
+the writer lease, and 10 derived schemas; tests 171/171.
+
+Soul found:
+- **F1 (high):** an identity-less first commit bricks the store.
+- **F2:** key collisions through dotted attempt, pass and finding labels.
+- **F3:** parent ids only prefix-checked; the wrong-kind check is untested.
+- **F4:** resolution keys skip label validation, and the subject kind is not
+  tied to its id.
+- **F5:** the pipeline store is writable without the lease or admission, both
+  from inside the crate and through the exported wrappers.
+- **F6:** a worktree can take the lease and write its own tree's store.
+- **Low:** a stale holder can be named after a crash; git reads local excludes
+  and global attribute files; macro field lists are duplicated; repo fields are
+  unchecked; `LandedNameKind` and two caps have no consumer.
+
+**Rulings (operator, 2026-09-15: "all recommendations, go ahead"):**
+
+10. **One store per clone.** The store always lives in the clone's main working
+    tree. The session's MCP process holds the single per-clone lease, and a
+    caller in a worktree admits into the main tree's store.
+11. **Numeric attempt and pass.** `attempt` and `pass` are numeric, and attempts
+    count up per cut across spec revisions.
+12. **The profile owns identity-on-first-write.** The commit profile's
+    validation, which is the single owner, enforces that the first write carries
+    the pipeline identity, so it can never admit a store its opener refuses.
+
+A Hands pass fixes F1-F8. It also makes the document wrappers crate-private,
+unifies the macro field list, validates `repo` fields, deletes `LandedNameKind`
+and the unconsumed caps, and nulls git's exclude and attribute files.
+
 Pins. Code anchors are `file:line` against Epiphany `81be7a2f`. HEAD has since
 moved to `0636176a`, but only the target and `state/map.yaml` changed, so every
 code anchor still holds. The other pins:
