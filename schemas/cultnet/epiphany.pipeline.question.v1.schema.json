@@ -1,0 +1,117 @@
+{
+  "$defs": {
+    "Date": {
+      "description": "A calendar date, `YYYY-MM-DD`.",
+      "type": "string"
+    },
+    "Line": {
+      "description": "Text of at most 1,000 UTF-8 bytes.",
+      "type": "string"
+    },
+    "Para": {
+      "description": "Text of at most 4,000 UTF-8 bytes; longer narrative is cited by `DocRef`.",
+      "type": "string"
+    },
+    "PipelineKind": {
+      "enum": [
+        "Campaign",
+        "Target",
+        "Question",
+        "Ruling",
+        "CutSpec",
+        "CutReport",
+        "Verdict",
+        "Finding",
+        "FollowUp",
+        "Resolution"
+      ],
+      "type": "string"
+    },
+    "PipelineRef": {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Short"
+        },
+        "kind": {
+          "$ref": "#/$defs/PipelineKind"
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "type": "object"
+    },
+    "QuestionOption": {
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/Short"
+        },
+        "text": {
+          "$ref": "#/$defs/Line"
+        }
+      },
+      "required": [
+        "label",
+        "text"
+      ],
+      "type": "object"
+    },
+    "Short": {
+      "description": "Text of at most 200 UTF-8 bytes.",
+      "type": "string"
+    }
+  },
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.question.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "asked_on": {
+      "$ref": "#/$defs/Date"
+    },
+    "campaign": {
+      "$ref": "#/$defs/Short"
+    },
+    "depends": {
+      "items": {
+        "$ref": "#/$defs/Line"
+      },
+      "type": "array"
+    },
+    "label": {
+      "$ref": "#/$defs/Short"
+    },
+    "options": {
+      "items": {
+        "$ref": "#/$defs/QuestionOption"
+      },
+      "type": "array"
+    },
+    "question": {
+      "$ref": "#/$defs/Para"
+    },
+    "raised_in": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PipelineRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "recommended": {
+      "$ref": "#/$defs/Short"
+    }
+  },
+  "required": [
+    "campaign",
+    "label",
+    "question",
+    "options",
+    "recommended",
+    "depends",
+    "asked_on"
+  ],
+  "title": "PipelineQuestion",
+  "type": "object"
+}

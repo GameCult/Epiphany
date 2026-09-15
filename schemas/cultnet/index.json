@@ -22,6 +22,116 @@
       "documentType": "epiphany.work_organ_state.v0",
       "title": "Epiphany Work Organ State v0",
       "path": "epiphany.work_organ_state.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.campaign.v1.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.pipeline.campaign.v1",
+      "documentType": "epiphany.pipeline.campaign.v1",
+      "title": "Epiphany Pipeline Campaign v1",
+      "path": "epiphany.pipeline.campaign.v1.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.target.v1.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.pipeline.target.v1",
+      "documentType": "epiphany.pipeline.target.v1",
+      "title": "Epiphany Pipeline Target v1",
+      "path": "epiphany.pipeline.target.v1.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.question.v1.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.pipeline.question.v1",
+      "documentType": "epiphany.pipeline.question.v1",
+      "title": "Epiphany Pipeline Question v1",
+      "path": "epiphany.pipeline.question.v1.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.ruling.v1.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.pipeline.ruling.v1",
+      "documentType": "epiphany.pipeline.ruling.v1",
+      "title": "Epiphany Pipeline Ruling v1",
+      "path": "epiphany.pipeline.ruling.v1.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.cut_spec.v1.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.pipeline.cut_spec.v1",
+      "documentType": "epiphany.pipeline.cut_spec.v1",
+      "title": "Epiphany Pipeline CutSpec v1",
+      "path": "epiphany.pipeline.cut_spec.v1.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.cut_report.v1.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.pipeline.cut_report.v1",
+      "documentType": "epiphany.pipeline.cut_report.v1",
+      "title": "Epiphany Pipeline CutReport v1",
+      "path": "epiphany.pipeline.cut_report.v1.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.verdict.v1.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.pipeline.verdict.v1",
+      "documentType": "epiphany.pipeline.verdict.v1",
+      "title": "Epiphany Pipeline Verdict v1",
+      "path": "epiphany.pipeline.verdict.v1.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.finding.v1.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.pipeline.finding.v1",
+      "documentType": "epiphany.pipeline.finding.v1",
+      "title": "Epiphany Pipeline Finding v1",
+      "path": "epiphany.pipeline.finding.v1.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.follow_up.v1.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.pipeline.follow_up.v1",
+      "documentType": "epiphany.pipeline.follow_up.v1",
+      "title": "Epiphany Pipeline FollowUp v1",
+      "path": "epiphany.pipeline.follow_up.v1.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.resolution.v1.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.pipeline.resolution.v1",
+      "documentType": "epiphany.pipeline.resolution.v1",
+      "title": "Epiphany Pipeline Resolution v1",
+      "path": "epiphany.pipeline.resolution.v1.schema.json"
     }
   ]
 }

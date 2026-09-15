@@ -1,0 +1,217 @@
+{
+  "$defs": {
+    "CodeLocation": {
+      "properties": {
+        "end_line": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "line": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "path": {
+          "$ref": "#/$defs/Short"
+        }
+      },
+      "required": [
+        "path",
+        "line"
+      ],
+      "type": "object"
+    },
+    "CommitRange": {
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/Sha"
+        },
+        "head": {
+          "$ref": "#/$defs/Sha"
+        }
+      },
+      "required": [
+        "base",
+        "head"
+      ],
+      "type": "object"
+    },
+    "Evidence": {
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/EvidenceKind"
+        },
+        "locator": {
+          "$ref": "#/$defs/Line"
+        },
+        "result": {
+          "$ref": "#/$defs/Line"
+        }
+      },
+      "required": [
+        "kind",
+        "locator",
+        "result"
+      ],
+      "type": "object"
+    },
+    "EvidenceKind": {
+      "enum": [
+        "Command",
+        "Test",
+        "Mutation",
+        "Probe",
+        "SourceRead",
+        "Capture"
+      ],
+      "type": "string"
+    },
+    "FindingConfidence": {
+      "enum": [
+        "Confirmed",
+        "Plausible"
+      ],
+      "type": "string"
+    },
+    "FindingSeverity": {
+      "enum": [
+        "Blocker",
+        "High",
+        "Medium",
+        "Low"
+      ],
+      "type": "string"
+    },
+    "ForeignRef": {
+      "description": "A citation of a document in another repo's pipeline store (D6).",
+      "properties": {
+        "commit": {
+          "$ref": "#/$defs/Sha"
+        },
+        "id": {
+          "$ref": "#/$defs/Short"
+        },
+        "kind": {
+          "$ref": "#/$defs/PipelineKind"
+        },
+        "payload_sha256": {
+          "type": "string"
+        },
+        "repo": {
+          "$ref": "#/$defs/Short"
+        }
+      },
+      "required": [
+        "repo",
+        "commit",
+        "kind",
+        "id",
+        "payload_sha256"
+      ],
+      "type": "object"
+    },
+    "Line": {
+      "description": "Text of at most 1,000 UTF-8 bytes.",
+      "type": "string"
+    },
+    "Para": {
+      "description": "Text of at most 4,000 UTF-8 bytes; longer narrative is cited by `DocRef`.",
+      "type": "string"
+    },
+    "PipelineKind": {
+      "enum": [
+        "Campaign",
+        "Target",
+        "Question",
+        "Ruling",
+        "CutSpec",
+        "CutReport",
+        "Verdict",
+        "Finding",
+        "FollowUp",
+        "Resolution"
+      ],
+      "type": "string"
+    },
+    "Sha": {
+      "description": "A git commit id: 7-40 lowercase hex characters.",
+      "type": "string"
+    },
+    "Short": {
+      "description": "Text of at most 200 UTF-8 bytes.",
+      "type": "string"
+    }
+  },
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.finding.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "campaign": {
+      "$ref": "#/$defs/Short"
+    },
+    "claim": {
+      "$ref": "#/$defs/Line"
+    },
+    "confidence": {
+      "$ref": "#/$defs/FindingConfidence"
+    },
+    "evidence": {
+      "items": {
+        "$ref": "#/$defs/Evidence"
+      },
+      "type": "array"
+    },
+    "failure_scenario": {
+      "$ref": "#/$defs/Para"
+    },
+    "invariants": {
+      "items": {
+        "$ref": "#/$defs/Short"
+      },
+      "type": "array"
+    },
+    "label": {
+      "$ref": "#/$defs/Short"
+    },
+    "locations": {
+      "items": {
+        "$ref": "#/$defs/CodeLocation"
+      },
+      "type": "array"
+    },
+    "precedents": {
+      "items": {
+        "$ref": "#/$defs/ForeignRef"
+      },
+      "type": "array"
+    },
+    "range": {
+      "$ref": "#/$defs/CommitRange"
+    },
+    "severity": {
+      "$ref": "#/$defs/FindingSeverity"
+    },
+    "verdict": {
+      "$ref": "#/$defs/Short"
+    }
+  },
+  "required": [
+    "campaign",
+    "verdict",
+    "label",
+    "range",
+    "confidence",
+    "severity",
+    "claim",
+    "invariants",
+    "locations",
+    "failure_scenario",
+    "evidence",
+    "precedents"
+  ],
+  "title": "PipelineFinding",
+  "type": "object"
+}

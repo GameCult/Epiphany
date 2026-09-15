@@ -1,0 +1,198 @@
+{
+  "$defs": {
+    "Date": {
+      "description": "A calendar date, `YYYY-MM-DD`.",
+      "type": "string"
+    },
+    "Line": {
+      "description": "Text of at most 1,000 UTF-8 bytes.",
+      "type": "string"
+    },
+    "Para": {
+      "description": "Text of at most 4,000 UTF-8 bytes; longer narrative is cited by `DocRef`.",
+      "type": "string"
+    },
+    "PipelineKind": {
+      "enum": [
+        "Campaign",
+        "Target",
+        "Question",
+        "Ruling",
+        "CutSpec",
+        "CutReport",
+        "Verdict",
+        "Finding",
+        "FollowUp",
+        "Resolution"
+      ],
+      "type": "string"
+    },
+    "PipelineRef": {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Short"
+        },
+        "kind": {
+          "$ref": "#/$defs/PipelineKind"
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "type": "object"
+    },
+    "ResolutionOutcome": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Superseded": {
+              "properties": {
+                "by": {
+                  "$ref": "#/$defs/Short"
+                }
+              },
+              "required": [
+                "by"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "Superseded"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Answered": {
+              "properties": {
+                "by": {
+                  "$ref": "#/$defs/Short"
+                }
+              },
+              "required": [
+                "by"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "Answered"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Fixed": {
+              "properties": {
+                "by": {
+                  "$ref": "#/$defs/Short"
+                }
+              },
+              "required": [
+                "by"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "Fixed"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Deferred": {
+              "properties": {
+                "to": {
+                  "$ref": "#/$defs/Short"
+                }
+              },
+              "required": [
+                "to"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "Deferred"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Recorded": {
+              "properties": {
+                "reason": {
+                  "$ref": "#/$defs/Line"
+                }
+              },
+              "required": [
+                "reason"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "Recorded"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Withdrawn": {
+              "properties": {
+                "reason": {
+                  "$ref": "#/$defs/Line"
+                }
+              },
+              "required": [
+                "reason"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "Withdrawn"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Short": {
+      "description": "Text of at most 200 UTF-8 bytes.",
+      "type": "string"
+    }
+  },
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.resolution.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "outcome": {
+      "$ref": "#/$defs/ResolutionOutcome"
+    },
+    "rationale": {
+      "$ref": "#/$defs/Para"
+    },
+    "resolved_on": {
+      "$ref": "#/$defs/Date"
+    },
+    "subject": {
+      "$ref": "#/$defs/PipelineRef"
+    }
+  },
+  "required": [
+    "subject",
+    "outcome",
+    "rationale",
+    "resolved_on"
+  ],
+  "title": "PipelineResolution",
+  "type": "object"
+}

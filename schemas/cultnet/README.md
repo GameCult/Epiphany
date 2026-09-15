@@ -25,6 +25,18 @@ hand-maintained JSON registry.
 
 - `gamecult.persona_state.v0`: portable public Persona state.
 - `epiphany.work_organ_state.v0`: portable state for lean work organs.
+- `epiphany.pipeline.*.v1`: Eureka pipeline state (campaign, target, question,
+  ruling, cut spec, cut report, verdict, finding, follow-up, resolution), stored
+  per repo at `.epiphany/pipeline/pipeline.cc`.
+
+Pipeline wire note: each document payload is `[value]`, a one-element
+MessagePack array whose element is the named map the schema describes. These
+contracts cross to Eureka MCP clients and the voidbot projection. The files are
+derived from the Rust value types and checked byte-for-byte by
+`pipeline_published_schemas_match_derivation`; text bounds are UTF-8 bytes and
+enforced by admission, not by the schema. Evolution is additive: a new named
+field with a serde default keeps `epiphany.pipeline.epoch.v1`; a breaking change
+bumps the epoch, and the new binary refuses the old store.
 
 Provider request contracts are owned by their provider boundary. The shared
 Codex contract lives in `GameCult/CodexConnector`; Epiphany's closed durable

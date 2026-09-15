@@ -1,0 +1,124 @@
+{
+  "$defs": {
+    "Date": {
+      "description": "A calendar date, `YYYY-MM-DD`.",
+      "type": "string"
+    },
+    "ForeignRef": {
+      "description": "A citation of a document in another repo's pipeline store (D6).",
+      "properties": {
+        "commit": {
+          "$ref": "#/$defs/Sha"
+        },
+        "id": {
+          "$ref": "#/$defs/Short"
+        },
+        "kind": {
+          "$ref": "#/$defs/PipelineKind"
+        },
+        "payload_sha256": {
+          "type": "string"
+        },
+        "repo": {
+          "$ref": "#/$defs/Short"
+        }
+      },
+      "required": [
+        "repo",
+        "commit",
+        "kind",
+        "id",
+        "payload_sha256"
+      ],
+      "type": "object"
+    },
+    "Para": {
+      "description": "Text of at most 4,000 UTF-8 bytes; longer narrative is cited by `DocRef`.",
+      "type": "string"
+    },
+    "PipelineKind": {
+      "enum": [
+        "Campaign",
+        "Target",
+        "Question",
+        "Ruling",
+        "CutSpec",
+        "CutReport",
+        "Verdict",
+        "Finding",
+        "FollowUp",
+        "Resolution"
+      ],
+      "type": "string"
+    },
+    "Sha": {
+      "description": "A git commit id: 7-40 lowercase hex characters.",
+      "type": "string"
+    },
+    "Short": {
+      "description": "Text of at most 200 UTF-8 bytes.",
+      "type": "string"
+    }
+  },
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.ruling.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "answers": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Short"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "campaign": {
+      "$ref": "#/$defs/Short"
+    },
+    "choice": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Short"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "label": {
+      "$ref": "#/$defs/Short"
+    },
+    "operator_quote": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Para"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "precedents": {
+      "items": {
+        "$ref": "#/$defs/ForeignRef"
+      },
+      "type": "array"
+    },
+    "ruled_on": {
+      "$ref": "#/$defs/Date"
+    },
+    "ruling": {
+      "$ref": "#/$defs/Para"
+    }
+  },
+  "required": [
+    "campaign",
+    "label",
+    "ruling",
+    "ruled_on",
+    "precedents"
+  ],
+  "title": "PipelineRuling",
+  "type": "object"
+}

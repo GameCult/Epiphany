@@ -1,0 +1,110 @@
+{
+  "$defs": {
+    "CodeLocation": {
+      "properties": {
+        "end_line": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "line": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "path": {
+          "$ref": "#/$defs/Short"
+        }
+      },
+      "required": [
+        "path",
+        "line"
+      ],
+      "type": "object"
+    },
+    "Line": {
+      "description": "Text of at most 1,000 UTF-8 bytes.",
+      "type": "string"
+    },
+    "PipelineKind": {
+      "enum": [
+        "Campaign",
+        "Target",
+        "Question",
+        "Ruling",
+        "CutSpec",
+        "CutReport",
+        "Verdict",
+        "Finding",
+        "FollowUp",
+        "Resolution"
+      ],
+      "type": "string"
+    },
+    "PipelineRef": {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Short"
+        },
+        "kind": {
+          "$ref": "#/$defs/PipelineKind"
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "type": "object"
+    },
+    "Short": {
+      "description": "Text of at most 200 UTF-8 bytes.",
+      "type": "string"
+    }
+  },
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.follow_up.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "campaign": {
+      "$ref": "#/$defs/Short"
+    },
+    "item": {
+      "$ref": "#/$defs/Line"
+    },
+    "label": {
+      "$ref": "#/$defs/Short"
+    },
+    "locations": {
+      "items": {
+        "$ref": "#/$defs/CodeLocation"
+      },
+      "type": "array"
+    },
+    "owner": {
+      "$ref": "#/$defs/Short"
+    },
+    "repo": {
+      "$ref": "#/$defs/Short"
+    },
+    "source": {
+      "$ref": "#/$defs/PipelineRef"
+    },
+    "why_it_can_wait": {
+      "$ref": "#/$defs/Line"
+    }
+  },
+  "required": [
+    "campaign",
+    "label",
+    "source",
+    "repo",
+    "locations",
+    "item",
+    "why_it_can_wait",
+    "owner"
+  ],
+  "title": "PipelineFollowUp",
+  "type": "object"
+}

@@ -1,0 +1,70 @@
+{
+  "$defs": {
+    "DocRef": {
+      "properties": {
+        "commit": {
+          "$ref": "#/$defs/Sha"
+        },
+        "end_line": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "path": {
+          "$ref": "#/$defs/Short"
+        },
+        "start_line": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path",
+        "start_line",
+        "end_line",
+        "commit"
+      ],
+      "type": "object"
+    },
+    "Sha": {
+      "description": "A git commit id: 7-40 lowercase hex characters.",
+      "type": "string"
+    },
+    "Short": {
+      "description": "Text of at most 200 UTF-8 bytes.",
+      "type": "string"
+    }
+  },
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.campaign.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "repos": {
+      "items": {
+        "$ref": "#/$defs/Short"
+      },
+      "type": "array"
+    },
+    "slug": {
+      "$ref": "#/$defs/Short"
+    },
+    "target_doc": {
+      "$ref": "#/$defs/DocRef"
+    },
+    "title": {
+      "$ref": "#/$defs/Short"
+    },
+    "working_branch": {
+      "$ref": "#/$defs/Short"
+    }
+  },
+  "required": [
+    "slug",
+    "title",
+    "repos",
+    "working_branch",
+    "target_doc"
+  ],
+  "title": "PipelineCampaign",
+  "type": "object"
+}

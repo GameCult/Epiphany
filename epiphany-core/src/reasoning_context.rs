@@ -1601,7 +1601,7 @@ pub(crate) const MIND_COMMIT_STORE: TypedCommitStore = TypedCommitStore {
     validate_write: crate::mind_documents::validate_mind_write_envelope,
 };
 
-fn commit_authorized_mind_mutation(
+pub(crate) fn commit_authorized_mind_mutation(
     store: &TypedCommitStore,
     store_path: &Path,
     authority: EpiphanyMindCommitAuthority,

@@ -1,0 +1,337 @@
+{
+  "$defs": {
+    "AuthorityMap": {
+      "properties": {
+        "deletion_line": {
+          "$ref": "#/$defs/Line"
+        },
+        "derived_state": {
+          "items": {
+            "$ref": "#/$defs/Line"
+          },
+          "type": "array"
+        },
+        "forbidden_writers": {
+          "items": {
+            "$ref": "#/$defs/Line"
+          },
+          "type": "array"
+        },
+        "inputs": {
+          "items": {
+            "$ref": "#/$defs/Line"
+          },
+          "type": "array"
+        },
+        "outputs": {
+          "items": {
+            "$ref": "#/$defs/Line"
+          },
+          "type": "array"
+        },
+        "owner": {
+          "$ref": "#/$defs/Line"
+        },
+        "shared_paths": {
+          "items": {
+            "$ref": "#/$defs/Line"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "owner",
+        "inputs",
+        "outputs",
+        "derived_state",
+        "forbidden_writers",
+        "shared_paths",
+        "deletion_line"
+      ],
+      "type": "object"
+    },
+    "CodeLocation": {
+      "properties": {
+        "end_line": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "line": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "path": {
+          "$ref": "#/$defs/Short"
+        }
+      },
+      "required": [
+        "path",
+        "line"
+      ],
+      "type": "object"
+    },
+    "CutDelete": {
+      "properties": {
+        "lines": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "note": {
+          "$ref": "#/$defs/Line"
+        },
+        "path": {
+          "$ref": "#/$defs/Short"
+        }
+      },
+      "required": [
+        "path",
+        "lines",
+        "note"
+      ],
+      "type": "object"
+    },
+    "CutVerification": {
+      "properties": {
+        "builds": {
+          "items": {
+            "$ref": "#/$defs/Line"
+          },
+          "type": "array"
+        },
+        "negative": {
+          "items": {
+            "$ref": "#/$defs/NegativeCheck"
+          },
+          "type": "array"
+        },
+        "operator": {
+          "items": {
+            "$ref": "#/$defs/Line"
+          },
+          "type": "array"
+        },
+        "tests": {
+          "items": {
+            "$ref": "#/$defs/VerificationTest"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "builds",
+        "tests",
+        "negative",
+        "operator"
+      ],
+      "type": "object"
+    },
+    "FileChange": {
+      "properties": {
+        "change": {
+          "$ref": "#/$defs/Line"
+        },
+        "location": {
+          "$ref": "#/$defs/CodeLocation"
+        }
+      },
+      "required": [
+        "location",
+        "change"
+      ],
+      "type": "object"
+    },
+    "Line": {
+      "description": "Text of at most 1,000 UTF-8 bytes.",
+      "type": "string"
+    },
+    "NegativeCheck": {
+      "properties": {
+        "pattern": {
+          "$ref": "#/$defs/Short"
+        },
+        "scope": {
+          "$ref": "#/$defs/Line"
+        }
+      },
+      "required": [
+        "pattern",
+        "scope"
+      ],
+      "type": "object"
+    },
+    "Sha": {
+      "description": "A git commit id: 7-40 lowercase hex characters.",
+      "type": "string"
+    },
+    "Short": {
+      "description": "Text of at most 200 UTF-8 bytes.",
+      "type": "string"
+    },
+    "SubtractionEstimate": {
+      "properties": {
+        "added": {
+          "items": {
+            "$ref": "#/$defs/Short"
+          },
+          "type": "array"
+        },
+        "lines_added": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "lines_removed": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "removed": {
+          "items": {
+            "$ref": "#/$defs/Short"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "lines_removed",
+        "lines_added",
+        "removed",
+        "added"
+      ],
+      "type": "object"
+    },
+    "VerificationTest": {
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/Short"
+        },
+        "pins": {
+          "$ref": "#/$defs/Line"
+        }
+      },
+      "required": [
+        "name",
+        "pins"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.cut_spec.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "adds": {
+      "items": {
+        "$ref": "#/$defs/Line"
+      },
+      "type": "array"
+    },
+    "authority_map": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AuthorityMap"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "base": {
+      "$ref": "#/$defs/Sha"
+    },
+    "branch": {
+      "$ref": "#/$defs/Short"
+    },
+    "campaign": {
+      "$ref": "#/$defs/Short"
+    },
+    "cut": {
+      "$ref": "#/$defs/Short"
+    },
+    "deletes": {
+      "items": {
+        "$ref": "#/$defs/CutDelete"
+      },
+      "type": "array"
+    },
+    "depends_on": {
+      "items": {
+        "$ref": "#/$defs/Short"
+      },
+      "type": "array"
+    },
+    "file_changes": {
+      "items": {
+        "$ref": "#/$defs/FileChange"
+      },
+      "type": "array"
+    },
+    "first": {
+      "items": {
+        "$ref": "#/$defs/Line"
+      },
+      "type": "array"
+    },
+    "keeps_moves": {
+      "items": {
+        "$ref": "#/$defs/Line"
+      },
+      "type": "array"
+    },
+    "questions": {
+      "items": {
+        "$ref": "#/$defs/Short"
+      },
+      "type": "array"
+    },
+    "repo": {
+      "$ref": "#/$defs/Short"
+    },
+    "revision": {
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "rulings": {
+      "items": {
+        "$ref": "#/$defs/Short"
+      },
+      "type": "array"
+    },
+    "subtraction_estimate": {
+      "$ref": "#/$defs/SubtractionEstimate"
+    },
+    "title": {
+      "$ref": "#/$defs/Short"
+    },
+    "verification": {
+      "$ref": "#/$defs/CutVerification"
+    }
+  },
+  "required": [
+    "campaign",
+    "cut",
+    "revision",
+    "title",
+    "repo",
+    "branch",
+    "base",
+    "depends_on",
+    "first",
+    "deletes",
+    "keeps_moves",
+    "adds",
+    "file_changes",
+    "verification",
+    "subtraction_estimate",
+    "rulings",
+    "questions"
+  ],
+  "title": "PipelineCutSpec",
+  "type": "object"
+}

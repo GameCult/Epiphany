@@ -1,0 +1,129 @@
+{
+  "$defs": {
+    "ClaimOutcome": {
+      "enum": [
+        "Holds",
+        "Falsified",
+        "Unproven"
+      ],
+      "type": "string"
+    },
+    "CommitRange": {
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/Sha"
+        },
+        "head": {
+          "$ref": "#/$defs/Sha"
+        }
+      },
+      "required": [
+        "base",
+        "head"
+      ],
+      "type": "object"
+    },
+    "Evidence": {
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/EvidenceKind"
+        },
+        "locator": {
+          "$ref": "#/$defs/Line"
+        },
+        "result": {
+          "$ref": "#/$defs/Line"
+        }
+      },
+      "required": [
+        "kind",
+        "locator",
+        "result"
+      ],
+      "type": "object"
+    },
+    "EvidenceKind": {
+      "enum": [
+        "Command",
+        "Test",
+        "Mutation",
+        "Probe",
+        "SourceRead",
+        "Capture"
+      ],
+      "type": "string"
+    },
+    "Line": {
+      "description": "Text of at most 1,000 UTF-8 bytes.",
+      "type": "string"
+    },
+    "Sha": {
+      "description": "A git commit id: 7-40 lowercase hex characters.",
+      "type": "string"
+    },
+    "Short": {
+      "description": "Text of at most 200 UTF-8 bytes.",
+      "type": "string"
+    },
+    "VerdictClaim": {
+      "properties": {
+        "claim": {
+          "$ref": "#/$defs/Line"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "type": "array"
+        },
+        "findings": {
+          "items": {
+            "$ref": "#/$defs/Short"
+          },
+          "type": "array"
+        },
+        "outcome": {
+          "$ref": "#/$defs/ClaimOutcome"
+        }
+      },
+      "required": [
+        "claim",
+        "outcome",
+        "evidence",
+        "findings"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.verdict.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "campaign": {
+      "$ref": "#/$defs/Short"
+    },
+    "claims": {
+      "items": {
+        "$ref": "#/$defs/VerdictClaim"
+      },
+      "type": "array"
+    },
+    "cut_report": {
+      "$ref": "#/$defs/Short"
+    },
+    "pass": {
+      "$ref": "#/$defs/Short"
+    },
+    "range": {
+      "$ref": "#/$defs/CommitRange"
+    }
+  },
+  "required": [
+    "campaign",
+    "cut_report",
+    "pass",
+    "range",
+    "claims"
+  ],
+  "title": "PipelineVerdict",
+  "type": "object"
+}

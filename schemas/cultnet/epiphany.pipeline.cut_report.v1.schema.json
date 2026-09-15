@@ -1,0 +1,317 @@
+{
+  "$defs": {
+    "CodeLocation": {
+      "properties": {
+        "end_line": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "line": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "path": {
+          "$ref": "#/$defs/Short"
+        }
+      },
+      "required": [
+        "path",
+        "line"
+      ],
+      "type": "object"
+    },
+    "CommitRange": {
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/Sha"
+        },
+        "head": {
+          "$ref": "#/$defs/Sha"
+        }
+      },
+      "required": [
+        "base",
+        "head"
+      ],
+      "type": "object"
+    },
+    "Deviation": {
+      "properties": {
+        "what": {
+          "$ref": "#/$defs/Line"
+        },
+        "why": {
+          "$ref": "#/$defs/Line"
+        }
+      },
+      "required": [
+        "what",
+        "why"
+      ],
+      "type": "object"
+    },
+    "Evidence": {
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/EvidenceKind"
+        },
+        "locator": {
+          "$ref": "#/$defs/Line"
+        },
+        "result": {
+          "$ref": "#/$defs/Line"
+        }
+      },
+      "required": [
+        "kind",
+        "locator",
+        "result"
+      ],
+      "type": "object"
+    },
+    "EvidenceKind": {
+      "enum": [
+        "Command",
+        "Test",
+        "Mutation",
+        "Probe",
+        "SourceRead",
+        "Capture"
+      ],
+      "type": "string"
+    },
+    "LandedName": {
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/LandedNameKind"
+        },
+        "location": {
+          "$ref": "#/$defs/CodeLocation"
+        },
+        "name": {
+          "$ref": "#/$defs/Short"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "location"
+      ],
+      "type": "object"
+    },
+    "LandedNameKind": {
+      "enum": [
+        "Module",
+        "Type",
+        "Function",
+        "Constant",
+        "Test",
+        "Schema",
+        "Binary",
+        "File"
+      ],
+      "type": "string"
+    },
+    "Line": {
+      "description": "Text of at most 1,000 UTF-8 bytes.",
+      "type": "string"
+    },
+    "MutationRecord": {
+      "properties": {
+        "failed_as_expected": {
+          "type": "boolean"
+        },
+        "mutation": {
+          "$ref": "#/$defs/Line"
+        },
+        "rule": {
+          "$ref": "#/$defs/Line"
+        }
+      },
+      "required": [
+        "rule",
+        "mutation",
+        "failed_as_expected"
+      ],
+      "type": "object"
+    },
+    "ReportCommit": {
+      "properties": {
+        "builds": {
+          "type": "boolean"
+        },
+        "sha": {
+          "$ref": "#/$defs/Sha"
+        },
+        "subject": {
+          "$ref": "#/$defs/Line"
+        }
+      },
+      "required": [
+        "sha",
+        "subject",
+        "builds"
+      ],
+      "type": "object"
+    },
+    "Sha": {
+      "description": "A git commit id: 7-40 lowercase hex characters.",
+      "type": "string"
+    },
+    "Short": {
+      "description": "Text of at most 200 UTF-8 bytes.",
+      "type": "string"
+    },
+    "StructuralDelta": {
+      "properties": {
+        "dependencies_added": {
+          "items": {
+            "$ref": "#/$defs/Short"
+          },
+          "type": "array"
+        },
+        "dependencies_removed": {
+          "items": {
+            "$ref": "#/$defs/Short"
+          },
+          "type": "array"
+        },
+        "formats_added": {
+          "items": {
+            "$ref": "#/$defs/Short"
+          },
+          "type": "array"
+        },
+        "formats_removed": {
+          "items": {
+            "$ref": "#/$defs/Short"
+          },
+          "type": "array"
+        },
+        "lines_added": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "lines_removed": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "targets_added": {
+          "items": {
+            "$ref": "#/$defs/Short"
+          },
+          "type": "array"
+        },
+        "targets_removed": {
+          "items": {
+            "$ref": "#/$defs/Short"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "lines_added",
+        "lines_removed",
+        "dependencies_added",
+        "dependencies_removed",
+        "formats_added",
+        "formats_removed",
+        "targets_added",
+        "targets_removed"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.cut_report.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "attempt": {
+      "$ref": "#/$defs/Short"
+    },
+    "branch": {
+      "$ref": "#/$defs/Short"
+    },
+    "campaign": {
+      "$ref": "#/$defs/Short"
+    },
+    "commits": {
+      "items": {
+        "$ref": "#/$defs/ReportCommit"
+      },
+      "type": "array"
+    },
+    "cut_spec": {
+      "$ref": "#/$defs/Short"
+    },
+    "deviations": {
+      "items": {
+        "$ref": "#/$defs/Deviation"
+      },
+      "type": "array"
+    },
+    "forks": {
+      "items": {
+        "$ref": "#/$defs/Short"
+      },
+      "type": "array"
+    },
+    "landed_names": {
+      "items": {
+        "$ref": "#/$defs/LandedName"
+      },
+      "type": "array"
+    },
+    "mutations": {
+      "items": {
+        "$ref": "#/$defs/MutationRecord"
+      },
+      "type": "array"
+    },
+    "range": {
+      "$ref": "#/$defs/CommitRange"
+    },
+    "repo": {
+      "$ref": "#/$defs/Short"
+    },
+    "structural_delta": {
+      "$ref": "#/$defs/StructuralDelta"
+    },
+    "undone": {
+      "items": {
+        "$ref": "#/$defs/Line"
+      },
+      "type": "array"
+    },
+    "verification": {
+      "items": {
+        "$ref": "#/$defs/Evidence"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "campaign",
+    "cut_spec",
+    "attempt",
+    "repo",
+    "branch",
+    "commits",
+    "range",
+    "verification",
+    "mutations",
+    "deviations",
+    "forks",
+    "structural_delta",
+    "landed_names",
+    "undone"
+  ],
+  "title": "PipelineCutReport",
+  "type": "object"
+}
