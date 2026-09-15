@@ -98,6 +98,22 @@ Soul found:
     validation, which is the single owner, enforces that the first write carries
     the pipeline identity, so it can never admit a store its opener refuses.
 
+13. **The operator channel is the Claude Code session; notification only.**
+    Eureka has no Persona. The root session is Self and the operator surface,
+    because spec iteration works best where the question and the tree share a
+    context. Questions and rulings are typed documents, so the channel is a
+    rendering choice, not an architecture.
+    - When a blocking question is admitted while the operator is away, Eureka
+      calls whatever notification MCP tool the user has configured. Eureka owns
+      no transport and names no provider, so anyone can swap in their own.
+    - Answers come back in the session and become rulings there.
+    - Answering over a chat channel is a later campaign, and it needs identity
+      binding before a reply can become a ruling.
+    - The operator's framing: "A big draw of Epiphany is each repo having a
+      recognizable identity and memories and a Persona you can talk to, but
+      Eureka is the cut-down Claude-native version anyone can use". Repo
+      identity and Persona stay Epiphany's.
+
 A Hands pass fixes F1-F8. It also makes the document wrappers crate-private,
 unifies the macro field list, validates `repo` fields, deletes `LandedNameKind`
 and the unconsumed caps, and nulls git's exclude and attribute files.
