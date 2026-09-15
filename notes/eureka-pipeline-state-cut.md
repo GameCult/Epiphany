@@ -4,7 +4,27 @@ Date: 2026-09-15 (first Imagination pass).
 
 Status: cut map. The ends are owned by `notes/eureka-pipeline-state-target.md`;
 this document owns the means. Self updates this header in every landing commit.
-No cut has landed.
+
+**Cut 1 landed** at `2b76c2e7` (re-pin) and `df82992c` (pin tests), and passed
+Soul.
+- **Verification:** core tests 156/156 with 0 warnings; the four library
+  packages and all 9 bins check; `?` is propagated at all 8
+  `add_generic_backing_store` sites (fail-closed; no site can hit the new
+  refusals).
+- **Soul found no drift on a live path.** Recorded:
+  - **F1 (medium, latent).** Under cultcache-rs 0.2.0 a cache with no store
+    accepts `put`/`put_envelope`/`delete` in memory only; at `e171eca3` it
+    refused. Epiphany's read caches (`state_cache`, `persona_social_cache`,
+    `runtime_spine_schema_cache`, and the cache in
+    `require_store_retirement_receipt`) have no mutating caller today, but a
+    future `put` on one would vanish silently.
+  - **F2 (low).** The two pin tests prove "this store file is not rewritten",
+    not "no store is attached": a store attached at a shadow path survives all
+    156 tests. Fixed before Cut 2.
+  - **F5 (gap).** Typed reads of current-epoch Mind and resident stores under
+    0.2.0 are unproven, because no current-epoch store exists locally. Raw
+    reads of 8 real stores are byte-identical, and the ledger's typed read
+    works.
 
 Pins. Code anchors are `file:line` against Epiphany `81be7a2f`. HEAD has since
 moved to `0636176a`, but only the target and `state/map.yaml` changed, so every
