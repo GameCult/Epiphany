@@ -21,18 +21,16 @@ use cultcache_rs::{CultCache, CultCacheEnvelope, DatabaseEntry};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub const PIPELINE_SCHEMA_EPOCH: &str = "epiphany.pipeline.epoch.v1";
-
 /// Typed refusals of the pipeline documents. Bounds, formats and key identity
-/// are the document half (D2); `ForeignEpoch` and `ForeignStore` are raised by
-/// the decode and envelope-validation paths that still live here, and D2 hands
-/// them to the organ when admission moves there.
+/// are the document half (D2); `ForeignStore` is raised by the decode path that
+/// still lives here, and D2 hands it to the organ when admission moves there.
+/// Identity, the schema epoch and the `ForeignEpoch` refusal are the organ's
+/// (D2), and Cut 8 writes them there against a store a test can construct.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PipelineRefusal {
     FieldBound { field: String, limit: u32, actual: u32 },
     InvalidFormat { field: String, value: String },
     InvalidIdentity { kind: PipelineKind, key: String, expected: String },
-    ForeignEpoch { found: String, expected: String },
     ForeignStore { r#type: String },
 }
 
@@ -244,7 +242,6 @@ macro_rules! unit_enums {
 
 unit_enums! {
     EvidenceKind { Command, Test, Mutation, Probe, SourceRead, Capture }
-    Faculty { SelfFaculty, Imagination, Hands, Soul, MindSteward, Eyes, Operator }
     ClaimOutcome { Holds, Falsified, Unproven }
     FindingConfidence { Confirmed, Plausible }
     FindingSeverity { Blocker, High, Medium, Low }
@@ -328,9 +325,6 @@ value_types! {
         item: Line, why_it_can_wait: Line, owner: Short,
     }
     pub struct PipelineResolution { subject: PipelineRef, outcome: ResolutionOutcome, rationale: Para, resolved_on: Date }
-
-    /// Who declared an admission. Attribution only; no rule trusts it (D4).
-    pub struct PipelineProvenance { faculty: Faculty, agent: Short, session: Short, tool: Short }
 }
 
 /// A reference to another document. The id is parsed as a full pipeline id of
@@ -439,13 +433,13 @@ macro_rules! pipeline_kinds {
             }
         }
 
-        /// Registers every type a pipeline store may hold: the ten kinds, the
-        /// store identity, admission provenance, and the commit receipt.
-        #[cfg_attr(not(test), expect(dead_code, reason = "the organ registers its mind's types through this"))]
+        /// Registers every type the document tests put in a cache: the ten
+        /// kinds and the commit receipt. Test scaffolding until the organ
+        /// registers its mind's types (Cut 8), which is why it is `cfg(test)`
+        /// rather than a live path wearing a dead-code waiver.
+        #[cfg(test)]
         pub(crate) fn register_pipeline_document_types(cache: &mut CultCache) -> Result<()> {
             $(cache.register_entry_type::<$document>()?;)*
-            cache.register_entry_type::<EpiphanyPipelineIdentity>()?;
-            cache.register_entry_type::<EpiphanyPipelineProvenance>()?;
             cache.register_entry_type::<crate::EpiphanyMindCommitReceipt>()?;
             Ok(())
         }
@@ -473,21 +467,6 @@ pipeline_kinds! {
         "epiphany.pipeline.follow_up.v1", "EpiphanyPipelineFollowUpDocument";
     Resolution(PipelineResolution) => EpiphanyPipelineResolutionDocument, "resolution",
         "epiphany.pipeline.resolution.v1", "EpiphanyPipelineResolutionDocument";
-}
-
-/// The store's schema identity, keyed by its epoch string (D2).
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(type = "epiphany.pipeline.identity.v1", schema = "EpiphanyPipelineIdentity")]
-pub(crate) struct EpiphanyPipelineIdentity {
-    #[cultcache(key = 0)]
-    pub(crate) schema_epoch: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(type = "epiphany.pipeline.provenance.v1", schema = "EpiphanyPipelineProvenance")]
-pub(crate) struct EpiphanyPipelineProvenance {
-    #[cultcache(key = 0)]
-    pub(crate) value: PipelineProvenance,
 }
 
 /// Parses a full document id. `<campaign>:<kind>:<local>` for every kind but
@@ -597,17 +576,6 @@ pub fn pipeline_key(document: &PipelineDocument) -> Result<String, PipelineRefus
 /// admission rules belong to the organ's admission path.
 #[cfg_attr(not(test), expect(dead_code, reason = "the organ's admission validates every write through this"))]
 fn validate_pipeline_write_envelope(envelope: &CultCacheEnvelope) -> Result<()> {
-    if envelope.r#type == EpiphanyPipelineIdentity::TYPE {
-        let identity: EpiphanyPipelineIdentity = rmp_serde::from_slice(&envelope.payload)?;
-        if identity.schema_epoch != PIPELINE_SCHEMA_EPOCH || envelope.key != identity.schema_epoch {
-            return Err(PipelineRefusal::ForeignEpoch {
-                found: identity.schema_epoch,
-                expected: PIPELINE_SCHEMA_EPOCH.into(),
-            }
-            .into());
-        }
-        return Ok(());
-    }
     let document = PipelineDocument::decode(envelope)?;
     document.validate()?;
     let expected = pipeline_key(&document)?;
@@ -818,6 +786,26 @@ mod tests {
             assert_eq!(PipelineDocument::decode(&envelope)?, document);
             Ok::<_, anyhow::Error>(())?;
         }
+        Ok(())
+    }
+
+    /// Soul F2: a decode is type-matched in both directions. The round-trip
+    /// test above pins the positive match; this pins the refusal, so an
+    /// envelope belonging to another kind can never be decoded as whichever
+    /// pipeline kind happens to parse its payload. The commit receipt is the
+    /// sharp case: a pipeline store may legitimately hold one, and it is still
+    /// not a document.
+    #[test]
+    fn decode_refuses_an_envelope_of_a_foreign_type() -> Result<()> {
+        let cache = schema_cache()?;
+        let foreign = <crate::EpiphanyMindCommitReceipt as DatabaseEntry>::TYPE;
+        assert!(!foreign.starts_with("epiphany.pipeline."), "{foreign} is a foreign type id");
+        let mut envelope = campaign_sample().prepare(&cache)?;
+        envelope.r#type = foreign.into();
+        assert_eq!(
+            PipelineDocument::decode(&envelope),
+            Err(PipelineRefusal::ForeignStore { r#type: foreign.into() })
+        );
         Ok(())
     }
 

@@ -8751,6 +8751,50 @@ pub(crate) mod tests {
         Ok(())
     }
 
+    /// Soul F4: the spine store and a pipeline store are different stores, and
+    /// the spine cache refuses the latter *by type* — it registers its own
+    /// types and nothing else. The epoch checks beside this one cannot stand in
+    /// for it: a pipeline store carries no runtime or Mind identity at all, so
+    /// `validate_runtime_store_epoch` returns `Ok` and the registry is the only
+    /// thing left refusing.
+    #[test]
+    fn runtime_spine_cache_refuses_a_pipeline_store() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("pipeline.cc");
+        let mut pipeline = CultCache::new();
+        crate::pipeline_documents::register_pipeline_document_types(&mut pipeline)?;
+        let campaign = crate::PipelineDocument::Campaign(crate::PipelineCampaign {
+            slug: "eureka-state".into(),
+            title: "Eureka pipeline state".into(),
+            repos: vec!["GameCult/Epiphany".into()],
+            working_branch: "codex/eureka-pipeline-state".into(),
+            target_doc: crate::DocRef {
+                path: "notes/eureka-pipeline-state-target.md".into(),
+                start_line: 1,
+                end_line: 9,
+                commit: "5f98228d".into(),
+            },
+        });
+        let envelope = campaign.prepare(&pipeline)?;
+        assert!(
+            envelope.r#type.starts_with("epiphany.pipeline."),
+            "the sample is a pipeline document: {}",
+            envelope.r#type
+        );
+        let mut backing = runtime_spine_backing_store(&store)?;
+        backing.push(&envelope)?;
+
+        assert!(
+            validate_runtime_store_epoch(&runtime_spine_backing_store(&store)?.pull_all()?).is_ok(),
+            "the epoch check passes a pipeline store, so only the registry refuses it"
+        );
+        let error = runtime_spine_cache(&store)
+            .and_then(|mut runtime| runtime.pull_all_backing_stores())
+            .unwrap_err();
+        assert!(error.to_string().contains("epiphany.pipeline."), "{error:#}");
+        Ok(())
+    }
+
     #[test]
     fn coordinator_terminal_receipts_preserve_exact_immutable_run_basis() -> Result<()> {
         let temp = tempfile::tempdir()?;
