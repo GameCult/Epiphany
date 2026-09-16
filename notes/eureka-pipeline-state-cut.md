@@ -577,7 +577,41 @@ the depth test; entries N3, N6, N7, N8, N9, N10 in the 6b file, M4 and S5
 re-anchored on the constant; the Cut 6 notes corrected to M5→N3+M6, M12→N7,
 M13→N8, M15→N6+M1). Tests 21, 0 warnings. Soul's attack script rerun against
 the fixed harness: every variant leaves every target byte-identical and runs
-no entry. Third Soul pass in flight.
+no entry.
+
+**Soul's third pass** (Fable; `soul-cut6b-fix2-*` in the session scratchpad)
+reran all three suites through the committed harness (every entry killed, M0
+green on every target, 0 warnings unmutated) and **closed the grammar
+pins**: the dotted-roots test asserts exact tuples, the root-kind asserts are
+appended to the read-back test with nothing weakened, a BOM-bearing target
+round-trips byte-identically and rustc accepts a leading BOM, and its own
+non-revert mutations died or were equivalent (swapped escape codes remain
+injective; `chars().count()` equals `len()` for ASCII parts). What survived
+is the harness under failure, not the grammar:
+
+- **The multi-target write loop sits outside the `try` whose `finally`
+  restores**, so a write that throws on the second target leaves the first
+  mutated with no message. Low for today's single-target entries, medium
+  against the harness's stated contract.
+- **M0's write-through has no `finally`**: a write that dies after
+  truncation leaves a truncated target, and only the hash-mismatch branch
+  restores.
+- **A killed process runs no `finally`**, and the harness has no timeout of
+  its own, so a tool-enforced timeout is exactly the path that leaves the
+  tree mutated. The next M0 would catch it without saying why.
+- **The reader accepts a trailing dot on the root and on the local**
+  (`pipeline_id`, `:556-557`); only the writer refuses, so a `PipelineRef`
+  with trailing junk passes the reader against its own doc comment. One
+  fixture closes it.
+- `LOCAL_MAX` names the writer's bound; the reader's is `dotted_text`'s
+  literal 64, which is also the `Slug` bound. Redundant, not split: the
+  writer refuses first. A comment at `:651` still says "the 64-byte bound".
+- Hands' line counts were +6/−1 and +73/−6, not +5/−1 and +68/−6.
+
+**The third fix batch is in Hands** (writes inside the `finally`, a
+sidecar holding the original bytes so a killed run is repaired at the next
+start, a harness-owned command timeout, the trailing-dot fixture with X1 and
+X11 as entries, the stale comment), followed in the same tree by Cut 6c.
 
 ## Probes and source reads this pass
 
