@@ -131,8 +131,18 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
   answered the reopened question is already resolved), with a refusal text
   that reads oddly for a record already in the image, and asymmetric with
   the source side. **The follow-up closes well enough to map Cut 9**; the
-  subject-selection fix and the dead arm land before Cut 12 leans on
-  hand-off replay, in Hands now.
+  subject-selection fix and the dead arm landed at `1bcb7ce` (Opus): the
+  selection sits in `stewardship_of` itself, since `derive` is its only
+  order-sensitive caller; the colliding pair is `n11` before `n2` after
+  ten round trips, not `n10`; ten round trips alone do not expose the
+  loosening, so the test hands `n11` away, withdraws that withdrawal, and
+  replays; the dead arm is gone and Soul's Y7 is unexpressible, said in
+  the entries header; H62-H67 cover the two fixes and the four gaps. 46
+  tests, 67 of 67 killed. **The follow-up is closed.** One tooling scar:
+  `CARGO_TARGET_DIR=C:\…` through the Bash tool collapses the backslashes
+  and cargo starts a from-scratch build into a path that does not exist;
+  nothing landed in the shared dir, and cargo on this host runs through
+  PowerShell only. Cut 9 in Hands.
 - **Cut 8 landed**: the Epiphany half at `a65c6420` (Soul-closed) with the
   Cut 10 prerequisite at `b4b17fc`; the Huginn half on `eureka/memory-organ`
   at `946758f`, `a4c5b79`, `0bd7133`, `ca30d3e`, fix batch `1cfa81d`,
