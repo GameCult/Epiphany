@@ -23,6 +23,11 @@
 #           The string is split on whitespace with no quoting, so a command
 #           or argument carrying a space (a path with a space in it) cannot be
 #           expressed here.
+# -TimeoutSeconds  the most one command may run, 1800 by default. A command
+#           still running at the limit is killed with its process tree by the
+#           harness itself, inside the entry's own restore, so a hung cargo is
+#           ended by the harness rather than by whatever tool is running the
+#           harness; the entry gets no verdict.
 #
 # Entry shape: `Id`, `Rule`, `Test`, and either `Old`/`New` (with an optional
 # `File`) or `Edits = @(@{ File; Old; New }, ...)`. `New = ''` deletes the
@@ -42,7 +47,18 @@
 #   change a region the entry does not describe. Zero is a stale entry. Both
 #   throw, naming the entry.
 # - Restore is the original bytes written back, never a checkout, and the
-#   restored file must hash to those bytes; if it does not, the run throws.
+#   restored file must hash to those bytes. Every write to a target, M0's
+#   included, sits inside a `try` whose `finally` restores every target the
+#   step touched, so a write that throws on the second target still restores
+#   the first. A target that cannot be restored is printed with the words
+#   RESTORE FAILED and its original SHA-256 so a human can recover it, and the
+#   run throws.
+# - A hard kill runs no `finally`. So before any target is written, its
+#   original bytes are copied to a sidecar beside it,
+#   `<target>.eureka-mutation-original`, which is deleted only after a
+#   hash-verified restore. At startup, a target whose sidecar exists is
+#   restored from it, hash-verified, and the sidecar removed, and the run
+#   prints that a previous run died mid-mutation and was repaired.
 # - M0 is built in and cannot be omitted: before any entry, every target's
 #   bytes are decoded and re-encoded through the harness I/O path and compared
 #   to the original bytes before anything is written. If a byte differs, the
@@ -55,7 +71,8 @@
 param(
     [Parameter(Mandatory = $true)] [string] $Entries,
     [Parameter(Mandatory = $true)] [string[]] $Target,
-    [Parameter(Mandatory = $true)] [string] $Test
+    [Parameter(Mandatory = $true)] [string] $Test,
+    [int] $TimeoutSeconds = 1800
 )
 
 $ErrorActionPreference = 'Stop'
@@ -66,6 +83,7 @@ if ($PSVersionTable.PSVersion.Major -lt 5 -or $env:OS -ne 'Windows_NT') {
 if (-not $env:CARGO_TARGET_DIR) {
     throw 'CARGO_TARGET_DIR is not set; set it the way the cut ran it rather than building into the repo-local target/.'
 }
+if ($TimeoutSeconds -lt 1) { throw "TimeoutSeconds must be at least 1, got $TimeoutSeconds." }
 
 $repo = Split-Path -Parent $PSScriptRoot
 $utf8 = [System.Text.UTF8Encoding]::new($false)
@@ -82,6 +100,7 @@ function Get-Hash([string] $path) { (Get-FileHash -Algorithm SHA256 -LiteralPath
 function Get-BytesHash([byte[]] $bytes) {
     ([System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes) | ForEach-Object { $_.ToString('X2') }) -join ''
 }
+function Get-SidecarPath([string] $path) { "$path.eureka-mutation-original" }
 # The first offset at which two byte arrays differ, or -1 when they are equal.
 function Find-FirstDifference([byte[]] $left, [byte[]] $right) {
     if ([System.Linq.Enumerable]::SequenceEqual($left, $right)) { return -1 }
@@ -103,31 +122,76 @@ function Measure-Sites([string] $text, [string] $anchor) {
     $count
 }
 
-# Runs one cargo command from the repo root; returns the test lines it printed
-# and its exit code. cargo writes build chatter to stderr, and under `Stop` a
-# redirected stderr line is a terminating error, so the redirect runs under
-# `Continue`.
+# Writes the original bytes back to each named target and proves it by hash,
+# then removes the target's sidecar. A target already hashing to its original
+# is not rewritten, so a write that never opened the file (a locked target)
+# is not reported as a failed restore. Every target is attempted even when an
+# earlier one fails; a target that cannot be restored is printed with RESTORE
+# FAILED and its original SHA-256, its sidecar is kept, and the first failure
+# is rethrown once the rest have been attempted.
+function Restore-Targets([string[]] $files) {
+    $failure = $null
+    foreach ($file in $files) {
+        $path = $targets[$file]
+        try {
+            if ((Get-Hash $path) -ne $hashes[$file]) {
+                [System.IO.File]::WriteAllBytes($path, $bytes[$file])
+            }
+            if ((Get-Hash $path) -ne $hashes[$file]) {
+                throw "writing the original bytes back did not restore $file; it does not hash to the original."
+            }
+            Remove-Item -LiteralPath (Get-SidecarPath $path) -Force -ErrorAction SilentlyContinue
+        }
+        catch {
+            Write-Host "RESTORE FAILED: $path was not restored; its original SHA-256 is $($hashes[$file]) and its original bytes are kept beside it in $(Get-SidecarPath $path). $_"
+            if (-not $failure) { $failure = $_ }
+        }
+    }
+    if ($failure) { throw $failure }
+}
+
+# Runs one command from the repo root with its output captured; returns the
+# test lines it printed, its exit code, whether the tree compiled and whether
+# it ran out of time. A command still running at `$TimeoutSeconds` is killed
+# with its whole process tree inside this function's own `finally`.
 function Invoke-Cargo([string] $command, [string[]] $filter) {
     $words = @($command -split '\s+' | Where-Object { $_ })
     if ($words.Count -lt 1) { throw "Empty test command." }
     $arguments = @($words | Select-Object -Skip 1) + $filter
-    $ErrorActionPreference = 'Continue'
-    Push-Location $repo
+    $start = [System.Diagnostics.ProcessStartInfo]::new()
+    $start.FileName = $words[0]
+    $start.Arguments = @($arguments | ForEach-Object { '"' + $_ + '"' }) -join ' '
+    $start.WorkingDirectory = $repo
+    $start.UseShellExecute = $false
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+    $start.CreateNoWindow = $true
+    $process = [System.Diagnostics.Process]::Start($start)
+    $stdout = $process.StandardOutput.ReadToEndAsync()
+    $stderr = $process.StandardError.ReadToEndAsync()
+    $timedOut = $false
     try {
-        $output = & $words[0] @arguments 2>&1 | ForEach-Object { "$_" }
-        $code = $LASTEXITCODE
+        $timedOut = -not $process.WaitForExit($TimeoutSeconds * 1000)
     }
     finally {
-        Pop-Location
-        $ErrorActionPreference = 'Stop'
+        if (-not $process.HasExited) {
+            # taskkill reports on stderr when a child is already gone; under
+            # `Stop` that line would be a terminating error of its own.
+            $ErrorActionPreference = 'Continue'
+            & taskkill /PID $process.Id /T /F 2>&1 | Out-Null
+            $ErrorActionPreference = 'Stop'
+            $process.WaitForExit()
+        }
     }
+    $output = @(($stdout.Result + $stderr.Result) -split "`r?`n" | Where-Object { $_ -ne '' })
     $output | Out-Host
+    if ($timedOut) { Write-Host "TIMED OUT: '$command $($filter -join ' ')' ran past $TimeoutSeconds seconds and was killed with its process tree." }
     $passed = @($output | ForEach-Object { if ($_ -match '^test (\S+) \.\.\. ok$') { $Matches[1] } })
     $failed = @($output | ForEach-Object { if ($_ -match '^test (\S+) \.\.\. FAILED$') { $Matches[1] } })
     # A test failure also prints an `error:` line, so only a compiler error
     # code or cargo's own "could not compile" counts as a build failure.
     $compiled = -not ($output | Where-Object { $_ -match '^error\[E\d+\]' -or $_ -match 'could not compile' })
-    [pscustomobject]@{ Passed = $passed; Failed = $failed; ExitCode = $code; Compiled = $compiled }
+    [pscustomobject]@{ Passed = $passed; Failed = $failed; ExitCode = $process.ExitCode; Compiled = $compiled; TimedOut = $timedOut }
 }
 
 # --- Load the suite ---------------------------------------------------------
@@ -173,6 +237,22 @@ $suite = foreach ($mutation in $mutations) {
     }
 }
 
+# --- Repair a previous run that died mid-mutation --------------------------------
+
+foreach ($file in $Target) {
+    $path = $targets[$file]
+    $sidecar = Get-SidecarPath $path
+    if (-not (Test-Path -LiteralPath $sidecar)) { continue }
+    $original = [System.IO.File]::ReadAllBytes($sidecar)
+    $hash = Get-BytesHash $original
+    [System.IO.File]::WriteAllBytes($path, $original)
+    if ((Get-Hash $path) -ne $hash) {
+        throw "A previous run died mid-mutation of $file, and restoring it from $sidecar did not land the original bytes (SHA-256 $hash). The sidecar is kept; nothing ran."
+    }
+    Remove-Item -LiteralPath $sidecar -Force
+    Write-Host "A previous run died mid-mutation of $file; it was repaired from $sidecar (SHA-256 $hash) and the sidecar removed."
+}
+
 # --- M0: the no-op control ----------------------------------------------------
 
 $originals = @{}   # decoded text per target; every edit is spliced into this
@@ -190,24 +270,30 @@ foreach ($file in $Target) {
         throw "harness broken: $file does not survive the harness I/O path; the re-encoded bytes first differ from the original at offset $differs (original $($original.Length) bytes, re-encoded $($encoded.Length)). Nothing was written and no entry ran."
     }
     $hash = Get-BytesHash $original
-    # The encode is proven; now the write path is, against the same bytes.
-    # A write that does not land the encoded bytes is restored from the
-    # original before the throw.
-    Write-Text $path $text
-    if ((Get-Hash $path) -ne $hash) {
-        [System.IO.File]::WriteAllBytes($path, $original)
-        throw "harness broken: writing $file through the harness I/O path did not land the re-encoded bytes; the original bytes were written back. No entry ran."
-    }
-    $originals[$file] = $text
     $bytes[$file] = $original
     $hashes[$file] = $hash
+    # The encode is proven; now the write path is, against the same bytes.
+    # The sidecar goes down before the write, and whatever the write does
+    # after its first byte, the `finally` writes the original back and
+    # proves it by hash.
+    [System.IO.File]::WriteAllBytes((Get-SidecarPath $path), $original)
+    try {
+        Write-Text $path $text
+        if ((Get-Hash $path) -ne $hash) {
+            throw "harness broken: writing $file through the harness I/O path did not land the re-encoded bytes; the original bytes were written back. No entry ran."
+        }
+    }
+    finally {
+        Restore-Targets @($file)
+    }
+    $originals[$file] = $text
     $eols[$file] = if ($text.Contains("`r`n")) { "`r`n" } else { "`n" }
     Write-Host "M0: $file decoded, re-encoded and rewritten, bytes unchanged ($(if ($eols[$file] -eq "`r`n") { 'CRLF' } else { 'LF' }), SHA-256 $hash)"
 }
 foreach ($command in @($suite | ForEach-Object { $_.Command } | Select-Object -Unique)) {
     $control = Invoke-Cargo $command @()
-    if ($control.ExitCode -ne 0 -or $control.Failed.Count -ne 0 -or $control.Passed.Count -lt 1) {
-        throw "harness broken: '$command' is not green unmutated (exit $($control.ExitCode), $($control.Passed.Count) passed, failed: $($control.Failed -join ', ')). No entry ran."
+    if ($control.TimedOut -or $control.ExitCode -ne 0 -or $control.Failed.Count -ne 0 -or $control.Passed.Count -lt 1) {
+        throw "harness broken: '$command' is not green unmutated ($(if ($control.TimedOut) { 'timed out' } else { "exit $($control.ExitCode)" }), $($control.Passed.Count) passed, failed: $($control.Failed -join ', ')). No entry ran."
     }
     Write-Host "M0: '$command' green, $($control.Passed.Count) passed"
 }
@@ -235,22 +321,25 @@ foreach ($mutation in $suite) {
         $at = $texts[$edit.File].IndexOf($old, [System.StringComparison]::Ordinal)
         $texts[$edit.File] = $texts[$edit.File].Substring(0, $at) + $new + $texts[$edit.File].Substring($at + $old.Length)
     }
-    foreach ($file in $texts.Keys) { Write-Text $targets[$file] $texts[$file] }
+    $files = @($texts.Keys)
+    $run = $null
+    # Every sidecar goes down before any target is written, and the writes sit
+    # inside the `try`, so a write that throws on the second target still
+    # restores the first.
+    foreach ($file in $files) { [System.IO.File]::WriteAllBytes((Get-SidecarPath $targets[$file]), $bytes[$file]) }
     try {
+        foreach ($file in $files) { Write-Text $targets[$file] $texts[$file] }
         $run = Invoke-Cargo $mutation.Command @('--', '--exact', $mutation.Test)
     }
     finally {
         # Restore is the original bytes, whatever the entry or the build left
         # behind, verified by hash.
-        foreach ($file in $texts.Keys) {
-            [System.IO.File]::WriteAllBytes($targets[$file], $bytes[$file])
-            if ((Get-Hash $targets[$file]) -ne $hashes[$file]) {
-                throw "$($mutation.Id): writing the original bytes back did not restore $file; it does not hash to the original."
-            }
-        }
+        Restore-Targets $files
     }
     $named = $mutation.Test.Split(':')[-1]
-    $verdict = if ($mutation.MustNotCompile) {
+    $verdict = if ($run.TimedOut) {
+        'TIMED OUT (no verdict)'
+    } elseif ($mutation.MustNotCompile) {
         if (-not $run.Compiled) { 'killed (did not compile)' } else { 'SURVIVED (compiled)' }
     } elseif (-not $run.Compiled) {
         'DID NOT BUILD (no verdict)'
