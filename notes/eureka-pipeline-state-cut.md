@@ -281,7 +281,8 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
   read's refusal pinned as crossing the dispatch unchanged, with mutants that
   rewrap and mutants that swallow each into the empty answer of its own
   kind), `9bbe746` (the oversize refusal) and `44ed8a9` (its loosening). 72
-  tests, 52 entries plus the control, cut8 and cut9 rerun clean. The window
+  tests, 53 entries plus the control (recorded as 52 here at first; corrected
+  from the file itself), cut8 and cut9 rerun clean. The window
   is unchanged at 1,228,800 bytes and documented as the current bound rather
   than a design target, per the amendment sent mid-flight.
 
@@ -335,7 +336,25 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
   - Corrections: the suite has 53 entries, not 52. Informational: the window
     is 1023 packets rather than 1024 until the acceptance is acknowledged,
     which would make a naive boundary test flaky.
-  - **Second fix batch in Hands.**
+  - **The second fix batch landed** at `a96c386` (Soul's probe committed as a
+    test, the arm pinned, and the two false paragraphs claiming it could not
+    be pinned deleted from both the code and the entries header), `731b542`
+    (the gate pinned on the boundary rather than near it, with the
+    1023-packet transient documented beside the pipelined-read paragraph) and
+    `202e5e3` (an instance name differing in case alone). 74 tests. Three
+    suites green against the final spelling: 164 kills, none surviving, no
+    sidecars. **All six new entries survived the shipped suite before this
+    batch**, so none of them is a loosening that cannot fail.
+  - Hands declined Soul's route for the probe: Soul had added `cultcache-rs`
+    as a dev-dependency of the daemon, which duplicates the very revision pin
+    the daemon's manifest says it exists to avoid. It re-exported the two
+    traits from `huginn-mind::store` instead, and **named the cost out loud**
+    as a widening of that crate's public surface by two re-exports, bought
+    against no new dependency and no second revision. Correct trade, correctly
+    stated.
+  - **Count correction, Self's to make:** the entry count above was wrong.
+    The suite held **53 entries at `44ed8a9`**, not 52, and holds **59 as of
+    `202e5e3`**.
 - **Operator ruling on the oversize document, 2026-09-17: the body plane.**
   A body too large for the control plane travels CultMesh's content and body
   transfer, which exists for exactly this class of content, with the control
