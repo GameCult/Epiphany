@@ -1293,12 +1293,19 @@ mod tests {
     fn pipeline_published_schemas_match_derivation() -> Result<()> {
         let published = Path::new(env!("CARGO_MANIFEST_DIR")).join("../schemas/cultnet");
         let index: serde_json::Value = serde_json::from_slice(&std::fs::read(published.join("index.json"))?)?;
-        let derived_dir = std::env::temp_dir().join("epiphany-pipeline-schemas");
-        // Emptied first, so what is left in it is what this run derived. A
-        // previous run's leftovers -- a mutation run's especially -- are not
-        // this derivation, and copying one of those into `schemas/cultnet`
-        // publishes a schema no Rust type produces.
-        std::fs::remove_dir_all(&derived_dir).ok();
+        // A directory this run alone writes, so everything in it is what this
+        // run derived. A previous run's leftovers -- a mutation run's
+        // especially, since those deliberately derive schemas no committed type
+        // produces -- are not this derivation, and copying one of those into
+        // `schemas/cultnet` publishes a schema no Rust type produces. A shared
+        // directory cleared first would have to defend that clear against a
+        // held handle; an unshared one has nothing to defend. The directory is
+        // only created when something is stale, so a passing run leaves none.
+        let derived_dir = std::env::temp_dir().join(format!(
+            "epiphany-pipeline-schemas-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_nanos()
+        ));
         let mut stale = Vec::new();
         for kind in PipelineKind::ALL {
             let file = format!("{}.schema.json", kind.type_id());
