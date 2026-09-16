@@ -549,10 +549,20 @@ through the new harness, refusal `value` is the failing part and asserting
 - **F7 (recorded): `-Test` splits on whitespace**, so a path with spaces
   cannot be expressed. Not reachable on this host.
 
-**The second fix batch is in Hands:** the harness reads and restores bytes and
-compares before writing; overlapping anchor counts; N3/N6/N7/N8/N9/N10 added as
-entries with their pins (a dotted-roots test, a root-kind read-back test, a
-shared `LOCAL_MAX` constant); the Cut 6 notes corrected.
+**The second fix batch landed** at `9370aa0f` (harness: the original is read
+as bytes and is the restore source on every path; M0 compares the re-encoded
+bytes to the original before writing anything, then still writes through and
+hashes so a broken write path is caught, restoring the original bytes before
+any throw; anchor occurrences are counted overlapping; the offset reverse-edit
+path is deleted; a BOM-bearing target is now tolerated rather than refused)
+and `f00062db` (`dotted_roots_key_and_read_back`;
+`keys_read_back_as_ids_of_their_kind` extended by three root-kind asserts, its
+first change since Cut 6; `const LOCAL_MAX: usize = 64` shared by `local` and
+the depth test; entries N3, N6, N7, N8, N9, N10 in the 6b file, M4 and S5
+re-anchored on the constant; the Cut 6 notes corrected to M5→N3+M6, M12→N7,
+M13→N8, M15→N6+M1). Tests 21, 0 warnings. Soul's attack script rerun against
+the fixed harness: every variant leaves every target byte-identical and runs
+no entry. Third Soul pass in flight.
 
 ## Probes and source reads this pass
 
