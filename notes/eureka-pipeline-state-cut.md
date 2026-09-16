@@ -1860,8 +1860,47 @@ the thirteen kinds and the test cache registers the stand-in,
 normal dependencies with the lock unchanged, and
 `every_kind_is_at_the_epochs_version` pins the epoch's version against every
 type id and the registrar's count. 27 tests, 0 warnings; `epiphany-core`
-recompiled nothing; entries E1-E3 killed. Source outside tests net −3. Soul
-in flight; Huginn pins `a65c6420` once it closes.
+recompiled nothing; entries E1-E3 killed. Source outside tests net −3.
+
+**Soul's pass** (Fable; `soul-cut8e-*` in the session scratchpad) attacked
+the door from an external crate by path: the four public functions and the
+epoch constant are reachable; the thirteen wrappers, `Bounded`,
+`pipeline_id`, `ForeignDocument` and `derived_schema` are not (E0603,
+E0432, E0599); all thirteen kinds round-trip `prepare`, `validate`,
+`decode` with the key equal to `pipeline_key`'s; a structural tamper, a
+forged key, a foreign type and one kind's type over another's payload each
+refuse as named. The validator carries no `anyhow` inside; six direct
+dependencies exactly; the lock and the schemas unchanged; the twenty-six
+prior test names intact. Every suite killed through the harness, including
+the new E1-E3, and its own non-revert mutations died (`.v01`, `epochs.v1`,
+one kind at `.v2`, the inverse of S2, the reason bound at 1,001, only the
+first supersessor validated). A double registration cannot move the
+registrar's count because the cache dedupes, so that mutant is equivalent.
+**The Epiphany half of Cut 8 closes; Huginn pins `a65c6420`.** Found, none
+touching the leaf's contract:
+
+- **A sidecar whose file is gone crashes the harness with no message, and
+  it stays crashed** (medium): PowerShell 5.1 collapses an empty byte array
+  from an `if` expression to `$null`, the comparison throws the .NET
+  exception, the "could not repair" line sits outside the `try`, and every
+  later run in that root dies the same way until a human deletes the
+  sidecar. Bytes are never destroyed.
+- **A locked target during repair leaves an `.eureka-mutation-overwritten`
+  file whose name lies**, since it is written before the failed restore.
+- **Seven doc comments describe the organ in the present tense** as a
+  consumer that exists, and one claims a Huginn test that does not.
+- **`decode` is a door, not a guard**: an envelope built without `prepare`
+  is accepted by `decode` and, when the key and fields are valid, by the
+  validator too, by design; but `decode` alone bound-checks nothing, and
+  its doc does not say so. Cut 9's views and Cut 12's import must not read
+  `decode` as validation.
+- Reach, not defects: a forged supersessor at index seven is unpinned
+  (fixtures forge index one and fail the count at nine); the epoch test
+  pins the version suffix only, and the schema-derivation test is what
+  kills a renamed type id.
+
+Both harness findings and the doc lines are in a small Hands batch; the
+Huginn half is in Hands in parallel, in its own tree.
 
 ## Cut 7. Retire Huginn's TypeScript body
 
