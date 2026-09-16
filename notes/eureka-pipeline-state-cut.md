@@ -13,12 +13,23 @@ repo.** The old Cuts 3b-7 described a repo-owned store and are dead; they are
 kept, clearly marked, under "History" at the end of this file. Nothing above
 that section describes the old model.
 
-**The campaign pauses after Cut 6c.** Operator decision, 2026-09-16: the
-StreamPixels rescue is the portfolio piece, so CultLib's TypeScript QUIC
-realtime plane goes first and Huginn (Cuts 7-16) resumes after StreamPixels
-ships. The stop point is chosen so that `epiphany-pipeline` is a clean leaf with
-published schemas and no half-built service. Self writes a postmortem at the
-pause saying exactly why it stopped there.
+**Ordering against the other campaigns.** Operator rulings, 2026-09-16:
+
+- First ruling: the StreamPixels rescue is the portfolio piece, so CultLib's
+  TypeScript QUIC realtime plane goes ahead of Huginn, and the schema work
+  here stops at Cut 6c so that `epiphany-pipeline` is a clean leaf with
+  published schemas and no half-built service.
+- Correction, same day, in the operator's words: "I'm fine with doing the
+  CultLib cut without Huginn, but I want the StreamPixels migration to run
+  with it. If it's to be our portfolio piece, we want full Eureka capabilities
+  demonstrated." So this campaign does **not** pause after Cut 6c. The QUIC
+  cut runs without Huginn; Huginn (Cuts 7-16) lands before the StreamPixels
+  migration starts, so that migration runs on typed pipeline state end to end.
+  Sequence: Cut 6c → QUIC (CultLib) and Cuts 7-16 (Huginn, a different repo,
+  may run alongside) → StreamPixels on Eureka with `eureka-state`.
+
+Self still writes a postmortem at the Cut 6c boundary, because it closes the
+schema-ownership phase inside Epiphany, not because the campaign stops.
 
 - **Cut 1 landed** at `2b76c2e7`, `df82992c`. CultLib re-pinned to `a0813c6`.
 - **Cut 2 landed** at `00991c1b`, `46460efc`, `cb6ef5d2`. One commit owner,
