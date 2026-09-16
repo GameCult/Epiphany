@@ -45,14 +45,23 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
   `b6f6e802`, `80db5db6`, `3ee78e05`, second fix batch at `9b68d83c`,
   `4cccb45c`, `4a654351`. `epiphany-pipeline` is a leaf library Huginn can
   depend on without `epiphany-core`.
-- **Cut 6b landed** at `602ffd9f` (deletes), `1bddd2ac` (grammar), `95ee551a`
-  (mutation suite); fix batch in Hands. The second fix batch's Soul pass had
-  found the same invariant open one level up for the third time, so the key
-  grammar was redesigned rather than patched a fourth time. Soul's first pass
-  on the grammar found no collision in 212,450 adversarial keys and four
-  unpinned checks.
-- **Cut 6c landed** at `4d6af409`, `13570e84`, `dddf9ede`, after the third
-  6b fix batch at `9d57a460`, `7cd1a38b`. Soul in flight on both.
+- **Cut 6b landed and closed** at `602ffd9f` (deletes), `1bddd2ac`
+  (grammar), `95ee551a` (mutation suite), with three fix batches at
+  `4b85dd2d`, `d03a32df`, `9370aa0f`, `f00062db`, `9d57a460`, `7cd1a38b`.
+  The second fix batch's Soul pass on Cut 6 had found the same invariant
+  open one level up for the third time, so the key grammar was redesigned
+  rather than patched a fourth time; Soul found no collision in 212,450
+  adversarial keys. The shared mutation harness came out of its fix
+  batches.
+- **Cut 6c landed and closed** at `4d6af409`, `13570e84`, `dddf9ede`, fix
+  batch `fcfbda3f`, `3f7d58d1`, harness repairs `b3bd4a82`, `aef0e1bf`.
+- **Cut 6d in Hands** against `b4b17fc`: the key sequences Q17, Q19 and Q20
+  ruled, in the leaf. Its Huginn follow-up commit lands after Soul closes it
+  and the pin moves. **Must land before Cut 9.**
+- **Cut 8 landed**: the Epiphany half at `a65c6420` (Soul-closed) with the
+  Cut 10 prerequisite at `b4b17fc`; the Huginn half on `eureka/memory-organ`
+  at `946758f`, `a4c5b79`, `0bd7133`, `ca30d3e`, fix batch `1cfa81d`,
+  `acd32f3`, `30daff8`. Soul in flight on the fix batch.
 - **Cut 7 landed and closed** on Huginn `eureka/memory-organ` at `1320fc4`,
   `f63c0f2`, `e20c786`, fix `4094e68`; Eve `main` `e777e4c`, fix `167a2d3`;
   EveConformance `main` `048ea2f`. Started in parallel on the operator's
@@ -2044,6 +2053,571 @@ moves to this commit.
     reads as a "recompile" of an untouched crate. That is the build-economy
     cost of one shared `CARGO_TARGET_DIR` across sessions, already accepted
     (correction 22); not a dependency, and not Hands' explanation either.
+
+## Cut 6d. Resolution history and stewardship by sequence
+
+Imagination, 2026-09-16, revised the same day for Q19 A and Q20 A.
+Implements Q17 B, Q18 A as corrected, Q19 A and Q20 A: **a hand-off is a
+transfer of stewardship, symmetric and final as a record; a lease is two
+transfers and nothing more** (no lease, expiry, return or intent field
+anywhere); **a withdrawal cannot be withdrawn**; and **stewardship is keyed by
+a per-(instance, repo) sequence, not by date**, exactly as resolutions are
+keyed by a per-subject sequence.
+
+- **Repo/branch:** Epiphany `codex/eureka-pipeline-state`. Anchors are
+  `file:line` against `epiphany-pipeline/src/lib.rs` at **`b4b17fc`** (2,099
+  lines, 28 tests), byte-identical at HEAD `542dc184` (`git diff --stat
+  b4b17fc HEAD -- epiphany-pipeline/ schemas/cultnet/ tools/` empty, probed
+  twice). HEAD moved three times during this pass, the map only; re-anchor by
+  content as every cut since 6b has.
+- **Depends on:** nothing unlanded. **Blocks:** Cut 9 (in-force derivation),
+  Cut 12 (hand-off), and a Cut 8 follow-up commit in Huginn that this cut
+  implies (below). Lands before any of them.
+- **Cost:** two kinds' keys move (`resolution`, `stewardship`); two fields are
+  added (`resolution.sequence`, `stewardship.sequence`); two schema files
+  regenerate; no epoch moves; no kind widens. Keys are free to move today: no mind exists on Yggdrasil.
+  Huginn pins `a65c6420` (`crates/huginn-mind/Cargo.toml:15`) and its fixtures
+  spell both old shapes, so the pin move is a named follow-up, not a surprise.
+
+### What the cut does
+
+**Q17 B.** A resolution is the record of how a subject was closed and by
+what. Its key gains a per-subject sequence as the **last** local part:
+`<subject root>:resolution:<subject kind>.<subject local>.n<N>`. Withdrawn
+resolutions stay under their subject as records; the subject can be resolved
+again at `n<N+1>`; the history is the key prefix
+`<root>:resolution:<kind>.<local>.n`.
+
+**Q18 A + Q20 A.** A stewardship is keyed by repo and a per-(instance, repo)
+sequence: `<instance>:stewardship:<repo escaped>.n<N>`. A repo transferred
+away and later transferred back to the same mind is two records under one
+prefix, `<instance>:stewardship:<repo escaped>.n`, and the in-force one is
+the latest not withdrawn. `assigned_on` stays a field, validated as a `Date`
+by the derived `Bounded` impl, and no longer enters the key.
+
+Both are key-shape changes in the leaf plus one field each. Everything semantic
+(what "in force" means, what `AlreadyResolved` refuses, how a transfer derives
+its writes) is admission's and is specified here for the Huginn follow-up, not
+built here. The leaf gains no cross-field rule (authority map, Cut 6b/6c).
+
+### Decisions, with the reasons
+
+#### D1. The sequence is a field the writer sets; admission checks it
+
+This decision is made once and applied to both kinds: `resolution.sequence`
+is per subject, `stewardship.sequence` is per `(instance, repo)`. The leaf
+holds no image (`pipeline_key`'s inputs are "the document's own
+fields. No clock, store, registry or counter", map Cut 6b authority map), so
+the only way the sequence reaches the key is a field. Admission cannot set it
+either: `admit_prepared` takes envelopes "prepared by anyone" and the receipt
+digests the exact payload bytes (`receipt.rs`, map Cut 8 A9/A11), so a field
+rewritten by admission would make Cut 12's import and exact replay
+impossible. Precedent already in the leaf: `revision: u32` on `target` and
+`cut_spec` is writer-set and keyed `r<N>`, and Huginn's `revision_rule`
+(`admission.rs:605-622` at `1cfa81d`) checks it against the image. The
+sequence follows the same pattern exactly.
+
+- **Fields:** `sequence: u32` on `PipelineResolution` after `subject`, and
+  `sequence: u32` on `PipelineStewardship` after `repo`.
+- **Bound:** none in the leaf beyond `u32` and `LOCAL_MAX`; `n4294967295` is
+  an 11-byte label. The leaf refuses neither `0` nor a gap, as it refuses
+  neither `revision: 0` nor `revision: 7` without a predecessor; those are
+  admission's (`revision_rule` refuses 0). Stated in both fields' doc comments
+  and pinned as a stated limit in the new tests.
+- **Admission's rule (follow-up), the same for both:** `sequence ==
+  latest + 1`, where `latest` is the greatest `sequence` among the records of
+  the same scope (resolutions of that subject; stewardships of that
+  `(mind, repo)`) in image ∪ batch other than this document; and no record of
+  that scope is in force other than this document. Refusals below.
+- **Derived writes** (a ruling's `Answered` resolution; on a transfer, the
+  source mind's `Withdrawn` resolution of its stewardship and the receiving
+  mind's new stewardship) get their `sequence` from `derive()` the same way,
+  since `derive` already reads `docs` (`admission.rs:417-458` at `30daff8`).
+
+#### D2. Spelling: `n<N>`, the last part
+
+Every numeric key part the leaf has carries a one-letter marker (`r2`, `h1`,
+`s2`, `:724,:731,:739,:748`), and `parent_cut` reads the marker to tell a
+spec's tail from a report's. The sequence takes `n` ("the nth resolution").
+Nothing parses it back: admission reads `sequence` from the document, never
+from the key, and the reader `pipeline_id` stays one shape with no `match
+kind` (R1, R2 hold; `:579-599` unchanged). The marker buys legibility and the
+house convention for one byte per nesting; the alternative, bare digits, was
+considered and rejected because a key a human reads in a Studio row should
+say what its tail is.
+
+The sequence is the **last** part so that the subject's resolutions, and only
+they, share the prefix `<root>:resolution:<kind>.<local>.n`. Under R2 no part
+carries a dot, so `question.Q1.n` cannot match `question.Q10.n1`, and the
+withdrawal of `Q1`'s first resolution keys under `resolution.question.Q1.n1.n1`,
+outside the prefix. The same spelling and position serve stewardship: the
+history of a repo on a mind is the prefix `<instance>:stewardship:<repo
+escaped>.n`, and `key_segment` escapes `.` to `_d`, so an escaped repo can
+never end in `.n`. Both prefix properties are pinned by leaf tests (below) and
+are what Cut 9's history queries ride on.
+
+#### D3. Nesting arithmetic changes
+
+A depth-one local is `<kind>.<subject local>.n<s>`. Each nesting prepends
+`resolution.` (11 bytes) and appends `.n<s>` (3 bytes for one digit), so a
+chain `d` deep composes `14 * (d - 1) + L1` bytes, `L1` the depth-one local.
+At `LOCAL_MAX = 64`: `ruling.A.n1` (11 bytes) and `question.Q1.n1` (14 bytes)
+both key **four** deep and refuse at five (53 and 56 fit; 67 and 70 do not).
+The bound stays the local's alone (`local`, `:673-682`); no guard is added
+(Q11 A). The depth test derives its expectation from `LOCAL_MAX` and the two
+literal widths, so the numbers are not restated.
+
+A stewardship local is `<repo escaped>.n<N>`, so the escaped repo has
+`LOCAL_MAX - 3` bytes for a one-digit sequence (61), not 64. It does not
+nest. The resolution of a stewardship is `<instance>:resolution:stewardship.<repo
+escaped>.n<N>.n<M>`, two sequence parts, the inner one the stewardship's; a
+withdrawal of that is one more `resolution.` and `.n1`, and Q19 A stops the
+chain there.
+
+#### D4. What "withdrawn" means, and what `AlreadyResolved` becomes
+
+Documents are immutable and status is derived (Cut 9: "status is derived at
+read time, never stored"), so the only way a resolution stops counting is
+another document naming it: **a resolution of the resolution with outcome
+`Withdrawn`**, the matrix row Cut 8 first specified ("resolution: `Withdrawn`
+only: withdrawing a resolution reopens its subject", map `:2376`) and Soul
+found unimplementable under the outcome-invariant key. The sequence makes it
+implementable. Huginn's landed fix batch already restored that row
+(`acd32f3`, `admission.rs:673` at `30daff8`: `(K::Resolution, O::Withdrawn {
+.. }) => true`) and its doc comment says the sequence "is mapped separately";
+this is that map.
+
+In-force, one derivation for every kind, recursive and well-founded:
+
+> `in_force(kind, id)` holds when no resolution `R` with `R.subject == (kind,
+> id)` exists in image ∪ batch such that `in_force(Resolution, key(R))`.
+
+`key(R)` is strictly longer than `id`, so the recursion descends a bounded
+chain (D3) and terminates. Today's `in_force` (`admission.rs:255-267`) is the
+non-recursive special case that counts a withdrawn resolution as if it still
+stood; that is the exact defect Soul named.
+
+The in-force resolution of a subject is then "the latest not withdrawn". The
+two readings of that phrase ("the latest, if not withdrawn" and "the latest
+among the not-withdrawn") coincide **only if a withdrawal cannot itself be
+withdrawn**: otherwise `n1` withdrawn, `n2` admitted, then `n1`'s withdrawal
+withdrawn leaves two resolutions standing. **Q19, ruled A:** the chain is capped at admission (a resolution
+of a resolution is admissible only when that resolution's own subject is not
+a resolution), so reinstating a withdrawn closure is done by resolving the
+subject again at `n<N+1>`, which is what "keep a log, attached to the
+subject" asks for. Under A the two readings coincide and "the latest not
+withdrawn" is exact.
+
+`AlreadyResolved { subject }` moves from A10 to A8:
+
+- **A8, resolution row:** the subject has an in-force resolution other than
+  this document → `AlreadyResolved { subject }`. "Other than this document"
+  is content identity (the same `subject`, `sequence`, `outcome`, `rationale`,
+  `resolved_on`), so an exact replay passes A8 and reaches A9's
+  `AlreadyAdmitted`, as the ruling row's `own` closure already arranges
+  (`admission.rs:496-501`). A wrong sequence → `ResolutionOutOfSequence {
+  subject, expected, actual }` (new `MindRefusal` variant, Huginn's enum, not
+  the leaf's).
+- **A10:** the `Resolution` arm of `refuse_collisions` (`admission.rs:727-729`
+  at `30daff8`) is deleted. A resolution key is no longer one-per-subject, so a collision on
+  it means what it means for every other kind: that identity is taken.
+  `IdentityCollision` names it. The map's A10 sentence "a subject resolves at
+  most once because its resolution key is outcome-invariant" is retired.
+- **The ruling row** keeps `AlreadyResolved` (a ruling answering a question
+  whose resolution is in force); the derived `Answered` resolution's sequence
+  is `latest + 1`, so a question withdrawn-and-reopened can be answered again.
+
+#### D5. Stewardship: keyed by sequence, in force = the latest not withdrawn
+
+- **Key:** `local(&key_field, &[&key_segment(&value.repo.0), &sequence])`
+  with `let sequence = format!("n{}", value.sequence);`, after the existing
+  `org_repo_text("stewardship.repo", …)?`. `assigned_on` does not enter the
+  key, so the arm validates nothing about it; the field is validated where
+  every field is, by the `Bounded` impl `value_types!` emits (`:248-253`),
+  and `validate_pipeline_write_envelope` runs that before the key check.
+  Q20's first draft put the date in the key and a `validate` call in the arm;
+  both are gone, and no test may assert a date-shaped refusal from
+  `pipeline_key`.
+- **Date-invariance:** two stewardships of one repo with one sequence and
+  different `assigned_on` key once, exactly as two resolutions of one subject
+  with one sequence and different outcomes key once. Pinned in the new test.
+- **Escaped repo bound:** the local is `<repo escaped>.n<N>`, so the escaped
+  repo has 61 bytes for a one-digit sequence. `a_composed_local_is_bounded_whole`'s
+  stewardship boundary moves with it (below).
+- **In force (follow-up), mirroring the resolution row exactly:** `sequence
+  == latest(mind, repo) + 1` → else `StewardshipOutOfSequence { repo,
+  expected, actual }`; and no in-force stewardship of `(mind, repo)` other
+  than this document → else `AlreadyStewarded { repo }`. Both are new
+  `MindRefusal` variants; the first is the sequence rule the coordinator
+  named, the second is the in-force half `AlreadyResolved` plays for
+  resolutions, and it is the one Cut 12's transfer-back depends on (a repo
+  cannot be assigned twice while one assignment stands). Today the row is
+  the key collision (`:2362`), which a sequenced key no longer provides.
+  With both, at most one stewardship of a repo is in force on a mind, so
+  "the latest not withdrawn" is "the one not withdrawn" and `stewardship_of`
+  (`admission.rs:271-284` at `30daff8`) keeps returning `find_map` of the
+  in-force one with no tie-break.
+- **Same-day limit, retired.** With the date out of the key, a repo
+  transferred away and back to the same mind on one day is `n1` withdrawn and
+  `n2` standing; nothing collides. The hand-off key itself still carries
+  `handed_on` (`:721`), so two hand-offs in one direction for one repo on one
+  day still share a key; that is the pre-existing hand-off shape, which this
+  cut does not touch, recorded under Findings.
+
+#### D6. A hand-off is a transfer; the derivations are symmetric already
+
+Operator, 2026-09-16: "We might start with, say, Odin as steward over a whole
+swarm of infra tools, and spin off a new steward only when the workload
+justifies it. Odin wouldn't be getting it back in that case."
+
+`derive` at `admission.rs:433-452` (`30daff8`) reads only `from_instance ==
+mind` (withdraw the in-force stewardship) and `to_instance == mind` (assign a
+new one, `assigned_on: handed_on`). A transfer back is a hand-off with the
+instances swapped; the source side withdraws the transferee's stewardship
+(a resolution at that stewardship's next sequence), the receiving side
+derives a new stewardship at `latest(mind, repo) + 1`, which no longer
+collides with the withdrawn original. **No field names a return, and none is
+added.** `hand_off` is unchanged in shape and key; `PipelineHandOff`
+(`:374-377`) does not move and `hand_off.v1.schema.json` does not regenerate.
+
+What changes for Cut 8's per-kind rules: the hand-off row's two derivations
+each set a `sequence` (`derive` computes both from `docs`), and the derived
+stewardship's key is `<mind>:stewardship:<repo escaped>.n<N>`. What changes for Cut 12's
+spec: the sentence "with the superseding `stewardship` on the source side"
+(map `:2707-2709`) is wrong at HEAD and was before this cut — Cut 8 derives a
+`Withdrawn` resolution on the source side, not a supersession — and one test
+is added, `a_repo_transferred_back_is_stewarded_again` (transfer A→B, then
+B→A; A's in-force stewardship is `n2`; `n1` is still readable by key; the
+prefix `A:stewardship:<repo escaped>.n` yields both). Cut 12 models no return
+specially.
+
+### Deletes first
+
+| Path | Lines | What dies |
+|---|---:|---|
+| `epiphany-pipeline/src/lib.rs` | 0 | Nothing. The cut adds one field and two key parts; the resolution and stewardship arms are already one exit each through `local`, and the cut changes what they compose, not how. |
+| Huginn `crates/huginn-mind/src/admission.rs:727-729` at `30daff8` (follow-up, not this commit) | 3 | `refuse_collisions`'s `Resolution` arm. Goes before any new rule is added in that commit. (The matrix's Q17 A paragraph already died at `acd32f3`.) |
+
+An honest zero in the leaf, not an omission.
+
+### Keeps and moves
+
+- **Keeps:** thirteen kinds, `PipelineKind`, every type id, the epoch
+  constant (`:667`), `pipeline_id` (`:579-599`) untouched, `local`,
+  `key_segment`, `ROOT_LOCAL`, `LOCAL_MAX`, `parent_local`, `parent_cut`,
+  `PipelineRef`, `ResolutionOutcome` and its `Bounded` impl, the hand-off arm
+  (`:714-723`) and key, `PipelineHandOff` and `PipelineStewardship.assigned_on`
+  as fields, the outcome-invariance assertion (`:1102-1109`: the sequence is
+  the same across outcomes, so the assertion stays true as written), every
+  `value_types!` and `pipeline_kinds!` entry,
+  `validate_pipeline_write_envelope`, all twenty-eight test names.
+- **Moves:** the resolution sample key (`:941`), the stewardship sample key
+  (`:951`), and every literal resolution or stewardship key in the tests
+  (listed per line below). The nested-depth arithmetic in
+  `a_resolution_of_a_resolution_reads_back` and the stewardship boundary in
+  `a_composed_local_is_bounded_whole` are key-shape assertions and move with
+  the shape; both are named below with the exact new expression.
+- **Re-anchor, not move:** `tools/eureka-cut6b-mutations.psd1` M2 pins the
+  exact `let parts = …` line of the resolution arm; that line changes, so M2's
+  `Old` and `New` are re-anchored (below). Precedent: N7/N8 re-anchored Cut
+  6's M12/M13 in the same file.
+
+### Adds
+
+| Add | Owner | Live consumer | Protected invariant | Why an existing owner cannot serve |
+|---|---|---|---|---|
+| `PipelineResolution.sequence: u32` | the leaf (shape and key) | `pipeline_key`'s resolution arm now; `huginn-mind`'s resolution row and `derive` in the follow-up | A subject's resolutions are distinct records with a total order the key carries, so a withdrawn one is kept and the next one is nameable (Q17 B) | The key must come from fields (D1); no existing field distinguishes two resolutions of one subject. |
+| `n<N>` as the last part of a resolution local | `pipeline_key` | the same | History is one key prefix per subject (D2) | The composer has no other path to a key. |
+| `PipelineStewardship.sequence: u32` | the leaf | `pipeline_key`'s stewardship arm now; `huginn-mind`'s stewardship row and `derive` in the follow-up | A repo's stewardships on a mind are distinct records with a total order the key carries, so a transferred-away repo can come back as a new record (Q18 A, Q20 A) | No existing field distinguishes two assignments of one repo to one mind; the date was rejected (Q20) because same-day records would collide and a date orders nothing the sequence does not. |
+| `n<N>` as the last part of a stewardship local | `pipeline_key` | the same | History is one key prefix per `(instance, repo)` | The composer has no other path to a key. |
+| Three tests and `tools/eureka-cut6d-mutations.psd1` (M23-M27) | the leaf's suite | the shared harness | Each rule above has a runtime mutation | — |
+
+No kind, module, dependency, target, format or epoch. No type outside
+`value_types!`.
+
+### Per-file changes, `epiphany-pipeline/src/lib.rs` at `b4b17fc`
+
+| Line | Change |
+|---|---|
+| `:16-20` | Module doc gains one sentence: "A resolution's local ends in its per-subject sequence, `n<N>`, and a stewardship's in its per-repo sequence, so a subject's resolutions and a repo's assignments each share a prefix." |
+| `:363` | `pub struct PipelineResolution { subject: PipelineRef, sequence: u32, outcome: ResolutionOutcome, rationale: Para, resolved_on: Date }`, with a doc comment: the record of how a subject was closed and by what; `sequence` is per subject and set by the writer, `1` for the first; whether it is the previous plus one, and whether an earlier one still stands, are admission's. |
+| `:369-371` | `pub struct PipelineStewardship { instance: Slug, repo: OrgRepo, sequence: u32, assigned_on: Date, note: Line }`; doc: "an assignment of a repo to a mind; `sequence` is per `(instance, repo)`, set by the writer, `1` for the first, so a repo transferred away and back is two records under one prefix. `assigned_on` is a field, not a key part." |
+| `:695-701` | Rewrite the arithmetic comment: each nesting prepends `resolution.` and appends `.n<s>`, `14 * (n - 1) + L1` bytes against `LOCAL_MAX`. |
+| `:702-707` | Resolution arm: `let sequence = format!("n{}", value.sequence);` before `let parts = …`; the parts line becomes `let parts = std::iter::once(value.subject.kind.name()).chain(subject_local.split('.')).chain(std::iter::once(sequence.as_str())).collect::<Vec<_>>();`. The tuple line `(field, subject_root, local(&key_field, &parts)?)` is **byte-identical** (M3 anchors it). |
+| `:710-713` | Stewardship arm: `org_repo_text("stewardship.repo", &value.repo.0)?; let sequence = format!("n{}", value.sequence);` then `local(&key_field, &[&key_segment(&value.repo.0), &sequence])`. No validation of `assigned_on` here. |
+| `:937-941` | Resolution sample gains `sequence: 1`; expected key `format!("{CAMPAIGN}:resolution:question.Q1.n1")`. |
+| `:948-951` | Stewardship sample gains `sequence: 1`; expected key `format!("{INSTANCE}:stewardship:GameCult_-Epiphany.n1")`. |
+| `:1251` | `ruling.R8` → `ruling.R8.n1`. |
+| `:1270` | `question.Q1` → `question.Q1.n1`. `:1272` (`{CAMPAIGN}:resolution:R8` validates as well-formed grammar) unchanged; `:1274-1284` refused list unchanged. |
+| `:1296` | `campaign.self` → `campaign.self.n1`. |
+| `:1413`, `:1428`, `:1432` | Stewardship keys gain `.n1`. `:1436-1441` (no org) and `:1443-1452` (60-byte name still refused, now at 73 bytes) unchanged. |
+| `:1530` | The nested probe's subject id: `question.Q1` → `question.Q1.n1` (a real resolution key; the key composed is `resolution.question.Q1.n1.n1`). |
+| `:1616-1620` | `campaign.self` → `campaign.self.n1` in both the key and the read-back tuple. |
+| `:1824-1831` | Doc comment: the new arithmetic and depths (four for both fixtures at 64). |
+| `:1840` | Expected `resolution.question.Q1.n1.n1`. |
+| `:1841-1843` | Recovery: `let (subject_kind, rest) = local.split_once('.')`; `let (subject_local, _sequence) = rest.rsplit_once('.')`; assert `format!("{root}:{subject_kind}:{subject_local}") == inner`. |
+| `:1846` | `let nesting = "resolution.".len() + ".n1".len();` The loop and its two assertions are otherwise unchanged; `deepest` is still derived from `LOCAL_MAX`. |
+| `:1886-1912` | The stewardship boundary: `let stewardship_rest = "GameCult_-".len() + ".n1".len();` and `stewarded(64 - stewardship_rest)`, `stewarded(65 - stewardship_rest)`. Comment says the local is `<repo escaped>.n<N>`. The hand-off half is untouched. |
+| tests, after `:1938` | Three new tests, under Verification. No sample is added, so every `samples().remove(N)` index is unchanged. |
+
+`tools/eureka-cut6b-mutations.psd1:38-39` (M2): `Old` becomes the new parts
+line above; `New` becomes `let parts = subject_local.split('.').chain(std::iter::once(sequence.as_str())).collect::<Vec<_>>();`
+(the kind dropped, the sequence kept, so the mutant still compiles and still
+keys `question.Q1` and `ruling.Q1` to one key, which
+`a_resolution_names_its_subjects_kind` kills as before). No other 6b, 6c, 8e
+or D entry anchors a line this cut touches (read: M1, M3-M6, S2, S4, S5, N3,
+N6-N10, X1, X11 anchor `local`, `key_segment`, `pipeline_id` and the campaign
+arm; 6c anchors `ResolutionOutcome`'s impl, `MutationRecord`, `VerdictClaim`
+and the estimate literal).
+
+`schemas/cultnet/`: **exactly two files regenerate.**
+`epiphany.pipeline.resolution.v1.schema.json`: `properties` gains
+`"sequence": { "format": "uint32", "minimum": 0, "type": "integer" }` (the
+shape `revision` already has in `epiphany.pipeline.target.v1.schema.json:101-105`)
+and `required` (`:219-224`) gains `"sequence"` after `"subject"`.
+`epiphany.pipeline.stewardship.v1.schema.json`: the same property, and
+`required` (`:37-42`) gains `"sequence"` after `"repo"`. Derived, never
+hand-written: `pipeline_published_schemas_match_derivation` writes the
+derivation to a per-run temp directory and names it; copy from there.
+`epiphany.pipeline.hand_off.v1.schema.json` is **byte-identical**: no field
+moves on `PipelineHandOff`, and keys are not in schemas. The other ten and
+`index.json` (no hashes) are byte-identical. **No epoch moves.** Honesty
+about "additive": the epoch constant's doc comment (`:660-666`) says additive
+means "a new named field with a serde default", and neither `sequence` has
+one — a default of `0` would key a document to `n0`, which admission refuses,
+so the default would be a lie.
+This lands without a bump on the same ground Cut 6c's four required fields
+did: no store is written at this epoch and no reader is pinned to the file
+(Huginn pins the crate rev, not the schema). Recorded under Findings as the
+rule the campaign will owe an epoch to once a mind exists.
+
+`git diff --stat b4b17fc -- schemas/cultnet/` names exactly the two files.
+
+### Authority map
+
+- **Owner:** `pipeline_key` (`:687`), through `local`, for both keys. Unchanged
+  owner; changed inputs.
+- **Inputs:** the document's own fields, now including `resolution.sequence`
+  and `stewardship.sequence`. `stewardship.assigned_on` is **not** a key
+  input. No clock, store, registry or counter. A sequence is a field the
+  writer sets, never derived here.
+- **Outputs:** one `String` or a `PipelineRefusal` naming the field
+  (`resolution.key`, `stewardship.key`, `stewardship.repo`).
+- **Derived state:** the key, never stored. The history of a subject is a
+  key prefix, not a list anything maintains. In-force status, the sequence
+  rule, the withdrawal chain and the single-in-force-stewardship rule are
+  admission's, computed at rule time, never stored (Cut 8/9), and are **not
+  in this crate**.
+- **Forbidden writers:** the leaf may not check either `sequence` against
+  anything (not `> 0`, not a gap), may not refuse a nested resolution, may
+  not decide which stewardship is in force, may not put `assigned_on` (or any
+  date) into the stewardship key, and may not parse a sequence back out of a
+  key. `pipeline_id` gains no arm. Nothing may put a sequence anywhere but
+  last. Admission (Huginn) may not set or rewrite `sequence` on a submitted
+  document; it computes it only for the writes it derives.
+- **Shared paths:** the four grammar paths of 6b, unchanged:
+  `pipeline_key`, `pipeline_id`, `PipelineRef::validate`,
+  `validate_pipeline_write_envelope`. Huginn's `admit` and `admit_prepared`
+  converge before A1 and see the new keys through A3 with no new code.
+- **Deletion line:** none in the leaf. In the follow-up: `refuse_collisions`'s
+  `Resolution` arm and the matrix's Q17 A default go before any new rule is
+  added.
+
+### Verification
+
+**Builds.** `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex`, path-list
+baseline before and after. `cargo check -p epiphany-pipeline --lib --tests`;
+`cargo test -p epiphany-pipeline --lib` (28 existing + 3 = **31 tests**, 0
+warnings); `cargo check -p epiphany-core --lib --tests` (untouched; `cargo
+tree --workspace -i epiphany-pipeline -e normal,build,dev` lists the leaf
+alone, map correction 41, so no recompile is legitimate). Host = target =
+workstation; the leaf has no platform code.
+
+Baseline probed this pass in a detached worktree at `b4b17fc` under the
+scratchpad: 28 passed, 0 failed, 15 s wall with warm rlibs; worktree removed.
+
+**Tests.** Existing twenty-eight unchanged in name; assertions unchanged
+except the key-shape moves named per line above.
+
+| Test | Rule it pins |
+|---|---|
+| `a_subject_keeps_every_resolution_it_had` | Q17 B in the key: two resolutions of `question:Q1` with `sequence` 1 and 2 key to `…question.Q1.n1` and `…n2`, `assert_ne`; each reads back through `pipeline_id` with the local's last part `n<sequence>`; the same document with `sequence` 1 under `Answered` and `Withdrawn` keys once (outcome-invariance holds per sequence). Stated limits: `sequence: 0` composes `n0` and `u32::MAX` composes `n4294967295` (21-byte local under `ruling.A`); the leaf refuses neither, admission does. |
+| `a_subjects_resolutions_share_a_prefix_no_other_key_has` | D2: over the keys of `Q1` n1..n3, `Q10` n1, `ruling:Q1` n1, the campaign-root resolution n1, and the withdrawal of `Q1.n1` (`resolution.question.Q1.n1.n1`), `starts_with("{CAMPAIGN}:resolution:question.Q1.n")` selects exactly the three. Pinned as a string property, which is what a prefix query is. |
+| `a_repo_keeps_every_stewardship_it_had` | Q18 A + Q20 A in the key: one repo with `sequence` 1 and 2 keys to `…GameCult_-Epiphany.n1` and `…n2`, `assert_ne`; each reads back through `pipeline_id` with the last part `n<sequence>`; the same document with `sequence` 1 on `2026-09-15` and on `2026-09-16` keys **once** (date-invariance: `assigned_on` is a field, not a key part); over the keys of `GameCult/Epiphany` n1..n2, `GameCult/Epiphany_thing` n1 and `GameCult/Huginn` n1, `starts_with("{INSTANCE}:stewardship:GameCult_-Epiphany.n")` selects exactly the two. Stated limit: `sequence: 0` composes `n0`; the leaf refuses nothing on the value. |
+
+**Negative greps over `epiphany-pipeline/src`:** `rg -n "sequence"` shows the
+two fields, the two arms, docs and tests and **no** `if`, `match`, `==`, `>`
+or `+ 1` on either outside `tests`; `rg -n "assigned_on" -- src/lib.rs`
+shows the field, the samples, the derived stewardship nowhere (the leaf
+derives nothing) and **no** occurrence inside `pipeline_key`; `rg -n "match kind|declared_kind|KeyParts"` empty;
+`rg -n "fn pipeline_id" -A 20` shows no change (`git diff b4b17fc --
+epiphany-pipeline/src/lib.rs` has no hunk in `:572-599`); `git diff --stat
+b4b17fc -- schemas/cultnet/` names exactly two files; `rg -n '"sequence"'
+schemas/cultnet/epiphany.pipeline.{resolution,stewardship}.v1.schema.json`
+matches twice in each (property and required) and `rg -n '"sequence"'
+schemas/cultnet/epiphany.pipeline.hand_off.v1.schema.json` is empty;
+`rg -n "lease|expiry|returns_to|intent"` empty.
+
+**Suites that must still kill every entry:** `eureka-cut6b-mutations.psd1`
+(seventeen entries, M2 re-anchored), `eureka-cut6c-mutations.psd1` (M16-M22),
+`eureka-cut8-epiphany-mutations.psd1` (E1-E3, D1-D2), `eureka-cut5-`, `eureka-cut6-`
+if still run per the harness header, and the new `eureka-cut6d-mutations.psd1`.
+All through `tools/eureka-mutations.ps1` with M0 green.
+
+#### Mutations, `tools/eureka-cut6d-mutations.psd1`
+
+Each restores the old permissiveness of the shape it pins. Anchors are
+content Hands lands, matched exactly once.
+
+| # | Rule | Mutation, exactly | Killed by |
+|---|---|---|---|
+| M23 | A subject's resolutions are distinct records | Resolution arm: `.chain(std::iter::once(sequence.as_str()))` → removed (the old one-per-subject key) | `a_subject_keeps_every_resolution_it_had` (n1 and n2 key equal); collaterally every moved sample key |
+| M24 | A repo's stewardships on a mind are distinct records | Stewardship arm: `&[&key_segment(&value.repo.0), &sequence]` → `&[&key_segment(&value.repo.0)]` (the old one-per-repo key) | `a_repo_keeps_every_stewardship_it_had` (n1 and n2 key equal); collaterally every moved stewardship key |
+| M25 | The stewardship sequence is the last part | Stewardship arm: `&[&key_segment(&value.repo.0), &sequence]` → `&[&sequence, &key_segment(&value.repo.0)]` | the same test's prefix assertion (`n1.GameCult_-Epiphany` leaves the prefix) |
+| M26 | The sequence is the last part | Resolution arm: sequence chained **before** the subject local (`once(kind).chain(once(sequence)).chain(local parts)`) | `a_subjects_resolutions_share_a_prefix_no_other_key_has` (`question.n1.Q1` leaves the prefix) |
+| M27 | The nested subject is recovered whole, sequence stripped | In the resolution arm, `subject_local.split('.')` → `subject_local.rsplit_once('.').map_or(subject_local, \|(head, _)\| head).split('.')` (drop the subject's own sequence when nesting) | `a_resolution_of_a_resolution_reads_back` (the recovered subject is `question.Q1`, not the inner key) and `every_key_has_exactly_three_segments`'s nested probe |
+
+Stated limits: the `n` marker is pinned only by the sample-key equalities in
+`keys_are_derived_and_mismatch_refuses` and the two prefix literals, a
+fixture pin like 6c's M21; a marker change is a spelling change and no
+mutation restores a permissiveness by it. The `u32` type has no runtime
+mutation. Date-invariance has no mutation of its own: putting `assigned_on`
+into the key is not a permissiveness the old code had, and M24 already pins
+that the second part is the sequence and nothing else (a mutant that appends
+the date as a third part dies on M24's test's `assert_eq` of the local's
+part count, which Hands asserts as `2`).
+
+**Operator checks before landing:** none. Q19 and Q20 are ruled.
+
+### The Cut 8 follow-up commit this cut implies
+
+Huginn `eureka/memory-organ`, one commit after **`30daff8`** (the fix batch
+landed as `acd32f3`, which restored the `resolution → Withdrawn` matrix row
+and flipped the nested assertions, and `30daff8`, entries H21-H39; anchors
+below are `file:line` at `30daff8`). Pinned rev moves from `a65c6420` to this
+cut's landing commit, which also carries `b4b17fc`'s derives: the
+`#[serde(remote)]` mirror of `PipelineRefusal` in `refusal.rs` can come out
+then, but that is Cut 10's stated work and not this commit's.
+
+| File | Change |
+|---|---|
+| `crates/huginn-mind/Cargo.toml:15` | `rev` → the 6d landing commit. |
+| `Cargo.lock` | the `epiphany-pipeline` source line. |
+| `src/refusal.rs` | `ResolutionOutOfSequence { subject: String, expected: u32, actual: u32 }`, `StewardshipOutOfSequence { repo: String, expected: u32, actual: u32 }`, `AlreadyStewarded { repo: String }`. `AlreadyResolved { subject }` kept. The two `OutOfSequence` variants are the sequence rule for each kind; `AlreadyResolved`/`AlreadyStewarded` are the in-force half. |
+| `src/admission.rs:23-26` | Module doc: "in force" is recursive: no resolution names the document that is itself in force. |
+| `:248-267` | `resolutions()` yields `(key, &PipelineResolution)`; `in_force_unless` becomes the recursion of D4, with `own` taking the whole `&PipelineResolution` (content identity) rather than the outcome. Add `latest_resolution(subject) -> u32` and `latest_stewardship(mind, repo) -> u32` over image ∪ batch (0 when none). |
+| `:271-284` | `stewardship_of` unchanged in shape; its result is now unique by the `AlreadyStewarded` rule. |
+| `:417-458` | `derive`: the ruling's `Answered` resolution and the source side's `Withdrawn` resolution each get `sequence: latest_resolution(subject) + 1`; the receiving side's stewardship gets `sequence: latest_stewardship(mind, repo) + 1` with `assigned_on: handed_on` as before. Keys follow from the leaf, no other code. |
+| `:591`, new `resolution_rule` steps | Before the matrix: `sequence` rule (`ResolutionOutOfSequence`), then in-force (`AlreadyResolved`). After the matrix, Q19 A: a subject of kind `Resolution` whose own subject is a `Resolution` → `IncompatibleResolution`. |
+| `:598` | Stewardship row, mirroring the resolution row: `sequence == latest_stewardship + 1` else `StewardshipOutOfSequence`; then no in-force stewardship of `(mind, repo)` other than this document, else `AlreadyStewarded`. |
+| `:654-680` | `matrix`: already restored at `acd32f3`; unchanged. |
+| `:724-733` | `refuse_collisions`: delete the `Resolution` arm (`:727-729`); one refusal, `IdentityCollision`. |
+| `src/fixtures.rs:100-107`, `:263-270` | `stewardship(instance, repo)` sets `sequence: 1`; add `stewardship_n(instance, repo, sequence)`; `resolution(subject, outcome)` sets `sequence: 1`; add `resolution_n(subject, sequence, outcome)`. |
+| Tests moving | `two_minds_in_one_state_root_stay_separate:800`, `the_resolution_matrix_is_admissions:1024,:1042`, `a_ruling_answering_a_question…:1132,:1135`, `a_hand_off_derives_this_minds_side_only:1427,:1448`, `id_of:1474-1477` (appends `.n1`): every `…:stewardship:GameCult_-Epiphany` gains `.n1` and every `…:resolution:question.Q1` gains `.n1`. Fixtures in `:52-116` of the landed batch (H21-H39's tests) that spell either literal move the same way; grep `stewardship:GameCult\|resolution\", \"question.Q1\"` after `30daff8` and re-anchor. |
+| `subject_resolves_at_most_once:977` | Renamed `a_subject_with_a_resolution_in_force_refuses_another`: second resolution of `Q1` at `sequence: 2` → `AlreadyResolved`; at `sequence: 1` → `ResolutionOutOfSequence { expected: 2, actual: 1 }`; the answering ruling → `AlreadyResolved` (unchanged). |
+| new `a_withdrawn_resolution_reopens_its_subject_and_stays_readable` | `Q1` resolved n1; withdrawal of `…question.Q1.n1` (`Withdrawn`) lands; `Q1` resolved n2 lands; `get` of n1 still returns it; a withdrawal of the withdrawal → `IncompatibleResolution` (Q19 A); a third resolution at n3 while n2 stands → `AlreadyResolved`; a second answering ruling after the withdrawal derives `…question.Q1.n2`. |
+| new `a_repo_is_stewarded_once_at_a_time_and_again_after_a_transfer` | second stewardship of `REPO` at `sequence: 2` while n1 stands → `AlreadyStewarded`; at `sequence: 1` → `StewardshipOutOfSequence { expected: 2, actual: 1 }`; after a hand-off away, a hand-off back (swapped instances) lands and derives `<mind>:stewardship:GameCult_-Epiphany.n2` with `assigned_on` the second `handed_on`; `envelope` of n1 still present; the source mind's derived withdrawal is `…:resolution:stewardship.GameCult_-Epiphany.n1.n1`. |
+| `tools/eureka-cut8-mutations.psd1` | H14's expectation stands (`IdentityCollision` on a ruling). Any H21-H39 entry anchoring `stewardship_of`, `derive` or `refuse_collisions` lines re-anchored. New: H40 resolution sequence rule → `true`; H41 in-force non-recursive (a withdrawn resolution still counts) → the reopen test; H42 stewardship sequence rule → `true` → the stewardship test's `expected: 2, actual: 1` case; H43 `AlreadyStewarded` dropped → the same test; H44 Q19 cap dropped → the reopen test's withdrawal-of-withdrawal; H45 `derive` uses `sequence: 1` for every derived write → the reopen test's second ruling and the transfer test's `n2`. |
+| `README.md`, `AGENTS.md` | unchanged; Cut 12's map section corrected by Self ("superseding" → "withdrawal"). |
+
+Estimate: +about 260 lines in Huginn (rules 50, refusals 9, fixtures 16,
+tests 150, entries 48), −about 3 (the A10 arm). One build, `cargo test -p
+huginn-mind --lib`, plus the cut-8 suite through the harness with `-Repo`.
+
+### Subtraction estimate
+
+Epiphany, this cut: source outside tests +about 12 (two fields, two
+`format!("n{}")` lines, two chained parts, four doc lines), −0; tests +about
+100 (three tests) and about 25 lines of moved literals; two schema files
++5/−0 each; one 6b entry re-anchored. Kinds, dependencies, targets, formats,
+epoch, `index.json`: zero. Liability retired: the one key that could not
+name the second closure of a subject, and the one key that could not name
+the second stewardship of a repo — both of which Soul found as medium
+defects against Cut 8, and both of which would have cost a stored-document
+re-key the moment Yggdrasil's mind held a resolution. Also retired before it
+ever shipped: the date-keyed stewardship's same-day collision.
+
+Huginn, the follow-up: +260/−3 as above. Net across both: about +380, all
+tests and rules for a capability the operator asked for by name.
+
+### Build budget
+
+Epiphany: `epiphany-pipeline` lib + tests only; `epiphany-core` check, no
+rebuild expected. Debug, workstation host = target, no features, no
+codegen. Footprint delta: within the noise of a warm leaf rebuild (the probe
+this pass rebuilt the leaf's test binary in 15 s); expected +0 to +40 paths.
+Huginn follow-up: `huginn-mind` lib + tests; the leaf rlib rebuilds at the
+new rev (+about 30 paths). Retention: the shared target dir is the operator's;
+nothing deleted.
+
+### Operator questions
+
+None open. Two were raised by this spec and ruled the same day:
+
+- **Q19. Can a withdrawal be withdrawn? Ruled A, 2026-09-16.** A resolution
+  is admissible with `Withdrawn` only when its subject's own subject is not a
+  resolution (chain depth two at admission). To reinstate a withdrawn
+  closure, resolve the subject again at `n<N+1>`. History stays append-only,
+  "the latest not withdrawn" has one reading, and the in-force recursion
+  never re-raises an earlier record over a later one. The rejected B (any
+  depth; in-force is "the latest among the not-withdrawn") could express a
+  standing record that is not in force. H44's mutant is exactly B.
+- **Q20. Stewardship keyed by date or by sequence? Ruled A (sequence),
+  2026-09-16.** `<instance>:stewardship:<repo escaped>.n<N>`, writer-set
+  `sequence: u32` checked by admission as previous plus one, exactly as
+  resolutions; `assigned_on` stays a field. The first draft's date key was
+  rejected for the same-day collision and because a date orders nothing the
+  sequence does not.
+
+The Q18 correction (transfer, not lease) raised nothing new: the derivations
+were already symmetric in the source.
+
+### Findings not assignable to this cut
+
+- **"Additive" has two definitions in the repo.** The epoch constant's doc
+  (`lib.rs:660-666`) says a new field is additive with a serde default; the
+  campaign's practice (6c's four required fields, this cut's `sequence`) is
+  "additive while no store is written at the epoch". Both are right today and
+  will disagree the day Yggdrasil holds a mind. Owner: the map's ruling 8
+  text and the constant's doc; not this cut's.
+- **Cut 12's spec says "the superseding `stewardship` on the source side"**
+  (map `:2707-2709`); Cut 8 landed a `Withdrawn` resolution there
+  (`admission.rs:437-442`). Stale before this cut; Self's to correct.
+- **Cut 8's map text at A10** ("a subject resolves at most once because its
+  resolution key is outcome-invariant", `:2344`) and the stewardship row
+  ("the key collides, A10", `:2362`) both describe the shape this cut retires.
+  Self's, at the follow-up's landing.
+- **Cut 9's `open_items_and_rulings_in_force_follow_resolutions`** needs the
+  recursive derivation and a reopened-subject fixture, or it will pin the
+  non-recursive defect as correct. Cut 9's spec should say so before Hands
+  reads it.
+- **Same-day granularity survives only in the hand-off key** (`:721`,
+  `<from>:hand_off:<to>.<repo>.<handed_on>`): two hand-offs in one direction
+  for one repo on one day share a key. The stewardship half of this limit is
+  retired by Q20 A. If the Odin-swarm workflow ever transfers a repo twice
+  in a day in one direction, the hand-off key wants the same treatment; not
+  asked, not this cut's, recorded.
+- **`Date` derives `Ord` on its string** (`:212`), correct for `YYYY-MM-DD`
+  only because `Bounded::validate` enforces the shape. Nothing orders dates
+  after Q20; the sequence orders.
+
+### Pinned HEADs
+
+- Epiphany `codex/eureka-pipeline-state` at `542dc184` (map only since
+  `87d3420c`: `993600fd`, `76167f0a`, `542dc184`); `epiphany-pipeline/src/lib.rs`,
+  `schemas/cultnet/` and `tools/` byte-identical to `b4b17fc`. Tree clean.
+- Huginn `eureka/memory-organ` at `30daff8`, tree clean. The fix batch
+  landed as `acd32f3` (matrix row `resolution → Withdrawn` restored, nested
+  assertions flipped) and `30daff8` (nineteen rules pinned, entries
+  H21-H39). Follow-up anchors above are against `30daff8`. Pin in
+  `crates/huginn-mind/Cargo.toml:15` is still `a65c6420`.
+- CultLib untouched and unread this pass (Soul is in that tree).
+- Probe artifacts: a detached worktree `scratchpad/cut6d-wt` at `b4b17fc` ran
+  `cargo test -p epiphany-pipeline --lib` once (28 passed) under the shared
+  target dir and was removed; Huginn's sources at `1cfa81d` were copied to
+  `scratchpad/huginn-*-1cfa81d.rs` by `git show` and read there while the
+  batch was in flight, then the landed `30daff8` was grepped for every site
+  the follow-up anchors.
 
 ## Cut 7. Retire Huginn's TypeScript body
 
