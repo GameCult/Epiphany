@@ -3,8 +3,9 @@
 //! This is a leaf type library, and deliberately nothing else. It owns document
 //! shape, field bounds, formats, key derivation and the JSON schemas published
 //! under `schemas/cultnet`; it owns no storage, no admission, no process and no
-//! network. That is the whole reason it is a package: the memory organ depends
-//! on these types without depending on the harness that used to hold them.
+//! network. That is the whole reason it is a package: the organ that will admit
+//! these documents depends on these types without depending on the harness
+//! that used to hold them.
 //!
 //! Every kind is a plain `serde` + `JsonSchema` value inside a one-slot
 //! `DatabaseEntry` wrapper, always prepared with `prepare_entry_named`, so the
@@ -39,9 +40,10 @@ use serde::{Deserialize, Serialize};
 
 /// Typed refusals of the pipeline documents: bounds, formats and key identity
 /// (D2's document half), and `ForeignStore`, raised by `decode` for an
-/// envelope of any other type. The organ's refusals wrap this enum; the
-/// store's identity and the schema epoch are refused there, against a store a
-/// test can construct.
+/// envelope of any other type. This is every refusal the leaf decides; a
+/// store's identity and its schema epoch are not decided here, since this
+/// crate owns no store, and belong to the organ that will admit these
+/// documents.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PipelineRefusal {
     FieldBound { field: String, limit: u32, actual: u32 },
@@ -469,7 +471,7 @@ macro_rules! pipeline_kinds {
                 match self { $(Self::$variant(value) => value.validate($name)),* }
             }
 
-            /// Prepares the envelope the organ stores: keyed by `pipeline_key`,
+            /// Prepares the envelope to be stored: keyed by `pipeline_key`,
             /// payload `[value]` through `prepare_entry_named`.
             pub fn prepare(&self, cache: &CultCache) -> Result<CultCacheEnvelope> {
                 let key = pipeline_key(self)?;
@@ -482,7 +484,9 @@ macro_rules! pipeline_kinds {
 
             /// Decodes a stored envelope, type-matched both ways: an envelope of
             /// any other type is `ForeignStore`, never the kind that happens to
-            /// parse its payload.
+            /// parse its payload. It validates neither bounds nor the key: a
+            /// decoded document is a typed read, and
+            /// `validate_pipeline_write_envelope` is the check before a write.
             pub fn decode(envelope: &CultCacheEnvelope) -> Result<Self, PipelineRefusal> {
                 let invalid = |error: rmp_serde::decode::Error| format_error("payload", &error.to_string());
                 $(if envelope.r#type == <$document as DatabaseEntry>::TYPE {
@@ -494,7 +498,7 @@ macro_rules! pipeline_kinds {
         }
 
         /// Registers every pipeline kind in a cache, and nothing else: the one
-        /// door to the crate-private wrappers, so the organ registers exactly
+        /// door to the crate-private wrappers, so a caller registers exactly
         /// what this crate publishes.
         pub fn register_pipeline_document_types(cache: &mut CultCache) -> Result<()> {
             $(cache.register_entry_type::<$document>()?;)*
@@ -505,9 +509,8 @@ macro_rules! pipeline_kinds {
 
 /// A document that is not a pipeline document, for the decode refusal and the
 /// registrar's count to be pinned against something real. It stands in for
-/// the commit receipt of any organ: a mind's store legitimately holds one
-/// beside pipeline documents, and it is still not a document this library may
-/// decode. Huginn pins the same rule against its real receipt type; here the
+/// any other document a store may hold beside pipeline documents, a commit
+/// receipt say, which is still not a document this library may decode. The
 /// stand-in carries a receipt-shaped type id and is registered only by the
 /// tests' own cache, never by the live registrar.
 #[cfg(test)]
@@ -639,8 +642,9 @@ const LOCAL_MAX: usize = 64;
 /// schemas it names. Evolution is additive and keeps it: a new named field
 /// with a serde default, or a widened `PipelineKind`, since each reader ships
 /// with the variants it knows and refuses an unknown kind on the kind, not on
-/// the epoch. A breaking change bumps it, and the organ refuses a store
-/// written at the old one.
+/// the epoch. A breaking change bumps it, so that a store written at the old
+/// one can be refused by whoever opens it; this crate owns no store and
+/// refuses none.
 pub const PIPELINE_SCHEMA_EPOCH: &str = "epiphany.pipeline.epoch.v1";
 
 /// Composes and validates a local: every part is a `Label`, and the join is
@@ -737,8 +741,10 @@ pub fn pipeline_key(document: &PipelineDocument) -> Result<String, PipelineRefus
 }
 
 /// Bounds, formats, then key recomputation, on the envelope that will be
-/// stored, whoever prepared it. Per-kind and cross-document rules belong to
-/// the organ's admission path, which calls this first and never re-derives it.
+/// stored, whoever prepared it. It is the whole of what this crate checks
+/// before a write; per-kind and cross-document rules are not decided here and
+/// belong to the admission path of the organ that will admit these documents,
+/// which is expected to call this first rather than re-derive it.
 pub fn validate_pipeline_write_envelope(envelope: &CultCacheEnvelope) -> Result<(), PipelineRefusal> {
     let document = PipelineDocument::decode(envelope)?;
     document.validate()?;
