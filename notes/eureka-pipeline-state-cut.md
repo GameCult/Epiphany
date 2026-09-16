@@ -52,9 +52,9 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
   on the grammar found no collision in 212,450 adversarial keys and four
   unpinned checks.
 - **Cut 6c specified** against `95ee551a`; waits on the 6b fix batch.
-- **Cut 7 landed** on Huginn `eureka/memory-organ` at `1320fc4` (retire),
-  `f63c0f2` (workspace), `e20c786` (docs), and Eve `main` at `e777e4c`
-  (fixture provenance). Soul in flight. Started in parallel on the operator's
+- **Cut 7 landed and closed** on Huginn `eureka/memory-organ` at `1320fc4`,
+  `f63c0f2`, `e20c786`, fix `4094e68`; Eve `main` `e777e4c`, fix `167a2d3`;
+  EveConformance `main` `048ea2f`. Started in parallel on the operator's
   instruction; it has no dependency on the Epiphany cuts.
 - **Target rewritten** at `5fb4eb22`.
 
@@ -1940,8 +1940,16 @@ edition 2024 both satisfied; `--locked` clean), and every Eve check. Found:
   house pattern, not a deviation. The first cut that adds a dependency will
   rewrite the lock as LF and produce a whole-file diff. Recorded.
 
-The first three are in a Cut 7 fix batch across EveConformance, Eve and
-Huginn.
+**The Cut 7 fix batch landed** at EveConformance `048ea2f` (manifest
+`ownerRepo` → Eve; the isolated `run-parity.mjs:824-833` comparison passes),
+Eve `167a2d3` (`purpose` and the `.eve` comment reworded; `splitTarget`
+omitted, because the schema declares it an optional string, five Eve-owned
+fixtures already omit it, and no reader consumes it on fixture metadata;
+schema validation true, 13 tests pass, the fixture compiles), and Huginn
+`4094e68` (AGENTS carries the stub caveat; the "does not" list is one
+sentence naming Studio). Three one-line-class edits with their checks
+pasted; no separate Soul pass. The next Soul on Huginn, at Cut 8, rereads
+AGENTS against the Body. **Cut 7 is closed.**
 
 Operator ruling on the npm check: not publishing, nothing to unpublish, and
 npmjs is unreachable from this network (see Verification above).
