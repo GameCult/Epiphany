@@ -17,8 +17,12 @@
 # Requires CARGO_TARGET_DIR to be set the way the cut ran it, or it will build
 # into the repo-local target/.
 #
+# M1-M5 are the collapse's own rules. MS1 and MS2 close Soul's findings S7 and
+# S8: each is a mutation the suite used to survive, kept here so the gap cannot
+# reopen.
+#
 # This suite differs from Cut 4's in one way: an entry carries a list of edits
-# rather than a single Old/New pair, because two of the five rules are about
+# rather than a single Old/New pair, because two of the seven rules are about
 # the *order* of two statements. Removing a statement and reinserting it
 # elsewhere is two edits and cannot be expressed as one replacement. Every edit
 # is still asserted to match exactly once.
@@ -56,7 +60,7 @@ $mutations = @(
     },
     @{
         Id    = 'M2'
-        Rule  = 'Every write in the batch is validated against the Mind document rules.'
+        Rule  = 'The batch is validated against the Mind document rules at all. MS2 pins that every write is.'
         Test  = 'reasoning_context::tests::mind_commit_keeps_validation_receipts_replay_and_conflicts'
         Edits = @(
             @{
@@ -130,6 +134,43 @@ $mutations = @(
         return Ok(EpiphanyMindCommitOutcome::Committed(existing));
     }
     for write in &writes {
+        crate::mind_documents::validate_mind_write_envelope(write)?;
+    }
+'@
+            }
+        )
+    },
+    # Soul's finding S7. M3 sends the CAS to a *different* path, which leaves a
+    # second file the one-store test can see. This sends it to the same path,
+    # which leaves no trace in the directory at all and survived M3's test. It is
+    # still a second handle, and the map's redb plan makes that fatal: redb
+    # permits one writable handle per path.
+    @{
+        Id    = 'MS1'
+        Rule  = 'The owner resolves the backing store once and reuses that handle, rather than re-deriving it.'
+        Test  = 'reasoning_context::tests::mind_commit_reads_and_writes_one_store'
+        Edits = @(
+            @{
+                File = $context
+                Old  = '    if backing_store.compare_and_swap_batch(&expected, replacements)? {'
+                New  = '    if runtime_spine_backing_store(store_path)?.compare_and_swap_batch(&expected, replacements)? {'
+            }
+        )
+    },
+    # Soul's finding S8. M2 neuters validation for every write, which any
+    # single-write batch catches. This keeps validation and narrows it to the
+    # first write, which nothing caught until a batch of two carried an invalid
+    # second write.
+    @{
+        Id    = 'MS2'
+        Rule  = 'Every write in the batch is validated, not just the first.'
+        Test  = 'reasoning_context::tests::mind_commit_validates_every_write_in_the_batch'
+        Edits = @(
+            @{
+                File = $context
+                Old  = $validationLoop
+                New  = @'
+    for write in writes.iter().take(1) {
         crate::mind_documents::validate_mind_write_envelope(write)?;
     }
 '@

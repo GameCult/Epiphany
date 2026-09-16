@@ -2564,6 +2564,62 @@ mod tests {
         Ok(())
     }
 
+    /// Every write in the batch is validated, not just the first. A batch of
+    /// two distinct writes whose second is refused is refused whole, with
+    /// nothing written.
+    #[test]
+    fn mind_commit_validates_every_write_in_the_batch() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("mind.cc");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "mind-batch-validation-test".into(),
+                display_name: "Mind batch validation test".into(),
+                created_at: "2026-09-15T00:00:00Z".into(),
+            },
+        )?;
+        let value = crate::EpiphanyObservation {
+            id: "first".into(),
+            summary: "one".into(),
+            source_kind: "test".into(),
+            status: "accepted".into(),
+            code_refs: Vec::new(),
+            evidence_ids: Vec::new(),
+        };
+        let accepted = runtime_spine_cache(&store)?
+            .prepare_entry("first", &crate::EpiphanyMindObservationDocument { value })?
+            .0;
+        let refused = refused_mind_write(&store)?;
+        assert_ne!(
+            (&accepted.r#type, &accepted.key),
+            (&refused.r#type, &refused.key),
+            "the two writes carry distinct identities, so uniqueness cannot answer first"
+        );
+        let provenance = EpiphanyMindDocumentVersion::from_envelope("epiphany-organ", &accepted)?;
+        let before = std::fs::read(&store)?;
+        let error = commit_external_typed_observation_mind_mutation(
+            &store,
+            "test-organ",
+            provenance,
+            "test-owner",
+            Vec::new(),
+            vec![accepted, refused],
+            "2026-09-15T00:00:01Z",
+        )
+        .unwrap_err();
+        assert!(
+            error.to_string().contains("semantic identity"),
+            "the second write is validated too: {error}"
+        );
+        assert_eq!(
+            std::fs::read(&store)?,
+            before,
+            "a refused batch writes nothing, including its valid writes"
+        );
+        Ok(())
+    }
+
     /// Ruling 12 again: identity uniqueness is checked before write validation,
     /// so a batch that repeats an identity reports the repeat, not the
     /// validator's refusal. The order is fail-closed either way; this pins
@@ -2605,6 +2661,12 @@ mod tests {
     /// the cache load, the batch CAS and the conflict re-read. A commit that
     /// wrote anywhere else would leave a second store beside this one, and a
     /// replay read from anywhere else would not find the receipt.
+    ///
+    /// The file assertions below cannot see a handle re-derived from the *same*
+    /// path, because a handle carries nothing but its path. The resolution
+    /// count can, and that is the shape the map's redb plan makes load-bearing:
+    /// redb permits one writable handle per path, so a second derivation is a
+    /// second handle there.
     #[test]
     fn mind_commit_reads_and_writes_one_store() -> Result<()> {
         let temp = tempdir()?;
@@ -2640,9 +2702,16 @@ mod tests {
                 at,
             )
         };
+        let resolutions_before =
+            crate::runtime_store_backend::backing_store_resolutions(&store);
         let EpiphanyMindCommitOutcome::Committed(receipt) = commit("2026-09-15T00:00:01Z")? else {
             panic!("the first Mind write must commit");
         };
+        assert_eq!(
+            crate::runtime_store_backend::backing_store_resolutions(&store) - resolutions_before,
+            1,
+            "the commit resolves the backing store once and reuses that handle"
+        );
         let mut files = std::fs::read_dir(temp.path())?
             .map(|entry| Ok(entry?.file_name().to_string_lossy().into_owned()))
             .collect::<Result<Vec<_>>>()?;
@@ -2725,8 +2794,8 @@ mod tests {
         initialize_runtime_spine(
             &store,
             RuntimeSpineInitOptions {
-                runtime_id: "mind-profile-test".into(),
-                display_name: "Mind profile test".into(),
+                runtime_id: "mind-commit-keeps-test".into(),
+                display_name: "Mind commit keeps test".into(),
                 created_at: "2026-09-15T00:00:00Z".into(),
             },
         )?;
