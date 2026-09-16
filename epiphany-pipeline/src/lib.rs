@@ -114,7 +114,7 @@ fn hex(field: &str, value: &str, lengths: std::ops::RangeInclusive<usize>) -> Re
 }
 
 /// A key label: `[A-Za-z0-9_-]{1,64}`. Dots are excluded so that a composed key
-/// segments unambiguously; see `parent_cut` and the finding key.
+/// segments unambiguously; see `parent_cut` and `KeyParts::key`.
 fn label_text(field: &str, value: &str) -> Result<(), PipelineRefusal> {
     let valid = value
         .bytes()
@@ -586,84 +586,138 @@ fn parent_cut<'a>(field: &str, local: &'a str, marker: char) -> Result<&'a str, 
 }
 
 /// A repo as one key segment. `/` is not a `Label` byte, so it cannot survive
-/// into a key, but the escape that replaces it has to be injective or two repos
-/// claim one key: replacing `/` with `_` alone is not, since
-/// `GameCult_Epiphany/thing` and `GameCult/Epiphany_thing` both give
-/// `GameCult_Epiphany_thing`. So `_` is escaped as well, and both codes are two
-/// bytes starting with `_`: `_` becomes `__` and `/` becomes `_-`. Every other
-/// byte is passed through and is never `_`, so a reader going left to right
-/// takes each `_` together with the byte after it and never has a choice to
-/// make; the encoding is therefore reversible, and distinct repos give distinct
-/// segments. The caller checks the result against the key's segment rules,
-/// which is where an over-long repo name is refused.
+/// into a key, and neither may `.`: a repo is a tail part of a composed local
+/// (`KeyParts::key`), and a dot there would give the boundary before it two
+/// readings. `OrgRepo` imposes no byte class, and a dotted repo name is
+/// ordinary, so both bytes are escaped rather than refused. The escape has to
+/// be injective or two repos claim one key: replacing `/` with `_` alone is
+/// not, since `GameCult_Epiphany/thing` and `GameCult/Epiphany_thing` both give
+/// `GameCult_Epiphany_thing`. So `_` is escaped as well, and every code is two
+/// bytes starting with `_`: `_` becomes `__`, `/` becomes `_-`, and `.` becomes
+/// `_d`. Every other byte is passed through and is never `_`, so a reader going
+/// left to right takes each `_` together with the byte after it and never has a
+/// choice to make; the encoding is therefore reversible, and distinct repos give
+/// distinct segments. The caller checks the result against the key's segment
+/// rules, which is where an over-long repo name is refused.
 fn repo_segment(field: &str, repo: &OrgRepo) -> Result<String, PipelineRefusal> {
     org_repo_text(field, &repo.0)?;
-    Ok(repo.0.replace('_', "__").replace('/', "_-"))
+    Ok(repo.0.replace('_', "__").replace('/', "_-").replace('.', "_d"))
+}
+
+/// The parts of a `<root>:<kind>:<local>` key, each with the field it came from
+/// so that a refusal names it. A root is an instance or a campaign; `head` and
+/// the tail parts are the local's parts.
+struct KeyParts<'a> {
+    root: (String, &'a str),
+    head: (String, String),
+    tail: Vec<(String, String)>,
+}
+
+impl<'a> KeyParts<'a> {
+    /// A document inside a campaign, with a local of one part so far.
+    fn campaign(kind: &str, campaign: &'a Slug, head: String) -> Self {
+        Self {
+            root: (format!("{kind}.campaign"), &campaign.0),
+            head: (format!("{kind}.key"), head),
+            tail: Vec::new(),
+        }
+    }
+
+    /// One more local part. A tail part is a `Label`, never a `Slug`.
+    fn then(mut self, field: &str, part: String) -> Self {
+        self.tail.push((field.into(), part));
+        self
+    }
+
+    /// Validates the root and composes the key. The local's parts are joined by
+    /// `.`, and only the head may carry that separator: every tail part is a
+    /// `Label`, and a kind's tail length is fixed by the arm that built it, so a
+    /// reader recovers the parts by splitting from the right once per tail part
+    /// and the local segments one way only. A tail part admitting a dot would
+    /// give the boundary before it two readings, and two documents could compose
+    /// one key. Every key but a root's and a resolution's is composed here, so
+    /// the rule holds for whatever kind is added next.
+    fn key(self, kind: &str) -> Result<String, PipelineRefusal> {
+        let (field, root) = self.root;
+        dotted_text(&field, root)?;
+        let (field, mut local) = self.head;
+        dotted_text(&field, &local)?;
+        for (field, part) in &self.tail {
+            label_text(field, part)?;
+            local.push('.');
+            local.push_str(part);
+        }
+        dotted_text(&format!("{kind}.key"), &local)?;
+        Ok(format!("{root}:{kind}:{local}"))
+    }
 }
 
 /// Derives a document's identity key (D1, "Keys: identity, not convenience").
 pub fn pipeline_key(document: &PipelineDocument) -> Result<String, PipelineRefusal> {
     use PipelineDocument as D;
-    let (campaign, local) = match document {
+    let kind = document.kind().name();
+    let parts = match document {
         // An instance is keyed by its own slug, as a campaign is: it is a root,
         // not a document inside one.
         D::Instance(value) => {
             dotted_text("instance.instance", &value.instance.0)?;
             return Ok(value.instance.0.clone());
         }
-        // Stewardship and hand-off hang off an instance, not a campaign, so
-        // they compose their own key rather than falling through to the
-        // `<campaign>:<kind>:<local>` tail below.
-        D::Stewardship(value) => {
-            dotted_text("stewardship.instance", &value.instance.0)?;
-            let local = repo_segment("stewardship.repo", &value.repo)?;
-            dotted_text("stewardship.key", &local)?;
-            return Ok(format!("{}:stewardship:{local}", value.instance.0));
-        }
-        D::HandOff(value) => {
-            dotted_text("hand_off.from_instance", &value.from_instance.0)?;
-            dotted_text("hand_off.to_instance", &value.to_instance.0)?;
-            let repo = repo_segment("hand_off.repo", &value.repo)?;
-            value.handed_on.validate("hand_off.handed_on")?;
-            let local = format!("{}.{repo}.{}", value.to_instance.0, value.handed_on.0);
-            dotted_text("hand_off.key", &local)?;
-            return Ok(format!("{}:hand_off:{local}", value.from_instance.0));
-        }
         D::Campaign(value) => {
             dotted_text("campaign.slug", &value.slug.0)?;
             return Ok(value.slug.0.clone());
         }
+        // A resolution is keyed by its subject, so it composes no local of its
+        // own: the subject's id is the key behind a `resolution:` prefix.
         D::Resolution(value) => {
             let field = "resolution.subject.id";
             pipeline_id(field, &value.subject.id.0, value.subject.kind)?;
             return Ok(format!("resolution:{}", value.subject.id.0));
         }
-        D::Target(value) => (&value.campaign, format!("r{}", value.revision)),
-        D::Question(value) => (&value.campaign, value.label.0.clone()),
-        D::Ruling(value) => (&value.campaign, value.label.0.clone()),
-        D::FollowUp(value) => (&value.campaign, value.label.0.clone()),
-        D::CutSpec(value) => (&value.campaign, format!("cut-{}.r{}", value.cut.0, value.revision)),
+        // Stewardship and hand-off hang off an instance rather than a campaign.
+        // The root is the whole difference; the key shape is the same, so they
+        // compose through `KeyParts` like every other kind.
+        D::Stewardship(value) => KeyParts {
+            root: ("stewardship.instance".into(), &value.instance.0),
+            head: ("stewardship.key".into(), repo_segment("stewardship.repo", &value.repo)?),
+            tail: Vec::new(),
+        },
+        D::HandOff(value) => {
+            value.handed_on.validate("hand_off.handed_on")?;
+            KeyParts {
+                root: ("hand_off.from_instance".into(), &value.from_instance.0),
+                head: ("hand_off.to_instance".into(), value.to_instance.0.clone()),
+                tail: Vec::new(),
+            }
+            .then("hand_off.repo", repo_segment("hand_off.repo", &value.repo)?)
+            .then("hand_off.handed_on", value.handed_on.0.clone())
+        }
+        D::Target(value) => KeyParts::campaign(kind, &value.campaign, format!("r{}", value.revision)),
+        D::Question(value) => KeyParts::campaign(kind, &value.campaign, value.label.0.clone()),
+        D::Ruling(value) => KeyParts::campaign(kind, &value.campaign, value.label.0.clone()),
+        D::FollowUp(value) => KeyParts::campaign(kind, &value.campaign, value.label.0.clone()),
+        D::CutSpec(value) => KeyParts::campaign(kind, &value.campaign, format!("cut-{}", value.cut.0))
+            .then("cut_spec.key", format!("r{}", value.revision)),
         D::CutReport(value) => {
             let spec = parent_local("cut_report.cut_spec", &value.cut_spec.0, &value.campaign.0, PipelineKind::CutSpec)?;
             let cut = parent_cut("cut_report.cut_spec", spec, 'r')?;
-            (&value.campaign, format!("cut-{cut}.h{}", value.attempt))
+            KeyParts::campaign(kind, &value.campaign, format!("cut-{cut}"))
+                .then("cut_report.key", format!("h{}", value.attempt))
         }
         D::Verdict(value) => {
             let report = parent_local("verdict.cut_report", &value.cut_report.0, &value.campaign.0, PipelineKind::CutReport)?;
             let cut = parent_cut("verdict.cut_report", report, 'h')?;
-            (&value.campaign, format!("cut-{cut}.s{}", value.pass))
+            KeyParts::campaign(kind, &value.campaign, format!("cut-{cut}"))
+                .then("verdict.key", format!("s{}", value.pass))
         }
         D::Finding(value) => {
             let verdict = parent_local("finding.verdict", &value.verdict.0, &value.campaign.0, PipelineKind::Verdict)?;
             parent_cut("finding.verdict", verdict, 's')?;
-            label_text("finding.label", &value.label.0)?;
-            (&value.campaign, format!("{verdict}.{}", value.label.0))
+            KeyParts::campaign(kind, &value.campaign, verdict.to_string())
+                .then("finding.label", value.label.0.clone())
         }
     };
-    let kind = document.kind().name();
-    dotted_text(&format!("{kind}.campaign"), &campaign.0)?;
-    dotted_text(&format!("{kind}.key"), &local)?;
-    Ok(format!("{}:{kind}:{local}", campaign.0))
+    parts.key(kind)
 }
 
 /// Bounds, formats, then key recomputation, for one envelope. Per-kind
@@ -1000,11 +1054,55 @@ mod tests {
         Ok(())
     }
 
-    /// F2: numeric attempt and pass, and a dot-free finding label, mean two
-    /// different documents can never compose one key. These are Soul's pairs.
+    /// F2, and Soul's second pass: a composed local segments one way only. The
+    /// rule is pinned on the composer every kind goes through -- only the head
+    /// may carry the separator -- so it covers whatever kind is added next
+    /// rather than the kinds someone remembered to list. The pairs below are the
+    /// ones Soul measured, and each is a pair only because the rule holds.
     #[test]
     fn composed_keys_cannot_collide() {
         let key = |document: PipelineDocument| pipeline_key(&document);
+
+        // The rule itself: `a.b.c` has two readings, and only one of them is a
+        // local a document can compose, because a dot in a tail part is refused
+        // where the local is built.
+        let compose = |head: &str, tail: &str| {
+            KeyParts {
+                root: ("probe.root".into(), "probe"),
+                head: ("probe.head".into(), head.into()),
+                tail: Vec::new(),
+            }
+            .then("probe.tail", tail.into())
+            .key("probe")
+        };
+        assert_eq!(compose("a.b", "c"), Ok("probe:probe:a.b.c".into()));
+        assert_eq!(
+            compose("a", "b.c"),
+            Err(PipelineRefusal::InvalidFormat { field: "probe.tail".into(), value: "b.c".into() }),
+            "a tail part carrying the separator is refused, so the other reading is not a document"
+        );
+
+        // Soul's hand-off pair. The dot is admitted on the receiver side, which
+        // is what a `Slug` is for, so it must not survive on the repo side: left
+        // unescaped these two both key to
+        // `yggdrasil:hand_off:thought-cage.GameCult.Epiphany_-thing.2026-09-15`.
+        let handed = |to: &str, repo: &str| {
+            let mut hand_off = hand_off_sample();
+            hand_off.to_instance = slug(to);
+            hand_off.repo = OrgRepo(repo.into());
+            key(PipelineDocument::HandOff(hand_off))
+        };
+        let dotted_receiver = handed("thought-cage.GameCult", "Epiphany/thing");
+        let dotted_repo = handed("thought-cage", "GameCult.Epiphany/thing");
+        assert_eq!(
+            dotted_receiver,
+            Ok(format!("{INSTANCE}:hand_off:thought-cage.GameCult.Epiphany_-thing.2026-09-15"))
+        );
+        assert_eq!(
+            dotted_repo,
+            Ok(format!("{INSTANCE}:hand_off:thought-cage.GameCult_dEpiphany_-thing.2026-09-15"))
+        );
+        assert_ne!(dotted_receiver, dotted_repo, "a dotted repo and a dotted receiver cannot claim one key");
 
         let mut wide_label = finding_sample();
         wide_label.label = l("F1.G");
