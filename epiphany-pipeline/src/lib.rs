@@ -523,19 +523,50 @@ pipeline_kinds! {
         "epiphany.pipeline.hand_off.v1", "EpiphanyPipelineHandOffDocument";
 }
 
-/// Parses a full document id. `<campaign>:<kind>:<local>` for every kind but
-/// the two roots, `campaign` and `instance`, which are keyed by their slug
-/// alone and so read back the same way. The segment count is exact, the kind
-/// segment must match `kind`, and both the campaign and the local segment are
+/// The kind an id names itself as: the kind segment of `<root>:<kind>:<local>`,
+/// or `Campaign` for a bare slug, since the two roots share one id rule. A
+/// resolution's id is its subject's, and this is how that subject is read back.
+fn declared_kind(id: &str) -> Option<PipelineKind> {
+    let mut segments = id.split(':');
+    match (segments.next(), segments.next(), segments.next(), segments.next()) {
+        (Some(_), None, ..) => Some(PipelineKind::Campaign),
+        (Some(_), Some(name), Some(_), None) => {
+            PipelineKind::ALL.iter().copied().find(|kind| kind.name() == name)
+        }
+        _ => None,
+    }
+}
+
+/// Parses a full document id. A key and an id are the same string, so this
+/// accepts exactly what `pipeline_key` derives: `<root>:<kind>:<local>` for
+/// every kind but the roots and a resolution. The segment count is exact, the
+/// kind segment must match `kind`, and both the root and the local segment are
 /// validated, so `..`, an empty part, spaces and trailing junk are all refused.
 fn pipeline_id<'a>(
     field: &str,
     id: &'a str,
     kind: PipelineKind,
 ) -> Result<(&'a str, &'a str), PipelineRefusal> {
-    if matches!(kind, PipelineKind::Campaign | PipelineKind::Instance) {
-        dotted_text(field, id)?;
-        return Ok((id, id));
+    match kind {
+        // The two roots are keyed by their slug alone, and so read back the
+        // same way.
+        PipelineKind::Campaign | PipelineKind::Instance => {
+            dotted_text(field, id)?;
+            return Ok((id, id));
+        }
+        // A resolution is keyed by its subject, so its id is its subject's id
+        // behind a `resolution:` prefix. That is the only id a resolution ever
+        // has: `<campaign>:resolution:<local>` is an id no resolution can
+        // carry, and accepting it would name a document that cannot exist.
+        // `PipelineRef` takes any kind, so a resolution is reachable as a
+        // question's `raised_in`, a follow-up's `source` and a resolution's own
+        // `subject`.
+        PipelineKind::Resolution => {
+            let subject = id.strip_prefix("resolution:").ok_or_else(|| format_error(field, id))?;
+            let subject_kind = declared_kind(subject).ok_or_else(|| format_error(field, id))?;
+            return pipeline_id(field, subject, subject_kind);
+        }
+        _ => {}
     }
     let mut segments = id.split(':');
     let (Some(campaign), Some(name), Some(local), None) = (
@@ -1215,6 +1246,50 @@ mod tests {
         );
     }
 
+    /// Soul G2: a resolution's key is its subject's id behind a `resolution:`
+    /// prefix, so that -- and only that -- is the id a resolution has. The
+    /// reader demanded `<campaign>:resolution:<local>` instead, which is
+    /// disjoint from it in both directions: the id it accepted names a document
+    /// that cannot exist, and the id every resolution does have was refused, so
+    /// nothing could reference one. `PipelineRef` takes any kind, so this is
+    /// reachable; a follow-up sourced from a resolution is the live path.
+    #[test]
+    fn a_resolution_is_named_by_the_key_it_has() {
+        let sourced = |id: &str| {
+            let PipelineDocument::FollowUp(mut follow_up) = samples().remove(8).0 else { unreachable!() };
+            follow_up.source = PipelineRef { kind: PipelineKind::Resolution, id: Short(id.into()) };
+            PipelineDocument::FollowUp(follow_up).validate()
+        };
+        let key = pipeline_key(&PipelineDocument::Resolution(resolution_sample())).expect("the sample keys");
+        assert_eq!(key, format!("resolution:{CAMPAIGN}:question:Q1"));
+        assert_eq!(sourced(&key), Ok(()), "a resolution is named by the key it has");
+
+        for refused in [
+            // The shape the reader used to demand. No resolution carries it.
+            format!("{CAMPAIGN}:resolution:R8"),
+            format!("{CAMPAIGN}:resolution:{CAMPAIGN}:question:Q1"),
+            // The prefix and no subject, a subject of no kind, a subject whose
+            // kind segment is not the one its own id declares, and trailing junk.
+            "resolution:".into(),
+            format!("resolution:{CAMPAIGN}:nonsense:Q1"),
+            format!("resolution:{CAMPAIGN}:question:Q1:junk"),
+            format!("resolution:{CAMPAIGN}:question:.."),
+        ] {
+            assert!(
+                matches!(sourced(&refused), Err(PipelineRefusal::InvalidFormat { .. })),
+                "{refused:?} is not an id any resolution has"
+            );
+        }
+
+        // A root subject reads back too: a resolution of a campaign is keyed by
+        // that campaign's own id, which carries no kind segment.
+        let mut of_campaign = resolution_sample();
+        of_campaign.subject = PipelineRef { kind: PipelineKind::Campaign, id: s(CAMPAIGN) };
+        let root_key = pipeline_key(&PipelineDocument::Resolution(of_campaign)).expect("a root subject keys");
+        assert_eq!(root_key, format!("resolution:{CAMPAIGN}"));
+        assert_eq!(sourced(&root_key), Ok(()));
+    }
+
     /// The three kinds a mind is keyed by. The samples above already round-trip
     /// every kind; this pins the shapes D2 gives these three specifically: an
     /// instance is a root keyed by its own slug, and the other two hang off an
@@ -1256,26 +1331,18 @@ mod tests {
     /// the key writer and left out of the id reader, and nothing noticed,
     /// because the key tests assert strings and never read one back: an
     /// instance keys to its slug and then fails to parse as an instance id, so
-    /// no `PipelineRef` and no resolution could ever name one. A resolution is
-    /// the one kind whose key is not an id of itself: it is its subject's id
-    /// behind a `resolution:` prefix, so the subject is what reads back.
+    /// no `PipelineRef` and no resolution could ever name one. Every kind now
+    /// reads back with no kind excused, a resolution included.
     #[test]
     fn keys_read_back_as_ids_of_their_kind() -> Result<()> {
         for (document, expected) in samples() {
             let kind = document.kind();
             let key = pipeline_key(&document)?;
             assert_eq!(key, expected, "{kind:?} keys to its sample's key");
-            let (id, id_kind) = match &document {
-                PipelineDocument::Resolution(value) => (
-                    key.strip_prefix("resolution:").expect("a resolution key names its subject"),
-                    value.subject.kind,
-                ),
-                _ => (key.as_str(), kind),
-            };
             assert_eq!(
-                pipeline_id("read_back", id, id_kind).map(|_| ()),
+                pipeline_id("read_back", &key, kind).map(|_| ()),
                 Ok(()),
-                "{id_kind:?} key {id} does not read back as an id of its kind"
+                "{kind:?} key {key} does not read back as an id of its kind"
             );
         }
 
