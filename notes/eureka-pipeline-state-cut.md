@@ -3257,45 +3257,677 @@ Epiphany `ca7e230c` (lib.rs at `dddf9ede`), Huginn `4094e68`, CultLib `main` `4a
 
 ## Cut 9. `huginn-mind`: queries and derivations
 
-- **Repo/branch:** Huginn, same branch. Depends on Cut 8.
-- **Deletes first:** none.
-- **Adds:** `src/query.rs` with the five functions and `PipelineDocumentView`
-  from D4. `semantic` is accepted in `PipelineQuery` but returns
-  `Unavailable { detail: "index not wired" }` until Cut 11 — a typed refusal,
-  never a silent empty result.
+Imagination, 2026-09-16, refreshed against the Body after the Cut 6d Huginn
+follow-up and its fix batch. Replaces the old Cut 9 section whole; the
+paragraph "Carried in from the Q17 ruling and the Cut 6d follow-up" is kept
+as requirements R-A to R-C below.
 
-**Authority map.** Owner `huginn-mind`; the same forbidden writers as Cut 8. The
-new statement is that **status is derived at read time, never stored**, so no
-admission writes an `in_force` field and no client computes one.
+### Pins
 
-**Carried in from the Q17 ruling and the Cut 6d follow-up (2026-09-16),
-before this cut is refreshed:** the in-force derivation is the recursive one
-admission already uses (a withdrawn resolution stops counting; the naming
-resolution must itself be in force), and a test that pins the
-non-recursive form pins the defect. A subject's resolution history is a
-first-class view, not only its in-force state: the `…<kind>.<local>.n`
-prefix lists every resolution a subject ever had, withdrawn ones included
-with their reasons, because that is the precedent an agent rehydrates from
-(ruling 2). The same for a repo's stewardship history on a mind. The
-`stored_at` stamp CultCache writes on every envelope is the store's, not
-the organ's, and no derivation here may read it.
+| Repo | Branch | HEAD | State |
+|---|---|---|---|
+| Epiphany | `codex/eureka-pipeline-state` | `94df3a8f` | tree clean; map only since `d5a36c2a`. |
+| Epiphany leaf | `epiphany-pipeline/src/lib.rs` | `d5a36c2a` (2,366 lines) | the rev Huginn pins in `crates/huginn-mind/Cargo.toml`. |
+| Huginn | `eureka/memory-organ` | `7b67730` | **an uncommitted Hands batch is in the tree** (`crates/huginn-mind/src/admission.rs`, `tools/eureka-cut8-mutations.psd1`: a subject-selection fix in `derive`, a dead arm deleted, four tests). Every anchor in this spec is a function, type or test **name**, never a line; Hands re-anchors by content after that batch lands, and this cut lands after it. |
+| CultLib | `a0813c6` | `cultcache-rs` checkout `~/.cargo/git/checkouts/cultlib-7ab3069e1ba2db32/a0813c6` | read for `CultCacheEnvelope` only. |
 
-**Verification.**
+Body facts this spec rests on, each by source read of the files named:
+
+- `admission.rs` holds `Docs { image: Vec<Held>, batch: Vec<Staged> }` and
+  every derivation: `from_image`, `push`, `in_batch`, `in_image`, `find`,
+  `of_kind`, `resolutions`, `stewardships`, `latest_resolution`,
+  `derived_resolution_sequence`, `derived_stewardship_sequence`,
+  `latest_stewardship`, `in_force`, `in_force_unless`, `stewardships_of`,
+  `later_in_force`, `stewardship_of`, and the free fn `later_than`. Nothing
+  else in the crate decides in force.
+- `in_force_unless(kind, id, own)` is the recursive derivation of Cut 6d D4:
+  no resolution `R` naming `(kind, id)`, other than `own`, such that
+  `in_force(Resolution, key(R))`. It returns `bool` and does not say *which*
+  resolution closes the document; the views need that resolution.
+- `Mind` exposes `envelopes()` (the image, sorted `(type, key)`),
+  `envelope(kind, id)`, `get(kind, id)` (one typed decode), `receipts()`
+  (every `HuginnCommitReceipt`, decoded from the image), `instance()`,
+  `is_empty()`; `raw_envelope` and `cache` are `pub(crate)`.
+- A receipt names its `writes: Vec<DocumentVersion>` by `(document_type,
+  document_key)` and its `strong_reads` separately; `committed_at` is the
+  `now` admission was passed, RFC3339 seconds UTC (`receipt::candidate`); a
+  strong read is re-inserted unchanged in the swap but recorded under
+  `strong_reads`, never `writes` (`receipt::commit`). A10 refuses a write
+  whose identity the image holds, so **exactly one receipt names any stored
+  document as a write**.
+- `PipelineProvenance { faculty: Faculty, agent, session, tool }` and
+  `Faculty` derive `Serialize`, `Deserialize`, `JsonSchema` (`receipt.rs`).
+- At `d5a36c2a` the leaf's `PipelineDocument` (adjacently tagged `{ kind,
+  value }`), `PipelineRef`, `PipelineKind`, `ResolutionOutcome`, every
+  value type and `PipelineRefusal` derive `Serialize`, `Deserialize` and
+  `JsonSchema`. So a view carrying a `PipelineDocument` derives `JsonSchema`
+  (Q13 A holds with no leaf change).
+- `CultCacheEnvelope { key, type, payload, stored_at: String, schema_id }`.
+  `rg stored_at crates/huginn-mind/src` is empty today.
+- Baseline (probe): detached worktree at `7b67730` under the scratchpad,
+  `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex`, `cargo test -p
+  huginn-mind --lib`: **41 passed, 0 failed, 5.5 s wall warm**; target dir
+  10,579 paths before and after; worktree removed; main tree untouched.
+
+### What the cut does
+
+The read side of a mind, in `huginn-mind`, testable over a `&Mind<MemoryStore>`
+with no store file, daemon or index:
+
+- **Views.** `PipelineDocumentView { id, document, admission, status }`: the
+  document, the admission facts joined from the one receipt that wrote it
+  (`receipt_id`, `admitted_at`, `provenance` whole), and its status derived
+  at read time (`InForce`, or `Resolved` by a named in-force resolution).
+- **Queries.** `Mind::view(&PipelineRef)`, `Mind::query(&PipelineQuery)`
+  (by campaign root, repo, cut, kinds, in-force, faculty, admission window;
+  capped at 200, ordered by `(admitted_at, id)`, with the match count so a
+  truncation is visible), `Mind::open_items(&campaign)`, and
+  `Mind::history(&HistoryScope)` — every resolution a subject ever had, or
+  every assignment of a repo on this mind, in sequence order, withdrawn ones
+  included with their status and reasons (R-B).
+- **One owner for in force.** `Docs` and every derivation move whole from
+  `admission.rs` into `src/docs.rs`. The views read through the same
+  `Docs`; the one helper they need that admission lacks
+  (`closing_resolution_unless`, the resolution that closes a document)
+  becomes the body of `in_force_unless`, so admission calls it too. No
+  derivation reads `stored_at` (R-C).
+- **`semantic` is accepted and refused typed** (`Unavailable`) until Cut 11.
+
+Requirements carried in, restated so Hands reads them here:
+
+- **R-A (Q17 B, Cut 6d follow-up).** Status is the recursive in-force
+  derivation admission uses; a test pinning the non-recursive form pins
+  the defect. The reopen case (n1, its withdrawal, n2) is in the status test.
+- **R-B (Q17's two obligations).** A subject's resolution history is a
+  first-class view with withdrawn records and their reasons; the index
+  (Cut 11) gets a document-plus-admission source, which is `Mind::view` per
+  landed `PipelineRef`, so withdrawals are indexable documents with their
+  `reason` in the payload.
+- **R-C (Soul, Cut 8 Huginn half).** `stored_at` is the store's stamp;
+  `admitted_at` is the receipt's `committed_at`. Pinned by a runtime test
+  that scrambles `stored_at` and by a negative grep.
+- **Soul's standing findings the views must not hide:** history lands one
+  record per batch (Cut 12's import constraint), so two records of one
+  scope carry two receipts; the history test asserts distinct `receipt_id`s.
+  Replay refuses once a scope has advanced (ruling 20); the views do not
+  touch replay and add no path around it.
+
+### What changed against the old Cut 9 section
+
+1. **`Docs` moves; nothing is copied.** The old section had "Deletes first:
+   none" and a `src/query.rs` with its own derivations. That would be a
+   second in-force. The shared module is the cut's first commit.
+2. **Five functions collapse to four, differently cut.** `get` becomes
+   `view` (a document with its facts and status); `rulings_in_force` and
+   `stewardship` are `query` presets (`kinds: [Ruling], in_force: true,
+   campaign` and `kinds: [Stewardship], in_force: true`) and are deleted
+   from this crate's surface; `history` is new (R-B); `open_items` stays.
+3. **`PipelineQuery` sheds three fields.** `instance` (the mind is the
+   instance; D6's request carries it and the daemon routes on it),
+   `outcome` (`history` carries outcomes; a document's closing outcome is in
+   its `status`), `text_contains` (Q21 below; Cut 11 owns which fields are
+   text). `status` becomes `in_force: Option<bool>`.
+4. **The view is four fields, not seven.** `receipt_id`, `admitted_at` and
+   `faculty` fold into `admission: AdmissionFacts` carrying the whole
+   provenance; `resolution: Option<(id, PipelineResolution)>` becomes
+   `status: PipelineStatus`.
+5. **A query result says how many matched.** `PipelineQueryPage { items,
+   matched }`; the cap never truncates silently.
+6. **A document with no receipt is refused, not shown.** The store is the
+   organ's alone; a row admission did not write is an integrity fault
+   (`Unavailable`), the same answer `Docs::from_image` gives a row that does
+   not decode.
+7. **Tests 6 → 10, mutations 3 → 23**, in `tools/eureka-cut9-mutations.psd1`;
+   three cut-8 entries re-anchor to `docs.rs`.
+
+### Decisions, with the reasons
+
+#### D1. The shared derivation module is a move of `Docs`, not a new abstraction
+
+`Docs` already is the thing: "the image and the batch, the two places a rule
+may look". The views look at the image alone, which is `Docs` with an empty
+batch, built by the same `Docs::from_image(mind.envelopes())`. Moving the
+struct and its `impl` into `src/docs.rs` (`pub(crate)`, fields `pub(crate)`
+so H49's mutant in `check` still compiles) changes no derivation and no
+call site: `admission.rs` keeps `stage`, `refuse_foreign_instance`,
+`references`, `resolve`, `derive`, `check`, `revision_rule`,
+`unique_labels`, `outcome_name`, `matrix`, `resolution_rule`,
+`refuse_collisions`, `kind_of_id`, and every `docs.` call reads as before.
+`later_than` moves because only `later_in_force` calls it. `kind_of_type`
+moves with `from_image`.
+
+Rejected: a trait over "a document set" implemented by the image and by
+image ∪ batch. It would be one implementor with a flag; `Docs` with an
+empty batch is that already.
+
+#### D2. The one new derivation: which resolution closes a document
+
+`in_force_unless` answers "is any in-force resolution naming this document
+other than `own`?" as a `bool`. The views need the resolution itself for
+`PipelineStatus::Resolved`. So:
+
+```
+fn closing_resolution_unless(&self, kind, id, own) -> Option<(&str, &PipelineResolution)>
+    = self.resolutions().find(|(key, r)| r.subject.kind == kind && r.subject.id.0 == id
+                                       && !own(r) && self.in_force(Resolution, key))
+fn closing_resolution(&self, kind, id) -> Option<(&str, &PipelineResolution)>
+    = self.closing_resolution_unless(kind, id, |_| false)
+fn in_force_unless(&self, kind, id, own) -> bool
+    = self.closing_resolution_unless(kind, id, own).is_none()
+```
+
+`find` is exact, not a tie-break: under `AlreadyResolved` (A8) and the Q19
+cap at most one resolution of a subject is in force. Admission's callers of
+`in_force`/`in_force_unless` change nothing and now run through the same
+`find` the views do; H41's mutant lands inside `closing_resolution_unless`
+and kills admission's reopen test and the views' status test alike, which is
+the proof that there is one owner (V1 below).
+
+Two small extractions for the history views, so that `history` shares
+admission's scope selection rather than restating it:
+
+```
+fn resolutions_of(&self, subject: &PipelineRef) -> impl Iterator<Item = (&str, &PipelineResolution)>
+    = self.resolutions().filter(|(_, r)| r.subject == *subject)
+fn assignments_of(&self, mind: &Slug, repo: &OrgRepo) -> impl Iterator<Item = (&str, &PipelineStewardship)>
+    = self.stewardships().filter(|(_, s)| s.instance == *mind && s.repo == *repo)
+```
+
+`latest_resolution` becomes `resolutions_of(subject).filter(own != …).map(sequence).max()`;
+`latest_stewardship` and `stewardships_of` (the in-force ones; name kept)
+filter `assignments_of(mind, repo)`. Same results, one scope selector each.
+H47 and H60 anchor lines inside these two and re-anchor (Per-file changes).
+
+The history is selected by the `subject` field, as `latest_resolution`
+already does, not by the `…<kind>.<local>.n` key prefix. The leaf's test
+`a_subjects_resolutions_share_a_prefix_no_other_key_has` pins that the two
+select the same set; the prefix is the storage-level affordance (Studio, a
+raw scan), the field is the organ's, and the views parse no key part for it.
+
+#### D3. Admission facts come from receipts, from `writes` only
+
+```
+pub struct AdmissionFacts { pub receipt_id: String, pub admitted_at: String, pub provenance: PipelineProvenance }
+```
+
+Built once per read as `AdmissionIndex` (`pub(crate)`, in `query.rs`): a
+`BTreeMap<(String, String), AdmissionFacts>` over `mind.receipts()?`,
+inserting every `receipt.writes[].identity()` with `admitted_at =
+receipt.committed_at`. `strong_reads` are never read: a document cited by a
+later batch keeps its first receipt. Two receipts naming one write, or a
+pipeline document in the image that no receipt names, is
+`Unavailable { detail: "document <type>/<key> has no commit receipt" | "… is written by two receipts" }`,
+raised from `view` and `query` alike, never a silent skip (V4). The epoch
+record and the receipts themselves appear in `writes` and are simply never
+looked up.
+
+`admitted_at` is the caller's `now` as admission stored it (`committed_at`,
+RFC3339 `Z`, seconds), so its string order is its time order; the crate
+still reads no clock. `stored_at` is not consulted anywhere (R-C; V2).
+
+Rejected: `admission: Option<AdmissionFacts>` with `None` for an
+unreceipted row. That is the "show it and let the reader guess" shape; the
+store has one writer and the receipt is its proof.
+
+#### D4. The view is a struct of four fields
+
+A `(document, facts, status)` tuple serialises as a positional JSON array
+and gives Cut 13's tool schema three unnamed slots, and it cannot carry the
+id: a `PipelineDocument` does not carry its key, the client must not derive
+keys (Cut 13's negative grep), and every follow-up call (`history`,
+`view`) takes a `PipelineRef`. So:
+
+```
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct PipelineDocumentView {
+    pub id: PipelineRef,
+    pub document: PipelineDocument,
+    pub admission: AdmissionFacts,
+    pub status: PipelineStatus,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub enum PipelineStatus {
+    InForce,
+    Resolved { resolution: PipelineRef, record: PipelineResolution },
+}
+```
+
+`Resolved.record` is the whole closing resolution (outcome, rationale,
+`resolved_on`) because rehydration wants why, not only that. Kinds the
+matrix makes unresolvable (campaign, cut_report, verdict, instance,
+hand_off) are always `InForce`, by the same derivation and no special case.
+A withdrawn resolution's own view is `Resolved { resolution: <its
+withdrawal>, record: { outcome: Withdrawn { reason }, .. } }`, which is how
+R-B's "with their reasons" reaches an agent.
+
+#### D5. The query type
+
+```
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct PipelineQuery {
+    pub campaign: Option<Slug>,        // the key's root: a campaign slug, or an instance for stewardships and hand-offs
+    pub repo: Option<OrgRepo>,
+    pub cut: Option<Label>,
+    pub kinds: Vec<PipelineKind>,      // empty = every kind
+    pub in_force: Option<bool>,
+    pub faculty: Option<Faculty>,      // attribution, ruling 18: it filters, it grants nothing
+    pub admitted_after: Option<Short>, // exclusive, string-compared against `admitted_at`
+    pub admitted_before: Option<Short>,// exclusive
+    pub limit: Option<u32>,            // None = QUERY_LIMIT_MAX; clamped to 1..=QUERY_LIMIT_MAX
+    pub semantic: Option<SemanticQuery>,
+}
+pub struct SemanticQuery { pub text: Line, pub top_k: u32 }
+pub struct PipelineQueryPage { pub items: Vec<PipelineDocumentView>, pub matched: u32 }
+pub const QUERY_LIMIT_MAX: usize = 200;
+```
+
+Filter semantics, each one rule:
+
+| Filter | Matches |
+|---|---|
+| `campaign` | the key's root segment equals it. The grammar is `<root>:<kind>:<local>`, three segments for every kind (`pipeline_id`; leaf test `every_key_has_exactly_three_segments`), and `kind_of_id` in admission already reads the kind segment the same way. A resolution's root is its subject's root, so a campaign's resolutions match with it. |
+| `repo` | `campaign.repos` contains it; `cut_spec.repo`, `cut_report.repo`, `follow_up.repo`, `stewardship.repo`, `hand_off.repo` equal it; a resolution matches when its **base** matches. target, question, ruling, verdict, finding, instance carry no repo and never match. |
+| `cut` | the local begins with `cut-<label>.` (cut_spec `cut-<label>.r<N>`, cut_report `.h<N>`, verdict `.s<N>`, finding `.s<N>.<label>`: the leaf's `parent_cut` guarantees the prefix), or a resolution whose base matches. No walking of references; the key already carries the chain. |
+| `kinds` | `document.kind()` is in the list; empty list matches all. |
+| `in_force` | `status` is `InForce` (true) or `Resolved` (false). |
+| `faculty` | `admission.provenance.faculty` equals it. |
+| `admitted_after` / `admitted_before` | `admitted_at > after`, `admitted_at < before`, plain string comparison; a caller passes RFC3339 UTC (a date alone, `2026-09-16`, compares correctly against `2026-09-16T…`). |
+| `semantic` | refused before any filter runs: `Err(Unavailable { detail: "semantic query: the index is not wired (Cut 11)" })`. Typed, never empty. |
+
+**Base of a resolution:** follow `subject` while the subject is a resolution
+(depth ≤ 2 by Q19 A); the base is the first non-resolution document, found
+through `Docs::find`. A7 guarantees it is in the image.
+
+Ordering: `(admitted_at, id)` ascending, `id` the key string; ties within one
+batch (same `committed_at`) fall to key order, which is root-first and so
+differs from the image's `(type, key)` order (the seed batch orders
+`eureka-state:campaign:self`, `eureka-state:target:r1`,
+`yggdrasil:instance:self`, `yggdrasil:stewardship:…` by id and
+campaign, instance, stewardship, target by type). `matched` is the count
+before the cut. Stated limit: no cursor; a caller pages by
+`admitted_after` at second granularity and sees `matched > items.len()`
+when a page is short. Exact paging is a follow-up if a proof campaign ever
+shows a query over 200 matches (Findings).
+
+`instance` is not a query field: `query` takes `&self` on one mind. The
+daemon selects the mind from the request's `instance` (D6) before it calls
+anything here.
+
+#### D6. `open_items`
+
+```
+pub struct PipelineOpenItems {
+    pub questions: Vec<PipelineDocumentView>,
+    pub findings: Vec<PipelineDocumentView>,
+    pub follow_ups: Vec<PipelineDocumentView>,
+    pub specs_without_report: Vec<PipelineDocumentView>,
+    pub reports_without_verdict: Vec<PipelineDocumentView>,
+}
+```
+
+`Mind::open_items(&self, campaign: &Slug)`: root equals the campaign for
+every list; `questions`, `findings`, `follow_ups` are those kinds in force;
+`specs_without_report` are in-force cut specs no cut report's `cut_spec`
+names (a superseded `r1` is not open; `r2` with no report is); `reports_without_verdict`
+are cut reports no verdict's `cut_report` names (reports are not
+resolvable, so in-force is not a condition). Each list in query order,
+uncapped: the open set of one campaign is bounded by the campaign and
+truncating it would hide work.
+
+#### D7. `history`
+
+```
+pub enum HistoryScope { Subject(PipelineRef), Repo(OrgRepo) }
+```
+
+`Mind::history(&self, scope)`: `Subject` → `resolutions_of(subject)`;
+`Repo` → `assignments_of(self.instance(), repo)`. Views, ordered by the
+record's `sequence` ascending (the sequence is the owner of history order;
+`admitted_at` coincides but is not the rule), uncapped. A resolution's own
+withdrawals are not in its subject's history (their subject is the
+resolution); `history(Subject(<resolution id>))` lists them. Each record
+carries its own receipt (one per batch).
+
+#### D8. Where the code sits, and dependency injection
+
+`src/query.rs`: the public types above, `AdmissionIndex`, a private
+`Reader<'a> { docs: Docs, facts: AdmissionIndex, mind: &'a Mind<S> }` built
+once per call, and `impl<S: MindStore> Mind<S> { view, query, open_items,
+history }`, following `admission.rs`'s `impl Mind` shape. Every function
+takes `&self`; a test opens `Mind::open_with(MemoryStore::new(), …)` and
+admits through the fixtures. No store file, no daemon, no clock, no new
+dependency; `schemars` and `serde` are already direct dependencies.
+
+`Mind::get(kind, id)` stays: the typed one-document read the opener's
+tests and Cut 12's import use. `view` is the read with facts and status,
+and is what Cut 10's `Get`, Cut 13's `get` and Cut 11's index source call.
+
+Cost, stated: each read call decodes the image once (`Docs::from_image`)
+and every receipt once, as each admission already does. Holding a decoded
+image on `Mind` (refreshed in `refresh`, refused by the opener when a row
+does not decode) would remove both and is recorded under Findings, not
+done here.
+
+### Deletes and moves first
+
+| Path (by name) | Lines | What |
+|---|---:|---|
+| `admission.rs`: `struct Staged`, `struct Held`, `struct Docs`, `fn kind_of_type`, `impl Docs` (every method), `fn later_than` | about 170 | **Move** to `src/docs.rs`. Byte-identical bodies except the three edits in D2 (`closing_resolution_unless` extracted from `in_force_unless`; `resolutions_of`/`assignments_of` extracted from `latest_resolution`, `latest_stewardship`, `stewardships_of`). Fields of `Docs`, `Held`, `Staged` become `pub(crate)`. |
+| `admission.rs` module doc, the sentence beginning `"In force" is recursive` | 3 | Moves to `docs.rs`'s module doc; admission's says where in force lives. |
+| the old Cut 9 section's `rulings_in_force` and `stewardship(instance)` | — | Not built. Presets of `query` (D5); Cut 10's `RulingsInForce`/`Stewardship` operations and Cut 13's two tools become presets when those cuts are refreshed (Findings). |
+| the old section's `PipelineQuery.{instance, status, outcome, text_contains}` | — | Not built (D5, Q21). |
+
+Nothing in the leaf. Nothing in `Cargo.toml`, `Cargo.lock`, the two stubs.
+
+### Keeps
+
+Every admission rule, refusal variant, test name and cut-8 entry (three
+re-anchored). `Mind::get`, `envelopes`, `envelope`, `receipts`. The
+`#[serde(remote)]` mirror in `refusal.rs` is untouched here though dead
+(Findings; Cut 10's). The leaf pin `d5a36c2a`.
+
+### Adds
+
+| Add | Owner | Live consumer | Protected invariant | Why an existing owner cannot serve |
+|---|---|---|---|---|
+| `src/docs.rs` (`pub(crate)`): the moved `Docs` plus `closing_resolution_unless`, `closing_resolution`, `resolutions_of`, `assignments_of` | `huginn-mind` | `admission.rs` (every rule) and `query.rs` (every view) | **One derivation of in force, of a subject's history and of a repo's assignments, shared by admission and the views**; status is computed at read time and never stored | It is the existing owner, moved so a second module can reach it without `admission.rs` exporting its internals. |
+| `PipelineDocumentView`, `AdmissionFacts`, `PipelineStatus` (`pub`, `JsonSchema`) | `huginn-mind` | Cut 10's `Get`/`Query` responses; Cut 11's index source (`view` per landed ref); Cut 13's `get`/`query`/`open_items` outputs (Q13 A) | A client never re-derives status or joins receipts; the id travels with the document | Nothing carries id + document + facts + status; the leaf owns no receipt and no status. |
+| `PipelineQuery`, `SemanticQuery`, `PipelineQueryPage`, `QUERY_LIMIT_MAX` | `huginn-mind` | Cut 10's `Query`; Cut 13's `query` | The cap and the stable order; a truncation is visible; `semantic` is typed-refused until Cut 11 | — |
+| `PipelineOpenItems`, `HistoryScope` | `huginn-mind` | Cut 13's `open_items`; a new Cut 13 `history` tool (Findings, Cut 13's refresh) | Open work and a scope's history are derived, not maintained | — |
+| `AdmissionIndex` (`pub(crate)`) | `query.rs` | the four read functions | Facts come from `writes` only; an unreceipted row refuses | The receipt is `receipt.rs`'s; this is its read side. |
+| `impl<S: MindStore> Mind<S> { view, query, open_items, history }` | `huginn-mind` | as above | D1's injection: testable over `MemoryStore` | — |
+| fixtures: `admit_at(mind, documents, now)`, `admit_as(mind, faculty, documents)`, `question_n(label)` → `question(&format!("Q{n}"), &["A","B"], "A")` | tests | the ordering, faculty and cap tests | — | `admit` fixes clock and faculty. |
+| ten tests, `tools/eureka-cut9-mutations.psd1` (V1-V23) | the crate's suite | Epiphany's harness with `-Repo` | every rule above has a runtime mutant | — |
+
+No dependency, target, binary, document type, schema, kind, format or
+epoch. `refusal.rs` gains no variant: `Unavailable { detail }` carries the
+two integrity cases and the semantic refusal, as it carries every other
+"the organ cannot answer" case.
+
+### Per-file changes, by name
+
+**`crates/huginn-mind/src/docs.rs`** (new). Module doc: "The image and the
+batch, the two places a rule or a view may look, and every derivation over
+them. *In force* is recursive: a document is in force when no resolution that
+is itself in force names it, so a withdrawn resolution stops closing its
+subject. Computed over image and batch at rule time, over the image at read
+time, never stored, and never from `stored_at`." Then, moved: `Staged`,
+`Held`, `Docs` (fields `pub(crate)`), `kind_of_type`, `impl Docs` with the
+D2 edits, `later_than`. `in_force_unless`'s doc comment stays on it;
+`closing_resolution_unless` gets: "The in-force resolution naming the
+document, other than `own`, if any; exact rather than a tie-break because
+A8 and the Q19 cap admit at most one."
+
+**`crates/huginn-mind/src/admission.rs`**: `use crate::docs::{Docs, Staged};`
+(and `Held` only if a remaining fn names it; today none does). The moved
+block deleted. Module doc: the "In force is recursive" sentence replaced by
+"In force, the sequences and the scopes are `docs.rs`'s, shared with the
+views (Cut 9)." Every `docs.` call unchanged. The batch in flight touches
+`derive`; nothing here overlaps it except by import.
+
+**`crates/huginn-mind/src/query.rs`** (new): D3-D8. `Reader::new(mind)`
+calls `Docs::from_image(mind.envelopes())?` and `AdmissionIndex::build(mind)?`;
+`Reader::view_of(&Held) -> Result<PipelineDocumentView, MindRefusal>`
+(facts lookup, `closing_resolution` → status); `Reader::base(&Held) ->
+&Held` for resolutions; `Reader::matches(&PipelineQuery, &Held, &view)`;
+`fn ordered(views) -> Vec<…>` sorting by `(admission.admitted_at, id.id.0)`.
+`query`: `semantic` check first; collect matching views; `matched = len`;
+sort; truncate to the clamped limit.
+
+**`crates/huginn-mind/src/lib.rs`**: `mod docs;` (private), `pub mod query;`,
+re-exports `pub use query::{AdmissionFacts, HistoryScope, PipelineDocumentView,
+PipelineOpenItems, PipelineQuery, PipelineQueryPage, PipelineStatus,
+SemanticQuery, QUERY_LIMIT_MAX};`. Module doc: after the three decisions,
+one sentence: "The read side derives status, joins the receipts and answers
+typed queries through the same `docs` the rules use; nothing is stored for
+it."
+
+**`crates/huginn-mind/src/fixtures.rs`**: the three helpers above; `admit`
+becomes `admit_at(mind, documents, now())`.
+
+**`tools/eureka-cut8-mutations.psd1`**: header `-Target` gains
+`crates/huginn-mind/src/docs.rs`. H41: `File` → `docs.rs`; `Old` is the
+`&& !own(resolution)` / `&& self.in_force(PipelineKind::Resolution, key)`
+pair as it lands in `closing_resolution_unless`. H47: `File` → `docs.rs`;
+`Old`/`New` re-anchored on `stewardships_of`'s filter as it lands over
+`assignments_of` (the mutant still drops the `in_force_unless` conjunct).
+H60: `File` → `docs.rs`; `Old` re-anchored on `latest_resolution`'s body
+over `resolutions_of` (the mutant still reads `self.image` only). H49 is
+unchanged (its `New` reads `docs.image`, which `pub(crate)` keeps legal).
+Every other entry anchors code that does not move (Hands greps each `Old`
+once after the move; the harness refuses a zero-match anchor anyway).
+
+**`tools/eureka-cut9-mutations.psd1`** (new): V1-V23 below.
+
+**`README.md`, `AGENTS.md`**: the live-crate sentence gains "queries and
+derived status"; no present-tense claim about Cuts 10-13.
+
+### Authority map
+
+- **Owner:** `huginn-mind`. Inside it, `docs::Docs` owns every derivation
+  (in force, the closing resolution, the sequences, the scopes);
+  `query::AdmissionIndex` owns the join of admission facts;
+  `Mind::{view, query, open_items, history}` own the read surface;
+  `Mind::admit_prepared` still owns admission and calls `Docs` as before.
+- **Inputs:** `mind.envelopes()` (decoded through the leaf's `decode`),
+  `mind.receipts()`, the query argument, the mind's instance. **Not
+  inputs:** `stored_at`, a clock, the environment, a store handle, the
+  index.
+- **Outputs:** `PipelineDocumentView`s, `PipelineQueryPage`,
+  `PipelineOpenItems`, `MindRefusal::Unavailable` for the two integrity
+  faults and the semantic refusal.
+- **Derived state:** status, the base of a resolution, the admission index,
+  the order, the match count — all computed per call, none stored. No
+  admission writes an `in_force`, `status` or `admitted_at` field; the
+  receipt's `committed_at` is the only stored time the views read.
+- **Forbidden writers:** `query.rs` may not decide in force, a sequence or
+  a scope by any rule of its own (it calls `Docs`); may not read
+  `stored_at`; may not construct a receipt, call the store, or write; may
+  not parse a sequence out of a key; may not derive a key. `admission.rs`
+  may not keep a private copy of any `Docs` method. Cut 10's daemon, Cut
+  11's index and Cut 13's client may not compute status; the index may not
+  index status (D5) though the view carries it.
+- **Shared paths:** `Docs::from_image` and every derivation, called by
+  admission over image ∪ batch and by the views over the image;
+  `closing_resolution_unless` under both `in_force_unless` and
+  `PipelineStatus`; `Mind::view` under `get` (Cut 10/13) and the index
+  (Cut 11).
+- **Deletion line:** the move out of `admission.rs` lands in the first
+  commit, before `query.rs` exists; `cargo test -p huginn-mind --lib` is
+  41 green between the two commits.
+
+### Verification
+
+**Commits.** (1) `docs.rs` move with D2's three edits, three cut-8 entries
+re-anchored, 41 tests green, H1-H61 killed. (2) `query.rs`, fixtures, the
+ten tests, `lib.rs`, README/AGENTS. (3) `eureka-cut9-mutations.psd1`, all
+entries killed. Soul verifies per commit.
+
+**Builds.** `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex`; path-list
+baseline before and after; **no `cargo clean` of any scope** (the fix batch's
+deviation). `cargo check -p huginn-mind --lib --tests`; `cargo test -p
+huginn-mind --lib` (41 + 10 = **51 tests**, 0 warnings); `cargo check
+--workspace`; `cargo tree -p huginn-mind -e normal -d` unchanged. Host =
+target = workstation; no platform code touched.
+
+**Tests**, `crates/huginn-mind/src/query.rs`, each named for the rule it pins.
 
 | Test | Pins |
 |---|---|
-| `open_items_and_rulings_in_force_follow_resolutions` | The derivations |
-| `query_filters` | One assertion per filter, including `instance` |
-| `cut_filter_walks_spec_report_verdict_finding` | The `cut` chain |
-| `views_join_admission_facts_from_receipts` | `receipt_id`, `admitted_at`, `faculty` |
-| `semantic_query_refuses_typed_until_wired` | No silent empty result |
-| `limit_is_capped_and_ordering_is_stable` | ≤ 200, ordered by `admitted_at` then id |
+| `status_is_the_derivation_admission_uses` | R-A. Q1 open → `InForce`; a ruling answers it → `Resolved { resolution: …question.Q1.n1, record.outcome: Answered }`; withdraw n1 → Q1 `InForce` again and n1's own view `Resolved { resolution: …question.Q1.n1.n1, record.outcome: Withdrawn { reason } }`; resolve n2 → Q1 `Resolved { …n2 }`. The ruling stays `InForce` after its resolution is withdrawn (Soul's observation). A campaign and a verdict are `InForce` with no special case. |
+| `a_subjects_history_lists_every_resolution_with_its_status_and_receipt` | R-B, D7, V9-V10. Ten reopen cycles on Q1 (n1..n10 with withdrawals of n1..n9): `history(Subject(Q1))` is exactly n1..n10 in sequence order (n10 after n9, not after n1), n1..n9 each `Resolved` by its withdrawal with `Withdrawn { reason }`, n10 `InForce`; no withdrawal in the list; `history(Subject(<n1>))` is `[n1.n1]`; every record's `receipt_id` distinct (one per batch). |
+| `a_repos_stewardship_history_on_a_mind_lists_every_assignment` | D7, V11. Hand off `REPO` away and back, and `OTHER_REPO` once: `history(Repo(REPO))` is `[n1 Resolved { Withdrawn { reason: <hand-off key> } }, n2 InForce]` with `assigned_on` the two `handed_on`s; `OTHER_REPO` absent; the other mind is not consulted. |
+| `views_join_admission_facts_from_the_receipt_that_wrote_them` | D3, V3-V4. `receipt_id` equals `Committed.receipt_id`; `admitted_at` equals `committed_at` and the `now` passed; `provenance` equals the batch's; a derived write (the `Answered` resolution) carries the ruling's receipt; a document cited as a strong read by a later batch keeps its first receipt; a planted pipeline document with no receipt (`MemoryStore::plant`, then `open_with`) makes `view` of it and any `query` `Unavailable` naming it. |
+| `views_read_admitted_at_from_the_receipt_not_stored_at` | R-C, V2. Seed and admit at two `now`s; copy every row into a second `MemoryStore` with `stored_at` overwritten by a constant, and again with the stamps reversed; `open_with` each; `query` and `history` outputs equal the original's. |
+| `query_filters_each_select_by_one_field` | D5, V16-V23. One assertion per filter: `campaign` (a second campaign on the same repo; a resolution matches by its root; a stewardship matches under the instance root), `repo` (`campaign.repos` contains; `cut_spec.repo`; a question never), `cut` (cut-9 spec, report, verdict, finding and the spec's supersession match; cut-10's do not; a ruling never), `kinds`, `in_force` both ways, `faculty` (admitted as `Soul` vs `Hands`), `admitted_after`/`admitted_before` at the exact boundary (exclusive). |
+| `query_orders_by_admitted_at_then_id_and_caps_at_200_with_the_match_count` | D5, V5-V7. 201 questions over four batches at rising `now`s, Q2's batch before Q1's; `limit: Some(500)` → 200 items, `matched: 201`, first item Q2's batch; `None` → 200; `Some(0)` → 1; `Some(5)` → 5. The seed batch (one `now`) orders by id: `campaign:self`, `target:r1`, `instance:self`, `stewardship:…`, not by type. |
+| `open_items_are_derived_from_in_force_and_citation` | D6, V12-V15. Open: an unanswered question, a `Plausible` finding, a follow-up, spec `cut-9.r2` (r1 superseded, no report), report `cut-10.h1` (no verdict). Not open: the answered question, the `Fixed` finding, `r1`, a spec with a report, a report with a verdict, a second campaign's question. |
+| `semantic_query_refuses_typed_until_wired` | D5, V8. `semantic: Some(..)` with every other filter set → `Err(Unavailable)`, never `Ok(empty)`; the same query without `semantic` → `Ok`. |
+| `view_of_an_absent_id_is_none_and_of_a_present_one_is_its_document` | D4/D8. `view` of an absent ref → `Ok(None)`; of a present one → the decoded document equal to `Mind::get`'s and the key equal to `id.id`. |
 
-- **Mutations:** make `in_force` ignore resolutions; drop the `limit` cap; order
-  by id only.
-- **Builds:** `cargo check -p huginn-mind --lib --tests`.
+**Negative greps** (`crates/huginn-mind/src`):
 
-**Subtraction ledger:** +about 600 lines.
+- `rg -n "stored_at"` empty.
+- `rg -n "fn in_force|fn closing_resolution|fn latest_resolution|fn latest_stewardship|fn stewardships_of|fn later_in_force|fn resolutions_of|fn assignments_of"` matches in `docs.rs` only, once each.
+- `rg -n "struct Docs|struct Held|struct Staged|fn later_than|fn kind_of_type"` in `docs.rs` only.
+- `rg -n "Utc::now|SystemTime::now|std::env::var"` empty.
+- `rg -n "pipeline_key|split\(':'\)" query.rs`: no `pipeline_key`; `split(':')` at most in the one root/local reader (the same shape `kind_of_id` uses).
+- `rg -n "compare_and_swap|prepare_entry|HuginnCommitReceipt \{" query.rs` empty.
+- `rg -n "reqwest|qdrant|ollama|IndexPort|EmbeddingPort|pending_index" crates/huginn-mind` empty (Cut 11's).
+- `rg -n "rulings_in_force|fn stewardship\(|text_contains|outcome:" query.rs` empty of any function or field by those names.
+- `git diff --stat 7b67730 -- Cargo.toml Cargo.lock crates/huginn-mind/Cargo.toml` empty (after the batch in flight lands, against its commit).
+
+**Suites that must still kill every entry:** `eureka-cut8-mutations.psd1`
+(H1-H61 with H41, H47, H60 re-anchored; `-Target` gains `docs.rs`) and the
+new `eureka-cut9-mutations.psd1`, both through `tools/eureka-mutations.ps1`
+with `-Repo F:\Projects\Huginn`, M0 green. Cut 9's run:
+
+```
+powershell -File F:\Projects\Epiphany\tools\eureka-mutations.ps1 -Repo F:\Projects\Huginn `
+    -Entries tools/eureka-cut9-mutations.psd1 `
+    -Target crates/huginn-mind/src/docs.rs,crates/huginn-mind/src/query.rs `
+    -Test 'cargo test -p huginn-mind --lib'
+```
+
+#### Mutations, `tools/eureka-cut9-mutations.psd1`
+
+Each rule has a **revert** (the old permissiveness: the rule absent) and,
+where one exists, a **loosening** (the rule weakened, not absent). Anchors
+are content Hands lands, matched exactly once; `Killed by` names the test
+the entry runs; collateral kills are noted where they are the point.
+
+| # | Rule | Revert | Loosening | Killed by |
+|---|---|---|---|---|
+| V1 | One owner for in force (D2) | `closing_resolution_unless` body → `None` (nothing ever closes) | H41's form: drop `&& self.in_force(PipelineKind::Resolution, key)` (a withdrawn resolution still closes) | `status_is_the_derivation_admission_uses`; collaterally `a_withdrawn_resolution_reopens_its_subject_and_stays_readable` and `a_document_is_written_once_and_superseded_by_resolution` in the full run — the same anchor as H41, listed twice on purpose: one mutant, two suites, one owner |
+| V2 | `admitted_at` is the receipt's, not the store's (R-C) | `admitted_at: receipt.committed_at.clone()` → `mind.raw_envelope(&write.document_type, &write.document_key).map_or_else(\|\| receipt.committed_at.clone(), \|e\| e.stored_at.clone())` | none: one source field | `views_read_admitted_at_from_the_receipt_not_stored_at` |
+| V3 | Facts from `writes` only (D3) | — | `receipt.writes.iter()` → `receipt.writes.iter().chain(&receipt.strong_reads)` (a later citation overwrites the first receipt) | `views_join_admission_facts_from_the_receipt_that_wrote_them` |
+| V4 | An unreceipted row refuses, not hides (D3) | `Edits`: in `query`'s loop `let facts = …?;` → `let Ok(facts) = … else { continue };`, in `view` → `else { return Ok(None) };` | the two-receipts check dropped (`insert` without the `is_some()` refusal) | the same test |
+| V5 | The cap (D5) | `.clamp(1, QUERY_LIMIT_MAX)` → `.max(1)` | `QUERY_LIMIT_MAX: usize = 200` → `201` | `query_orders_by_admitted_at_then_id_and_caps_at_200_with_the_match_count` |
+| V6 | Stable order `(admitted_at, id)` | sort by `id` only | sort by `admitted_at` only (stable over image order, so ties fall to `(type, key)`) | the same test (Q2 before Q1; the seed batch's id order) |
+| V7 | `matched` is the count before the cut | `matched` computed after `truncate` | — | the same test |
+| V8 | `semantic` refuses typed (D5) | the `semantic` arm returns `Ok(PipelineQueryPage { items: vec![], matched: 0 })` | the check moved after the filters (still refuses; equivalent — recorded as such, not an entry) | `semantic_query_refuses_typed_until_wired` |
+| V9 | History is in sequence order (D7) | the sort removed (image order: n1, n10, n2, …) | none: every other order the data offers (`admitted_at`, receipt order) coincides with sequence in a well-formed mind | `a_subjects_history_lists_every_resolution_with_its_status_and_receipt` |
+| V10 | `Subject` history selects by subject | `resolutions_of` → `resolutions()` (every resolution) | subject compared by `id` only, `kind` ignored | the same test (withdrawals excluded; `history(<n1>)` exact) |
+| V11 | `Repo` history selects `(mind, repo)` | `assignments_of` → `stewardships()` | `repo` compared, `instance` ignored | `a_repos_stewardship_history_on_a_mind_lists_every_assignment` |
+| V12 | Open questions/findings/follow-ups are in force (D6) | the `InForce` condition dropped | — | `open_items_are_derived_from_in_force_and_citation` |
+| V13 | Specs without report: in force only | in-force dropped (superseded r1 counted) | — | the same test |
+| V14 | Reports without verdict | the citation check dropped (every report open) | citation compared by `cut` prefix instead of the exact id | the same test |
+| V15 | Open items are one campaign's | the root filter dropped | — | the same test |
+| V16 | `cut` filter is the label | `starts_with(&format!("cut-{label}."))` → `starts_with("cut-")` | the trailing `.` dropped (`cut-9` matches `cut-90`) | `query_filters_each_select_by_one_field` |
+| V17 | Filters reach a resolution through its base | `base()` returns the resolution itself | base followed one step, not to the non-resolution | the same test (the spec's supersession matches `cut`) |
+| V18 | `campaign` is the key root | the filter dropped | compared against `campaign` fields only (stewardship under the instance root, and resolutions, never match) | the same test |
+| V19 | `kinds` | dropped | — | the same test |
+| V20 | `in_force` | dropped | inverted | the same test |
+| V21 | `faculty` (attribution filters, grants nothing) | dropped | — | the same test |
+| V22 | `admitted_after`/`admitted_before` exclusive | dropped | `>` → `>=` | the same test (the boundary case) |
+| V23 | `repo` matches `campaign.repos` and the five repo fields | dropped | `campaign.repos` omitted | the same test |
+
+Stated limits: the recursion's termination (`key(R)` strictly longer than
+`id`) has no runtime mutant, as in Cut 6d; the `JsonSchema` derives are
+pinned by compilation of Cut 13, not here; V8's "moved check" is
+equivalent and is recorded, not run.
+
+**Operator checks before landing:** Q21 below has a recommended default
+Hands builds under; nothing blocks.
+
+### Subtraction estimate
+
+Source outside tests: `admission.rs` −about 175 (the move, the doc
+sentence); `docs.rs` +about 205 (the moved 170 plus D2's four helpers and
+docs); `query.rs` +about 330 (types 70, index 45, reader and filters 150,
+the four functions 65); `lib.rs` +4; fixtures +20. Net **+about 385**
+outside tests. Tests +about 520 (ten tests). Entries +about 300 (V1-V23),
+cut-8 re-anchors ±15. Total about +1,200 with tests and entries against the
+old section's +600 (which had six tests and three mutants and a second
+derivation).
+
+Liability retired before it shipped: the second in-force the old section
+implied; two functions (`rulings_in_force`, `stewardship`) and three query
+fields whose meaning was either a preset or a second owner. Nothing in the
+crate is removed net because the read side did not exist; the move is the
+cut's subtraction and it is a real one: after it, `admission.rs` holds no
+derivation.
+
+Kinds, dependencies, lock, targets, formats, schemas, epoch: zero.
+
+### Build budget
+
+`huginn-mind` lib + tests only; the two stubs re-checked by `cargo check
+--workspace` with no change. Debug, workstation host = target, no features,
+no codegen. The leaf rlib and the 90 transitive packages are warm (the probe
+rebuilt only the crate's test binary: 5.5 s). Expected footprint delta: +0
+to +40 paths, all under `debug/` for the crate's own fingerprint and test
+binary; baseline 10,579 paths this pass. Retention: the shared target dir is
+the operator's; **nothing is cleaned**, in any scope.
+
+### Operator questions
+
+- **Q21. `text_contains` until Cut 11?** The landed field set had a
+  substring filter over a document's text. **A. Drop it (recommended).**
+  Cut 11 defines once which fields of each kind are text (its `IndexPoint`
+  source); a substring filter here would be a second definition of "the
+  text of a document", or a filter over serialised JSON, which is the
+  symptom-shaped kind. Until Cut 11 lands, an agent reads views; `history`
+  and `open_items` carry the precedent an agent rehydrates from (ruling 2).
+  **B. Keep it**, built over a `text_of(&PipelineDocument)` projection in
+  `huginn-mind` that Cut 11's index then reuses. Coherent, but it pulls
+  Cut 11's projection forward into this cut for a filter nothing yet
+  consumes. If B, the projection is one owner and `text_contains` is a
+  filter over it; Cut 11's spec must then say it reuses `text_of`.
+  **Taken as a default by Self, 2026-09-16: A.** Not a product fork; a
+  second definition of a document's text is what Cut 11 would have to
+  reuse or delete.
+
+Decisions Self can overturn without an operator (not questions):
+`instance` and `outcome` leave `PipelineQuery` (D5); an unreceipted row
+refuses (D3); the view carries the whole provenance and the whole closing
+record (D4); `open_items` and `history` are uncapped (D6, D7).
+
+### Findings not assignable to this cut
+
+- **`refusal.rs`'s `#[serde(remote)]` mirror `DocumentRefusal` is dead at
+  the pin**: `PipelineRefusal` derives `Serialize`, `Deserialize`,
+  `JsonSchema` at `d5a36c2a`. Cut 8's map already assigns its removal to
+  Cut 10; still true, still not done.
+- **`admission.rs`'s doc on `PipelineAdmissionBatch`** ("the leaf's
+  `PipelineDocument` derives neither `Serialize` nor `JsonSchema` at the
+  pinned rev, so this type cannot either") **is false at the pin** —
+  `PipelineDocument` derives all three (leaf, `pipeline_kinds!`). The batch
+  can derive them now; discrepancy 34's premise is gone. Cut 10's, with the
+  wire.
+- **D4, D6 and D7 in the map are superseded** by this spec: D4's
+  seven-field view and five functions; D6's `RulingsInForce | Stewardship`
+  operations (presets of `Query`); D7's `rulings_in_force` and `stewardship`
+  tools (presets) and a missing `history` tool (R-B's affordance must reach
+  the client or the obligation is unmet at the agent). Self's, at this
+  cut's landing; Cut 10's and Cut 13's refreshes carry them.
+- **Every read decodes the image and the receipts once per call**, as every
+  admission already does. A decoded image held on `Mind` and refreshed in
+  `refresh` would let the opener refuse a non-decoding store up front and
+  remove `Docs::from_image`'s `Unavailable` path from both sides. Not this
+  cut's; worth doing when a mind is large enough to measure.
+- **No exact paging.** A query over 200 matches pages by `admitted_after`
+  at second granularity; `matched` makes the truncation visible. A cursor
+  `(admitted_at, id)` is the exact form if a proof campaign needs it.
+- **The batch in flight** touches `derive` and the cut-8 entries; this cut
+  moves `Docs` out from under `derive`'s call sites. Land order: that batch,
+  then this cut's commit (1). If that batch adds a `Docs` method, it moves
+  with the rest and Hands says so in the report.
+- **`Faculty::SelfFaculty`** is the wire spelling Cut 13's tool schema will
+  show. Cosmetic; noted for Cut 13's refresh, not changed here.
+
+### Pinned HEADs
+
+- Epiphany `codex/eureka-pipeline-state` at `94df3a8f`, tree clean; leaf at
+  `d5a36c2a`, the rev Huginn pins.
+- Huginn `eureka/memory-organ` at `7b67730` with an uncommitted Hands batch
+  in `admission.rs` and `eureka-cut8-mutations.psd1`; this spec anchors by
+  name because of it.
+- CultLib `a0813c6` (the cargo checkout), read for `CultCacheEnvelope`.
+- Probe artifacts: `scratchpad/cut9-wt` (detached at `7b67730`, one `cargo
+  test -p huginn-mind --lib`, 41 passed, removed); `scratchpad/cut9-baseline.log`;
+  `scratchpad/leaf-d5a36c2a.rs` (a `git show` copy, read only). No file in
+  either repo was written; no `notes/` file was touched.
 
 ## Cut 10. `huginn-daemon`: the CultNet surface
 
