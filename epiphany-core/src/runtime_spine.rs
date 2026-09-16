@@ -8751,6 +8751,21 @@ pub(crate) mod tests {
         Ok(())
     }
 
+    /// A stand-in for a document of the Eureka pipeline, which
+    /// `epiphany-pipeline` owns and this package deliberately does not depend
+    /// on. The rule under test is the spine registry's, not the document's:
+    /// what the spine cache sees is a type id it never registered, and that is
+    /// all this needs to carry.
+    #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+    #[cultcache(
+        type = "epiphany.pipeline.campaign.v1",
+        schema = "EpiphanyPipelineCampaignDocument"
+    )]
+    struct ForeignPipelineDocument {
+        #[cultcache(key = 0)]
+        slug: String,
+    }
+
     /// Soul F4: the spine store and a pipeline store are different stores, and
     /// the spine cache refuses the latter *by type* — it registers its own
     /// types and nothing else. The epoch checks beside this one cannot stand in
@@ -8762,20 +8777,13 @@ pub(crate) mod tests {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("pipeline.cc");
         let mut pipeline = CultCache::new();
-        crate::pipeline_documents::register_pipeline_document_types(&mut pipeline)?;
-        let campaign = crate::PipelineDocument::Campaign(crate::PipelineCampaign {
-            slug: "eureka-state".into(),
-            title: "Eureka pipeline state".into(),
-            repos: vec!["GameCult/Epiphany".into()],
-            working_branch: "codex/eureka-pipeline-state".into(),
-            target_doc: crate::DocRef {
-                path: "notes/eureka-pipeline-state-target.md".into(),
-                start_line: 1,
-                end_line: 9,
-                commit: "5f98228d".into(),
-            },
-        });
-        let envelope = campaign.prepare(&pipeline)?;
+        pipeline.register_entry_type::<ForeignPipelineDocument>()?;
+        let envelope = pipeline
+            .prepare_entry_named(
+                "eureka-state",
+                &ForeignPipelineDocument { slug: "eureka-state".into() },
+            )?
+            .0;
         assert!(
             envelope.r#type.starts_with("epiphany.pipeline."),
             "the sample is a pipeline document: {}",

@@ -51,7 +51,10 @@
         "Verdict",
         "Finding",
         "FollowUp",
-        "Resolution"
+        "Resolution",
+        "Instance",
+        "Stewardship",
+        "HandOff"
       ],
       "type": "string"
     },

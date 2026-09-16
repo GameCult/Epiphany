@@ -132,6 +132,39 @@
       "documentType": "epiphany.pipeline.resolution.v1",
       "title": "Epiphany Pipeline Resolution v1",
       "path": "epiphany.pipeline.resolution.v1.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.instance.v1.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.pipeline.instance.v1",
+      "documentType": "epiphany.pipeline.instance.v1",
+      "title": "Epiphany Pipeline Instance v1",
+      "path": "epiphany.pipeline.instance.v1.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.stewardship.v1.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.pipeline.stewardship.v1",
+      "documentType": "epiphany.pipeline.stewardship.v1",
+      "title": "Epiphany Pipeline Stewardship v1",
+      "path": "epiphany.pipeline.stewardship.v1.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.hand_off.v1.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.pipeline.hand_off.v1",
+      "documentType": "epiphany.pipeline.hand_off.v1",
+      "title": "Epiphany Pipeline HandOff v1",
+      "path": "epiphany.pipeline.hand_off.v1.schema.json"
     }
   ]
 }

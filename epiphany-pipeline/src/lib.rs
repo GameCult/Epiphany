@@ -1,4 +1,10 @@
-//! Eureka pipeline documents (cut map D1).
+//! Eureka pipeline documents: the typed shape of a Eureka campaign's state.
+//!
+//! This is a leaf type library, and deliberately nothing else. It owns document
+//! shape, field bounds, formats, key derivation and the JSON schemas published
+//! under `schemas/cultnet`; it owns no storage, no admission, no process and no
+//! network. That is the whole reason it is a package: the memory organ depends
+//! on these types without depending on the harness that used to hold them.
 //!
 //! Every kind is a plain `serde` + `JsonSchema` value inside a one-slot
 //! `DatabaseEntry` wrapper, always prepared with `prepare_entry_named`, so the
@@ -16,10 +22,13 @@
 //! The wrappers are crate-private: outside code reaches the store through the
 //! admission path, never by registering or preparing a pipeline type itself.
 
-use anyhow::Result;
 use cultcache_rs::DatabaseEntry;
 // Envelopes are a test-only shape here until the organ prepares, decodes and
-// validates them (Cut 8); only the type ids survive into the live path.
+// validates them; only the type ids survive into the live path. `anyhow` and
+// `rmp-serde` come with them, which is why both are dev-dependencies: the live
+// library's errors are all `PipelineRefusal`.
+#[cfg(test)]
+use anyhow::Result;
 #[cfg(test)]
 use cultcache_rs::{CultCache, CultCacheEnvelope};
 use schemars::JsonSchema;
@@ -329,6 +338,20 @@ value_types! {
         item: Line, why_it_can_wait: Line, owner: Short,
     }
     pub struct PipelineResolution { subject: PipelineRef, outcome: ResolutionOutcome, rationale: Para, resolved_on: Date }
+
+    /// A mind's identity document. A store is canonical to exactly one
+    /// instance, and this says which; identity lives in the state, not in a
+    /// path.
+    pub struct PipelineInstance { instance: Slug, display_name: Short, created_at: Date, host: Short }
+    /// Stewardship over a repo, as an assignment recorded in a mind. One
+    /// instance may steward several repos, so the repo is part of the key.
+    pub struct PipelineStewardship { instance: Slug, repo: OrgRepo, assigned_on: Date, note: Line }
+    /// A reassignment of stewardship, recorded in both minds. `documents` names
+    /// what travels with it.
+    pub struct PipelineHandOff {
+        from_instance: Slug, to_instance: Slug, repo: OrgRepo, documents: Vec<Short>[256],
+        reason: Para, handed_on: Date,
+    }
 }
 
 /// A reference to another document. The id is parsed as a full pipeline id of
@@ -444,17 +467,31 @@ macro_rules! pipeline_kinds {
             }
         }
 
-        /// Registers every type the document tests put in a cache: the ten
-        /// kinds and the commit receipt. Test scaffolding until the organ
-        /// registers its mind's types (Cut 8), which is why it is `cfg(test)`
-        /// rather than a live path wearing a dead-code waiver.
+        /// Registers every type the document tests put in a cache: each kind
+        /// and one foreign document. Test scaffolding until the organ registers
+        /// its mind's types, which is why it is `cfg(test)` rather than a live
+        /// path wearing a dead-code waiver.
         #[cfg(test)]
         pub(crate) fn register_pipeline_document_types(cache: &mut CultCache) -> Result<()> {
             $(cache.register_entry_type::<$document>()?;)*
-            cache.register_entry_type::<crate::EpiphanyMindCommitReceipt>()?;
+            cache.register_entry_type::<ForeignDocument>()?;
             Ok(())
         }
     };
+}
+
+/// A document that is not a pipeline document, for the decode refusal and the
+/// spine-registry rules to be pinned against something real. The organ's Mind
+/// commit receipt is the case that matters: a mind's store legitimately holds
+/// one beside pipeline documents, and it is still not a document this library
+/// may decode. That type belongs to the harness, not here, so the rule is
+/// pinned against a stand-in carrying its type id.
+#[cfg(test)]
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(type = "epiphany.mind_commit_receipt.v1", schema = "ForeignDocument")]
+pub(crate) struct ForeignDocument {
+    #[cultcache(key = 0)]
+    pub(crate) marker: Short,
 }
 
 pipeline_kinds! {
@@ -478,6 +515,12 @@ pipeline_kinds! {
         "epiphany.pipeline.follow_up.v1", "EpiphanyPipelineFollowUpDocument";
     Resolution(PipelineResolution) => EpiphanyPipelineResolutionDocument, "resolution",
         "epiphany.pipeline.resolution.v1", "EpiphanyPipelineResolutionDocument";
+    Instance(PipelineInstance) => EpiphanyPipelineInstanceDocument, "instance",
+        "epiphany.pipeline.instance.v1", "EpiphanyPipelineInstanceDocument";
+    Stewardship(PipelineStewardship) => EpiphanyPipelineStewardshipDocument, "stewardship",
+        "epiphany.pipeline.stewardship.v1", "EpiphanyPipelineStewardshipDocument";
+    HandOff(PipelineHandOff) => EpiphanyPipelineHandOffDocument, "hand_off",
+        "epiphany.pipeline.hand_off.v1", "EpiphanyPipelineHandOffDocument";
 }
 
 /// Parses a full document id. `<campaign>:<kind>:<local>` for every kind but
@@ -542,10 +585,43 @@ fn parent_cut<'a>(field: &str, local: &'a str, marker: char) -> Result<&'a str, 
     Ok(cut)
 }
 
+/// A repo as one key segment: the `OrgRepo` with its `/` replaced by `_`,
+/// because `/` is not a `Label` byte and a composed key must segment one way
+/// only. The caller checks the result against the key's segment rules, which is
+/// where an over-long repo name is refused.
+fn repo_segment(field: &str, repo: &OrgRepo) -> Result<String, PipelineRefusal> {
+    org_repo_text(field, &repo.0)?;
+    Ok(repo.0.replace('/', "_"))
+}
+
 /// Derives a document's identity key (D1, "Keys: identity, not convenience").
 pub fn pipeline_key(document: &PipelineDocument) -> Result<String, PipelineRefusal> {
     use PipelineDocument as D;
     let (campaign, local) = match document {
+        // An instance is keyed by its own slug, as a campaign is: it is a root,
+        // not a document inside one.
+        D::Instance(value) => {
+            dotted_text("instance.instance", &value.instance.0)?;
+            return Ok(value.instance.0.clone());
+        }
+        // Stewardship and hand-off hang off an instance, not a campaign, so
+        // they compose their own key rather than falling through to the
+        // `<campaign>:<kind>:<local>` tail below.
+        D::Stewardship(value) => {
+            dotted_text("stewardship.instance", &value.instance.0)?;
+            let local = repo_segment("stewardship.repo", &value.repo)?;
+            dotted_text("stewardship.key", &local)?;
+            return Ok(format!("{}:stewardship:{local}", value.instance.0));
+        }
+        D::HandOff(value) => {
+            dotted_text("hand_off.from_instance", &value.from_instance.0)?;
+            dotted_text("hand_off.to_instance", &value.to_instance.0)?;
+            let repo = repo_segment("hand_off.repo", &value.repo)?;
+            value.handed_on.validate("hand_off.handed_on")?;
+            let local = format!("{}.{repo}.{}", value.to_instance.0, value.handed_on.0);
+            dotted_text("hand_off.key", &local)?;
+            return Ok(format!("{}:hand_off:{local}", value.from_instance.0));
+        }
         D::Campaign(value) => {
             dotted_text("campaign.slug", &value.slug.0)?;
             return Ok(value.slug.0.clone());
@@ -610,6 +686,7 @@ mod tests {
     use std::path::Path;
 
     const CAMPAIGN: &str = "eureka-state";
+    const INSTANCE: &str = "yggdrasil";
 
     fn s(value: &str) -> Short {
         value.into()
@@ -640,7 +717,7 @@ mod tests {
     }
 
     fn location() -> CodeLocation {
-        CodeLocation { path: s("epiphany-core/src/pipeline_documents.rs"), line: 1, end_line: Some(9) }
+        CodeLocation { path: s("epiphany-pipeline/src/lib.rs"), line: 1, end_line: Some(9) }
     }
 
     fn evidence() -> Evidence {
@@ -719,7 +796,7 @@ mod tests {
                     dependencies_removed: vec![], formats_added: vec![s("epiphany.pipeline.*.v1")],
                     formats_removed: vec![], targets_added: vec![], targets_removed: vec![],
                 },
-                landed_names: vec![LandedName { name: s("PipelineDocument"), path: s("epiphany-core/src/pipeline_documents.rs") }],
+                landed_names: vec![LandedName { name: s("PipelineDocument"), path: s("epiphany-pipeline/src/lib.rs") }],
                 undone: vec!["admission".into()],
             }), format!("{CAMPAIGN}:cut_report:cut-3a.h1")),
             (D::Verdict(PipelineVerdict {
@@ -747,7 +824,37 @@ mod tests {
                 outcome: ResolutionOutcome::Answered { by: id("ruling", "R8") },
                 rationale: "Ruled A.".into(), resolved_on: date(),
             }), format!("resolution:{CAMPAIGN}:question:Q1")),
+            // The mind's own three kinds. They are appended rather than
+            // inserted because the helpers below index this list by position.
+            (D::Instance(PipelineInstance {
+                instance: slug(INSTANCE), display_name: s("Yggdrasil mind"), created_at: date(),
+                host: s("yggdrasil"),
+            }), INSTANCE.into()),
+            (D::Stewardship(PipelineStewardship {
+                instance: slug(INSTANCE), repo: repo(), assigned_on: date(),
+                note: "The Eureka campaign repo.".into(),
+            }), format!("{INSTANCE}:stewardship:GameCult_Epiphany")),
+            (D::HandOff(PipelineHandOff {
+                from_instance: slug(INSTANCE), to_instance: slug("thought-cage"), repo: repo(),
+                documents: vec![s(CAMPAIGN), id("ruling", "R8")],
+                reason: "The workstation mind takes the campaign.".into(), handed_on: date(),
+            }), format!("{INSTANCE}:hand_off:thought-cage.GameCult_Epiphany.{}", date().0)),
         ]
+    }
+
+    fn instance_sample() -> PipelineInstance {
+        let PipelineDocument::Instance(instance) = samples().remove(10).0 else { unreachable!() };
+        instance
+    }
+
+    fn stewardship_sample() -> PipelineStewardship {
+        let PipelineDocument::Stewardship(stewardship) = samples().remove(11).0 else { unreachable!() };
+        stewardship
+    }
+
+    fn hand_off_sample() -> PipelineHandOff {
+        let PipelineDocument::HandOff(hand_off) = samples().remove(12).0 else { unreachable!() };
+        hand_off
     }
 
     fn campaign_sample() -> PipelineDocument {
@@ -806,12 +913,12 @@ mod tests {
     /// test above pins the positive match; this pins the refusal, so an
     /// envelope belonging to another kind can never be decoded as whichever
     /// pipeline kind happens to parse its payload. The commit receipt is the
-    /// sharp case: a pipeline store may legitimately hold one, and it is still
-    /// not a document.
+    /// sharp case: a mind's store may legitimately hold one, and it is still
+    /// not a document; `ForeignDocument` stands in for it here.
     #[test]
     fn decode_refuses_an_envelope_of_a_foreign_type() -> Result<()> {
         let cache = schema_cache()?;
-        let foreign = <crate::EpiphanyMindCommitReceipt as DatabaseEntry>::TYPE;
+        let foreign = <ForeignDocument as DatabaseEntry>::TYPE;
         assert!(!foreign.starts_with("epiphany.pipeline."), "{foreign} is a foreign type id");
         let mut envelope = campaign_sample().prepare(&cache)?;
         envelope.r#type = foreign.into();
@@ -1000,6 +1107,122 @@ mod tests {
         assert_eq!(
             pipeline_key(&PipelineDocument::Resolution(valid)),
             Ok(format!("resolution:{CAMPAIGN}:ruling:R8"))
+        );
+    }
+
+    /// The three kinds a mind is keyed by. The samples above already round-trip
+    /// every kind; this pins the shapes D2 gives these three specifically: an
+    /// instance is a root keyed by its own slug, and the other two hang off an
+    /// instance rather than a campaign, so neither borrows the campaign tail.
+    #[test]
+    fn instance_stewardship_and_hand_off_round_trip() -> Result<()> {
+        let cache = schema_cache()?;
+        let instance = PipelineDocument::Instance(instance_sample());
+        assert_eq!(pipeline_key(&instance), Ok(INSTANCE.to_string()));
+        for document in [
+            instance,
+            PipelineDocument::Stewardship(stewardship_sample()),
+            PipelineDocument::HandOff(hand_off_sample()),
+        ] {
+            document.validate()?;
+            let envelope = document.prepare(&cache)?;
+            assert_eq!(PipelineDocument::decode(&envelope)?, document);
+            let key = pipeline_key(&document)?;
+            assert!(
+                !key.starts_with(&format!("{CAMPAIGN}:")),
+                "{:?} is keyed by its instance, not by a campaign: {key}",
+                document.kind()
+            );
+            validate_pipeline_write_envelope(&envelope)?;
+        }
+        // A bounded list is still bounded: `documents` carries a maximum, as
+        // every `Vec` field must.
+        let mut wide = hand_off_sample();
+        wide.documents = vec![s("x"); 257];
+        assert_eq!(
+            PipelineDocument::HandOff(wide).validate(),
+            Err(PipelineRefusal::FieldBound { field: "hand_off.documents".into(), limit: 256, actual: 257 })
+        );
+        Ok(())
+    }
+
+    /// The repo is one key segment, so its slash is escaped to `_`. Left
+    /// unescaped it would both add a segment the reader cannot tell from a
+    /// real one and put a byte in the key that no `Label` may carry.
+    #[test]
+    fn stewardship_key_escapes_the_repo_slash() {
+        let stewardship = stewardship_sample();
+        assert_eq!(stewardship.repo, OrgRepo("GameCult/Epiphany".into()));
+        let key = pipeline_key(&PipelineDocument::Stewardship(stewardship.clone()));
+        assert_eq!(key, Ok(format!("{INSTANCE}:stewardship:GameCult_Epiphany")));
+        assert!(!key.unwrap().contains('/'), "no key segment carries a slash");
+
+        // The escape is not a cosmetic substitution: two repos that differ only
+        // by the escaped byte still key apart.
+        let mut underscored = stewardship.clone();
+        underscored.repo = OrgRepo("GameCult_Epiphany/thing".into());
+        assert_eq!(
+            pipeline_key(&PipelineDocument::Stewardship(underscored)),
+            Ok(format!("{INSTANCE}:stewardship:GameCult_Epiphany_thing"))
+        );
+
+        let mut no_org = stewardship.clone();
+        no_org.repo = OrgRepo("Epiphany".into());
+        assert_eq!(
+            pipeline_key(&PipelineDocument::Stewardship(no_org)),
+            Err(PipelineRefusal::InvalidFormat { field: "stewardship.repo".into(), value: "Epiphany".into() })
+        );
+
+        // An escaped repo is still bound by the key's segment rules.
+        let mut long = stewardship;
+        long.repo = OrgRepo(format!("GameCult/{}", "a".repeat(60)));
+        assert!(
+            matches!(
+                pipeline_key(&PipelineDocument::Stewardship(long)),
+                Err(PipelineRefusal::InvalidFormat { field, .. }) if field == "stewardship.key"
+            ),
+            "a repo segment longer than a key segment is refused"
+        );
+    }
+
+    /// A hand-off is recorded in both minds, so both instances are in the key:
+    /// the sender owns the first segment and the receiver the local. Changing
+    /// either one moves the document.
+    #[test]
+    fn hand_off_names_both_instances() {
+        let key = |hand_off: PipelineHandOff| pipeline_key(&PipelineDocument::HandOff(hand_off));
+        let base = key(hand_off_sample()).expect("the sample keys");
+        assert_eq!(base, format!("{INSTANCE}:hand_off:thought-cage.GameCult_Epiphany.2026-09-15"));
+
+        let mut other_sender = hand_off_sample();
+        other_sender.from_instance = slug("thought-cage");
+        assert_ne!(key(other_sender), Ok(base.clone()), "the sender is in the key");
+
+        let mut other_receiver = hand_off_sample();
+        other_receiver.to_instance = slug("mimir");
+        assert_ne!(key(other_receiver), Ok(base.clone()), "the receiver is in the key");
+
+        // Two hand-offs of the same repo between the same pair on different
+        // days are different documents.
+        let mut later = hand_off_sample();
+        later.handed_on = Date("2026-09-16".into());
+        assert_ne!(key(later), Ok(base), "the date is in the key");
+
+        // Both instance slugs are validated as key segments, not merely bounded.
+        let mut bad_receiver = hand_off_sample();
+        bad_receiver.to_instance = Slug("thought cage".into());
+        assert_eq!(
+            key(bad_receiver),
+            Err(PipelineRefusal::InvalidFormat {
+                field: "hand_off.to_instance".into(),
+                value: "thought cage".into(),
+            })
+        );
+        let mut bad_date = hand_off_sample();
+        bad_date.handed_on = Date("2026-9-15".into());
+        assert!(
+            matches!(key(bad_date), Err(PipelineRefusal::InvalidFormat { field, .. }) if field == "hand_off.handed_on"),
+            "a malformed date does not compose a key"
         );
     }
 

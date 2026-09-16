@@ -550,7 +550,6 @@ dependencies = [
  "ignore",
  "libc",
  "rmp-serde",
- "schemars",
  "semver",
  "serde",
  "serde_json",
@@ -589,6 +588,19 @@ dependencies = [
  "tempfile",
  "tokio",
  "uuid",
+]
+
+[[package]]
+name = "epiphany-pipeline"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "cultcache-rs",
+ "rmp-serde",
+ "schemars",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

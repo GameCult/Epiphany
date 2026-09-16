@@ -3,6 +3,7 @@ members = [
     "epiphany-core",
     "epiphany-model-adapter",
     "epiphany-openai-runtime",
+    "epiphany-pipeline",
     "epiphany-tool-adapter",
     "epiphany-tool-mcp-runtime",
 ]
