@@ -1857,7 +1857,9 @@ states the new invariant, the CultNet surface, the Qdrant dependency, and that
 - **Builds:** `cargo check --workspace` in Huginn succeeds on an empty
   workspace (three stub crates with empty `lib.rs`/`main.rs`).
 - **Negative greps:** `rg -n "buildHuginnEveDsl|@gamecult/huginn|cultcache-ts" F:\Projects\Huginn`
-  empty; `rg -n "E:\\\\Projects" F:\Projects\Huginn --glob '!.voidbot/**'` empty.
+  empty; `rg -n -F 'E:\Projects' F:\Projects\Huginn --glob '!.voidbot/**'`
+  empty. *(Corrected after Soul: the original regex form was a ripgrep
+  parse error, not an empty result.)*
 - **Unchanged check:** `.voidbot/` is byte-identical.
   `git diff --stat 91b7fcf -- .voidbot` is empty.
 - **Eve:** its renderer-parity fixture check still passes.
@@ -1905,8 +1907,41 @@ or DSL builder. The surface id `cultcache.huginn.inspector` survives in
 Ghostlight's vendored Eve copy and the `Eve-aetheria-authority` worktree,
 both of which still say `"ownerRepo": "Huginn"` until re-vendored, and in
 VoidBot's provider-advertisement prose describing the old inspection role.
-Recorded as FU-2: re-vendor, and retire the VoidBot hand-off prose when
-VoidBot's Persona doc is next touched.
+Recorded as FU-7: re-vendor, and retire the VoidBot hand-off prose when
+VoidBot's Persona doc is next touched. (First written as FU-2, which was
+already taken; Soul caught the collision.)
+
+**Soul on Cut 7** (default model) held the deletion line (`.voidbot` tree
+hash identical at both ends, so no mode or EOL flip is possible), the
+no-consumer claim over every manifest, lockfile, import string and runbook
+under `F:\Projects`, the workspace (`cargo 1.95.0`; `resolver = "3"` and
+edition 2024 both satisfied; `--locked` clean), and every Eve check. Found:
+
+- **A second `ownerRepo` authority disagrees with the first.**
+  `EveConformance/tools/parity/parity-manifest.json:466` still says Huginn,
+  and `run-parity.mjs:826` compares it to Eve's metadata, so the parity check
+  for this fixture now fails. The spec named only Eve's two fields; the
+  reader lives in a third repo. Nobody would have seen it, because the
+  harness cannot reach a report anyway: the manifest wants an Aetheria
+  conformance file that has not existed since July. Pre-existing hole,
+  recorded here, not this cut's.
+- **Three more Huginn-naming fields** in the fixture material: `purpose`,
+  `splitTarget`, and the `.eve` file's first-line comment. No programmatic
+  reader; four consecutive fields that contradict each other.
+- **AGENTS.md describes Cuts 8-10 in the present tense** with no stub
+  caveat; README carries one at `:33-35`. AGENTS is the surface an agent
+  rehydrates from. The spec asked for that content, so it is a tension
+  between the spec and the "describe the live system" invariant.
+- **The spec's second negative grep is unrunnable as written**: the escaped
+  backslashes are a Unicode-property error to ripgrep. Corrected below to a
+  fixed-string search.
+- **Committed blobs carry CRLF, including `Cargo.lock`**; no
+  `.gitattributes`; the predecessor blobs and Odin's lock are CRLF too, so
+  house pattern, not a deviation. The first cut that adds a dependency will
+  rewrite the lock as LF and produce a whole-file diff. Recorded.
+
+The first three are in a Cut 7 fix batch across EveConformance, Eve and
+Huginn.
 
 Operator ruling on the npm check: not publishing, nothing to unpublish, and
 npmjs is unreachable from this network (see Verification above).
@@ -2666,6 +2701,19 @@ operator may simply want recorded.
 - **FU-6. `state/map.yaml:261`** carries a long prose summary of this campaign
   that already describes the organ model. It will go stale as the cuts land.
   Mind Steward's surface, at each phase boundary.
+- **FU-7. Vendored Eve copies and VoidBot prose still name Huginn as the
+  inspector.** Ghostlight's `vendor/eve` submodule (pinned at `672c0c1`) and
+  the `Eve-aetheria-authority` worktree carry the fixture with
+  `"ownerRepo": "Huginn"` until re-vendored; VoidBot's
+  `scripts/export-voidbot-provider-advertisements.mjs:224-233` advertises a
+  `huginnInspectionHandoff` for `.cc` inspection that Huginn no longer does.
+  No code calls Huginn, so nothing breaks. Owners: whoever next bumps the
+  vendored Eve, and VoidBot's Persona doc.
+- **FU-8. EveConformance's parity harness cannot reach a report.**
+  `tools/parity/parity-manifest.json:250` wants
+  `F:\Projects\Aetheria\conformance\eve\aetheria-world-surface.json`, absent
+  since the manifest was last changed 2026-07-11. Found by Soul on Cut 7;
+  outside every campaign here. Owner: Eve/EveConformance.
 
 ---
 
