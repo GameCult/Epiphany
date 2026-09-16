@@ -114,6 +114,38 @@ Spec corrections from this cut, which stand against the sections above:
 4. **`schemas/cultnet/README.md:30`** still describes a per-repo store path.
    Cut 6 owns that rewrite, so Cut 4's negative grep cannot be empty yet.
 
+**Cut 4's Soul findings are closed** at `43a08baa` and `8a598ebb`. Soul is
+verifying the fix batch.
+
+Soul found that the deletion had taken a live rule's only test with it: the
+epoch guard survived a `if false` mutation, and no test could even construct an
+identity envelope to reach it. Self ruled deletion over testing what nothing can
+construct, since admission, identity and the epoch refusal belong to the organ
+and D2 already assigns those refusals to `huginn-mind`.
+
+- **Deleted:** the epoch branch, `ForeignEpoch`, `EpiphanyPipelineIdentity`,
+  `EpiphanyPipelineProvenance`, `PipelineProvenance`, `Faculty`, and
+  `PIPELINE_SCHEMA_EPOCH`, whose only reader was that branch. Each was confirmed
+  producer-free first. **Cut 8 writes them in the organ, with tests that can
+  reach them.**
+- **Pinned instead:** a foreign-typed envelope is refused on decode with
+  `ForeignStore` specifically, and the runtime spine cache refuses a pipeline
+  store. Both die under their own mutation.
+- **No schema consequence:** identity and provenance were never published, and
+  all ten schemas still derive byte for byte.
+
+Further corrections to the sections above:
+
+5. **Cut 4's Keeps list is wrong in two places.** `PipelineProvenance` and
+   `Faculty` fell under "every value type", and are gone.
+6. **`register_pipeline_document_types` is now `#[cfg(test)]`**, which Cut 6
+   must account for when it moves the module.
+7. **Test arithmetic is 170**, not 168.
+8. **Two `expect(dead_code)` markers remain** on `prepare` and
+   `validate_pipeline_write_envelope`. Both are test-only today but neither
+   became so in this cut, and the latter is a Keeps-list entry. Cut 6 rules on
+   them when it moves the module.
+
 ## Probes and source reads this pass
 
 No cargo build ran this pass. Every new mechanism claim below was settled by a
