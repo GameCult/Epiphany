@@ -55,9 +55,10 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
   batches.
 - **Cut 6c landed and closed** at `4d6af409`, `13570e84`, `dddf9ede`, fix
   batch `fcfbda3f`, `3f7d58d1`, harness repairs `b3bd4a82`, `aef0e1bf`.
-- **Cut 6d in Hands** against `b4b17fc`: the key sequences Q17, Q19 and Q20
-  ruled, in the leaf. Its Huginn follow-up commit lands after Soul closes it
-  and the pin moves. **Must land before Cut 9.**
+- **Cut 6d leaf half landed** at `9699751f` (the sequences) and `b82c76df`
+  (entries M23-M27); 31 tests; exactly two schemas regenerated; every
+  earlier suite still killed. Soul in flight. Its Huginn follow-up commit
+  lands after Soul closes it and the pin moves. **Must land before Cut 9.**
 - **Cut 8 landed**: the Epiphany half at `a65c6420` (Soul-closed) with the
   Cut 10 prerequisite at `b4b17fc`; the Huginn half on `eureka/memory-organ`
   at `946758f`, `a4c5b79`, `0bd7133`, `ca30d3e`, fix batch `1cfa81d`,
