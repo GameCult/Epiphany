@@ -1944,6 +1944,65 @@ Hands' discrepancies, all kept and recorded:
 40. **`Cargo.lock` was already LF**, so the whole-file rewrite Cut 7's Soul
     predicted did not happen; the lock gained 809 lines.
 
+**Soul's pass on the Huginn half** (Fable; `soul-cut8h-*` and
+`soul_probe.rs` in the session scratchpad) held identity at the layer where
+it fails: a real redb mind copied under another instance's directory is
+`ForeignInstance` and opens under its own name with its receipt; a second
+process taking the same path gets `MindAlreadyOwned` in under a
+millisecond with the store intact; a directory at the path and a read-only
+file are `Unavailable`, never misread as ownership. The digest moves with
+the strong reads and not with provenance, `now` or the store's timestamp;
+`committed_at` equals the `now` passed in; the refusal mirror serialises
+every variant byte-identical to a derive and a new leaf variant breaks the
+build. H1-H20 all killed; pins, lock and leafness exact. **Cut 8 does not
+close as specified.** Found:
+
+- **The opener's epoch step checks neither the record's key nor its count**
+  (medium): it takes the first record; a record keyed otherwise opens, two
+  records open, and a current-plus-foreign pair refuses only by sort order.
+  The spec said exactly one, keyed by the epoch string. No test pinned it.
+- **"Withdrawing a resolution reopens its subject" is unimplementable under
+  the key grammar** (medium): a resolution's key is outcome-invariant and
+  one per subject, so after a withdrawal every later resolution of the same
+  subject is `AlreadyResolved` forever. The sentence was Imagination's, not
+  a ruling. Raised as Q17 below with Self's default applied.
+- **A withdrawn stewardship can never be regained on the same mind**
+  (medium for Cut 12): the derived stewardship keys `{mind}:stewardship:{repo}`
+  and collides with the withdrawn one. Spec-consistent as written; raised
+  as Q18 below, a key-shape question, before Cut 12.
+- **The organ minted a leaf refusal** for an empty `campaign.repos`; the
+  leaf's list bound has no minimum and says minimums are admission's. Low.
+- **"One CAS" and "strong reads beyond the first" were unpinned** (medium as
+  tests): a receipt written in a second swap, and only the first cited
+  document pinned, both survived the suite.
+- **Fifteen rule rows had no mutation**: stewardship checked against the
+  batch only; spec mismatch on repo; promise-label equality; the in-force
+  target; the matrix beyond one row per kind; the derived stewardship's
+  date; derived writes' own validation; batch-level identity uniqueness;
+  batch size; question options; duplicate labels; finding locations;
+  answered-coherence. The real code answers every one correctly; the suite
+  could not see a regression in any of them.
+- **README and AGENTS again describe CultNet publication and a Qdrant
+  connection in the present tense**, and README still says `.cc`.
+- **`receipt.rs` is 194 non-blank, non-comment lines outside tests**, over
+  the 220 cap only with its tests; recorded, the cap was pressure.
+- **Stated limit, not a defect:** every stored envelope carries a
+  `stored_at` that CultCache's `prepare_entry_named` stamps from the wall
+  clock, so "no clock read inside the crate" is true of Huginn's decisions
+  and false of the bytes it stores. The receipt names payload bytes and
+  their digests, not the envelope's stamp; replay compares payloads; the
+  CAS expectation is built from the live image at commit time, never
+  reconstructed from a receipt. Cut 9's in-force derivation must not
+  depend on `stored_at`. Recorded in the authority map's inputs.
+- `Mind::open` recognises the store's lock failure by its error text; a
+  CultLib re-pin that rewords it silently demotes `MindAlreadyOwned` to
+  `Unavailable`. FU-9.
+
+**Fix batch in Hands** (Opus): the epoch gate with two entries; a Huginn
+refusal for empty repos; Q17's default in the matrix; the docs; a pin for
+one CAS and for every strong read; one fixture and one entry per unpinned
+row, Soul's survivors as the entries.
+
 **The Cut 10 prerequisite landed** at Epiphany `b4b17fc` (correction 34):
 `PipelineDocument` derives `Serialize`, `Deserialize` and `JsonSchema` with
 an adjacent tag whose string is exactly `PipelineKind::name()`, so a wire
@@ -3119,6 +3178,34 @@ operator may simply want recorded.
   **Recommended: A**, as a four-line follow-up after 6b lands, with no key
   moving. B is a separate small cut with its own evidence if wanted. 6b lands
   with C in place.
+- **Q17. Can a resolution be undone?** Depends on: Cut 8's matrix and Cut
+  9's in-force derivation. Under the key grammar a subject has one
+  resolution key, outcome-invariant, so a withdrawn resolution occupies the
+  slot forever and nothing can re-resolve the subject.
+  - **A. A subject resolves at most once, and a resolution is not
+    resolvable.** The matrix row for `resolution` is "none"; the grammar
+    still expresses a resolution of a resolution (Q11 A) and admission
+    refuses it. Nothing moves in the leaf.
+  - **B. Resolutions carry a sequence in their key** (`…:resolution:question.Q1.2`),
+    so a subject can be re-resolved after a withdrawal. A key-grammar change
+    in the leaf; free today, since no mind exists yet on Yggdrasil.
+  - **C. In-force ignores a withdrawn resolution and admission lets a new
+    resolution overwrite it.** Overwrite is the rule this campaign refuses.
+
+  **Recommended: A**, applied as Self's default in the Cut 8 fix batch so
+  Hands is not blocked; reversible if the operator wants B.
+- **Q18. Can a stewardship be regained after a hand-off?** Depends on: Cut
+  12. The derived stewardship keys `<instance>:stewardship:<repo>`, so a
+  repo handed away and handed back collides with the withdrawn record.
+  - **A. Key stewardship by repo and date**, `<instance>:stewardship:<repo>.<assigned_on>`;
+    the in-force stewardship is the latest not withdrawn. A key change in
+    the leaf, free today.
+  - **B. One stewardship per (instance, repo), ever.** A repo handed away
+    cannot come back to the same instance. Simplest; probably wrong for
+    the operator's own workflow, where one instance stewards several repos
+    over time.
+
+  **Recommended: A**, landed as a small leaf cut before Cut 12, not now.
 
 ## Target contradictions for Self to reconcile
 
@@ -3190,6 +3277,11 @@ operator may simply want recorded.
   `F:\Projects\Aetheria\conformance\eve\aetheria-world-surface.json`, absent
   since the manifest was last changed 2026-07-11. Found by Soul on Cut 7;
   outside every campaign here. Owner: Eve/EveConformance.
+- **FU-9. CultCache's owned store signals a held lock by error text only.**
+  `Mind::open` matches the message ("already has an active owner") to map
+  the failure to `MindAlreadyOwned`; a re-pin that rewords it demotes the
+  refusal to `Unavailable` with nothing red. The coherent fix is a typed
+  error in `cultcache-rs`. Owner: CultLib, after the QUIC campaign.
 
 ---
 
