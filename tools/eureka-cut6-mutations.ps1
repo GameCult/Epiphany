@@ -189,6 +189,30 @@ fn runtime_spine_schema_cache() -> Result<CultCache> {
         Test    = 'tests::stewardship_key_escapes_the_repo_slash'
         Old     = '    Ok(repo.0.replace(''_'', "__").replace(''/'', "_-"))'
         New     = '    Ok(repo.0.replace(''/'', "_"))'
+    },
+    # Soul F2, which is Soul's own survivor. Stewardship and hand-off validate
+    # every slug they key by; the instance root did not, so a `Slug` reached the
+    # key unchecked and `thought cage` composed a store key carrying a space.
+    @{
+        Id      = 'M14'
+        Package = $pipeline
+        File    = $documents
+        Rule    = 'An instance''s slug is validated where its key is composed.'
+        Test    = 'tests::keys_read_back_as_ids_of_their_kind'
+        Old     = '            dotted_text("instance.instance", &value.instance.0)?;'
+        New     = '            let _ = &value.instance.0;'
+    },
+    # Soul F3. The key writer made the instance a root and the id reader was
+    # left behind, so an instance key would not read back as an instance id and
+    # no `PipelineRef` could name one. This is the reader as the cut shipped it.
+    @{
+        Id      = 'M15'
+        Package = $pipeline
+        File    = $documents
+        Rule    = 'The id reader knows the same roots the key writer does.'
+        Test    = 'tests::keys_read_back_as_ids_of_their_kind'
+        Old     = '    if matches!(kind, PipelineKind::Campaign | PipelineKind::Instance) {'
+        New     = '    if kind == PipelineKind::Campaign {'
     }
 )
 

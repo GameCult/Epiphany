@@ -524,16 +524,16 @@ pipeline_kinds! {
 }
 
 /// Parses a full document id. `<campaign>:<kind>:<local>` for every kind but
-/// `campaign`, which is keyed by its slug alone. The segment count is exact,
-/// the kind segment must match `kind`, and both the campaign and the local
-/// segment are validated, so `..`, an empty part, spaces and trailing junk are
-/// all refused.
+/// the two roots, `campaign` and `instance`, which are keyed by their slug
+/// alone and so read back the same way. The segment count is exact, the kind
+/// segment must match `kind`, and both the campaign and the local segment are
+/// validated, so `..`, an empty part, spaces and trailing junk are all refused.
 fn pipeline_id<'a>(
     field: &str,
     id: &'a str,
     kind: PipelineKind,
 ) -> Result<(&'a str, &'a str), PipelineRefusal> {
-    if kind == PipelineKind::Campaign {
+    if matches!(kind, PipelineKind::Campaign | PipelineKind::Instance) {
         dotted_text(field, id)?;
         return Ok((id, id));
     }
@@ -1149,6 +1149,50 @@ mod tests {
         assert_eq!(
             PipelineDocument::HandOff(wide).validate(),
             Err(PipelineRefusal::FieldBound { field: "hand_off.documents".into(), limit: 256, actual: 257 })
+        );
+        Ok(())
+    }
+
+    /// Soul F3: a key and an id are the same string, so every kind's key reads
+    /// back as an id of that kind. The kinds a mind is keyed by were added to
+    /// the key writer and left out of the id reader, and nothing noticed,
+    /// because the key tests assert strings and never read one back: an
+    /// instance keys to its slug and then fails to parse as an instance id, so
+    /// no `PipelineRef` and no resolution could ever name one. A resolution is
+    /// the one kind whose key is not an id of itself: it is its subject's id
+    /// behind a `resolution:` prefix, so the subject is what reads back.
+    #[test]
+    fn keys_read_back_as_ids_of_their_kind() -> Result<()> {
+        for (document, expected) in samples() {
+            let kind = document.kind();
+            let key = pipeline_key(&document)?;
+            assert_eq!(key, expected, "{kind:?} keys to its sample's key");
+            let (id, id_kind) = match &document {
+                PipelineDocument::Resolution(value) => (
+                    key.strip_prefix("resolution:").expect("a resolution key names its subject"),
+                    value.subject.kind,
+                ),
+                _ => (key.as_str(), kind),
+            };
+            assert_eq!(
+                pipeline_id("read_back", id, id_kind).map(|_| ()),
+                Ok(()),
+                "{id_kind:?} key {id} does not read back as an id of its kind"
+            );
+        }
+
+        // The instance root's own key segment is validated, not merely bounded.
+        // Nothing else stands between a `Slug` and a key: a space would compose
+        // a store key carrying a byte no `Label` may hold.
+        let mut spaced = instance_sample();
+        spaced.instance = Slug("thought cage".into());
+        assert_eq!(
+            pipeline_key(&PipelineDocument::Instance(spaced)),
+            Err(PipelineRefusal::InvalidFormat {
+                field: "instance.instance".into(),
+                value: "thought cage".into(),
+            }),
+            "an instance slug is validated where the key is composed"
         );
         Ok(())
     }
