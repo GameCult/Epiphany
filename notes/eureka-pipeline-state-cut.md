@@ -190,6 +190,28 @@ Cut 5 corrections:
     the tests that pinned them died with the abstraction. Carrying cost still
     falls: one struct, one const, one fn, one parameter and five arguments gone.
 
+**Soul's Cut 5 pass** confirmed the collapse changed no Mind behaviour: it read
+the full owner diff, including the places the pinned digest is blind to
+(`committed_at`, companions, conflict re-read, replay lookup), and found nothing
+reordered or re-worded. Both renamed tests assert what their names claim, and
+byte-identity on refusal is now asserted in three places rather than base's two.
+
+It found four gaps, which a Hands batch is closing:
+
+- **S7 (medium, a regression from base).** Re-deriving the backing store at the
+  CAS from the same path survives the suite. The replacement test only asserts
+  "one file in this directory", which a re-derivation satisfies; the retired
+  profile test had caught it by putting the store somewhere else. It matters
+  beyond style, because the planned redb store permits one writable handle per
+  path.
+- **S8 (low-medium, pre-existing).** Validating only the first write of a batch
+  survives, because no test commits a batch of two distinct writes.
+- **S9 (low).** The claim of exactly one receipt construction site is false:
+  there are two, the owner's and the planted receipt that makes the replay test
+  work.
+- **S10 (cosmetic).** Profile vocabulary survives in a renamed test's fixture
+  data.
+
 **Soul's second pass corrected Self's record.** Self had written that a
 mutation reported a verdict it never earned. The committed script already threw
 on a missing anchor, the affected mutation existed only in a working copy, and
