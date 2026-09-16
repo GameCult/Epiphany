@@ -1907,7 +1907,42 @@ per-sidecar body is one `try`/`catch` so no raw exception escapes; Soul's
 XA-XK reproduced) and `aef0e1bf` (doc comments: no organ described as
 existing; `decode` says it is a typed read, not validation). 27 tests, 0
 warnings, lock and schemas unchanged. No separate Soul pass: the next Soul
-on Huginn runs this harness. The Huginn half is in Hands in its own tree.
+on Huginn runs this harness.
+
+**The Huginn half of Cut 8 landed** on `eureka/memory-organ` at `946758f`
+(store, mind, opener; 4 tests), `a4c5b79` (receipt and commit primitive; 4
+tests), `0bd7133` (admission, refusal, the rule table; 26 tests, 0
+warnings) and `ca30d3e` (entries H1-H20, all killed through Epiphany's
+harness with `-Repo`, four targets, M0 green). `cargo check --workspace`
+clean; one `cultcache-rs`, no `epiphany-core`; one inherited `syn`
+duplicate the leaf's graph already carries. Target dir +656 paths, +0.39
+GB, inside the budget. +3,491 lines over 11 files, +8 direct dependencies,
+lock 3 → 93 packages, two Huginn document types, no binaries or targets.
+Soul in flight.
+
+Hands' discrepancies, all kept and recorded:
+
+34. **The leaf's `PipelineRefusal` and `PipelineDocument` derive neither
+    `Serialize` nor `JsonSchema`**, so `MindRefusal::Document` mirrors the
+    refusal through a `#[serde(remote)]` definition compiled against the
+    leaf's shape (drift breaks the build), and `PipelineAdmissionBatch`
+    cannot derive either. **Cut 10's wire cannot serialise a batch until the
+    leaf derives them.** That is an additive leaf change and a Cut 10
+    prerequisite; recorded here so Cut 10's refresh carries it.
+35. **`FindingWithoutRange` is unreachable**: a rangeless envelope fails the
+    leaf's decode first. Variant kept; the test asserts the real refusal.
+36. **The epoch record is derived when the batch carries the `instance`
+    document**, not when the image is empty, so a replay of the first batch
+    is `AlreadyAdmitted` and not a collision.
+37. **`Mind::open` recognises the owned store's lock failure by its error
+    text**, because the store gives no typed signal. One string match,
+    commented; Soul is asked whether any other store failure can be misread.
+38. **`receipt.rs` is 277 lines against a 220 cap**, by its tests and the
+    two provenance shapes that live beside their only consumer.
+39. **`prepare_entry_named` appears once outside `receipt.rs`**, in
+    `mind.rs` for the epoch record. The spec's grep is narrowed to that.
+40. **`Cargo.lock` was already LF**, so the whole-file rewrite Cut 7's Soul
+    predicted did not happen; the lock gained 809 lines.
 
 ## Cut 7. Retire Huginn's TypeScript body
 
