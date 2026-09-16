@@ -1899,8 +1899,15 @@ touching the leaf's contract:
   pins the version suffix only, and the schema-derivation test is what
   kills a renamed type id.
 
-Both harness findings and the doc lines are in a small Hands batch; the
-Huginn half is in Hands in parallel, in its own tree.
+**That batch landed** at `b3bd4a82` (harness: a missing target is its own
+case, recreated from the sidecar and said so; a sidecar of a sidecar stops
+the run naming both files before any repair; the overwritten copy is
+removed again when a restore fails without opening the file; every
+per-sidecar body is one `try`/`catch` so no raw exception escapes; Soul's
+XA-XK reproduced) and `aef0e1bf` (doc comments: no organ described as
+existing; `decode` says it is a typed read, not validation). 27 tests, 0
+warnings, lock and schemas unchanged. No separate Soul pass: the next Soul
+on Huginn runs this harness. The Huginn half is in Hands in its own tree.
 
 ## Cut 7. Retire Huginn's TypeScript body
 
@@ -2122,7 +2129,7 @@ Body facts the brief asked to verify, not trust:
 ### What changed against the old Cut 8 section
 
 1. **Epiphany is touched.** A small "Epiphany half" lands first: the leaf's prepare/decode/register/validate path stops being `cfg(test)`, `anyhow` and `rmp-serde` become normal dependencies, the epoch constant returns, and the live registrar stops registering the test stand-in. Huginn then pins that commit.
-2. **The store is `OwnedRedbMessagePackBackingStore` at `<state_root>/minds/<instance>/mind.redb`**, not the transient redb store at `mind.cc`. Owned gives the single-writer invariant a mechanism (the lock is held for the daemon's life, so a second opener of the same mind is refused structurally, in or out of process) instead of a sentence. `.redb`, not `.cc`: Epiphany selects its backend by extension (`runtime_store_backend.rs:29-34`) and CultCache Studio inspects `cultcache.store.v1` files (P7); a redb file named `.cc` would lie to both.
+2. **The store is `OwnedRedbMessagePackBackingStore` at `<state_root>/minds/<instance>/mind.redb`**, not the transient redb store at `mind.cc`. Owned gives the single-writer invariant a mechanism (the lock is held for the daemon's life, so a second opener of the same mind is refused structurally, in or out of process) instead of a sentence. *The mechanism is CultCache's, not redb's: the owned store's exclusive file lock, its file-identity check and the transactional `compare_and_swap_batch` are `cultcache-rs` semantics, in CultLib since the engine's return on 2026-09-03 (`b672fb7`) and pinned across runtimes by the CultCache migration on 2026-09-13/14; redb is the engine under the owned store. Operator correction, 2026-09-16.* `.redb`, not `.cc`: Epiphany selects its backend by extension (`runtime_store_backend.rs:29-34`) and CultCache Studio inspects `cultcache.store.v1` files (P7); a redb file named `.cc` would lie to both.
 3. **The receipt is duplicated, bounded, and smaller than Epiphany's.** No authority enum, no companions, no `invariant_owner`, no `store_id`; provenance is a field on the receipt, not a companion document; the digest excludes provenance so exact replay is idempotent across sessions (old D4's rule, which Epiphany's digest does not give). The moving alternative is costed under "FU-3" and not recommended now.
 4. **The rule set is stated in full** (the old section pointed at "the old D4", which is now in History only through refusal names). `WrongReferenceKind` is gone: references are looked up by `(kind.type_id(), id)`, so a wrong kind is a missing reference. `RepoNotInCampaign` splits into `RepoNotStewarded` (campaign repos against the mind's stewardship, D3 step 5) and `RepoNotInCampaign` (spec/report repo against the campaign).
 5. **`hand_off` is admitted here with its derivations on this mind's side only**; Cut 12 composes the two-mind operation and the import over `admit_prepared`. The old section's `hand_off_derives_stewardship_on_both_sides` moves to Cut 12, where both minds exist.
