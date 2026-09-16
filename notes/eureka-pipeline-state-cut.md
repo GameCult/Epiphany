@@ -2000,72 +2000,327 @@ npmjs is unreachable from this network (see Verification above).
 
 ## Cut 8. `huginn-mind`: storage, identity and admission
 
-- **Repo/branch:** Huginn `eureka/memory-organ`. Depends on Cuts 6 and 7.
-- **Deletes first:** none. This is the first new capability.
+Refreshed by Imagination 2026-09-16 against the landed key grammar and the
+Cut 6c shapes; the first issue, written against Epiphany `5fb4eb22` and
+Huginn `91b7fcf`, was stale in every anchor and is replaced whole.
 
-**Adds: `crates/huginn-mind`.** Dependencies `anyhow`, `chrono`, `cultcache-rs`,
-`epiphany-pipeline` (git rev, pinned to the Cut 6 commit), `rmp-serde`, `serde`.
-No network dependency, no `reqwest`, no socket — the ports in D5 are traits, so
-this crate is testable with mocks (`F:\Projects\CLAUDE.md`: dependency injection
-should be boring).
+### Pins
 
-- `src/mind.rs`: `Mind::open(state_root, instance)` over
-  `RedbMessagePackBackingStore` at `<state_root>/minds/<instance>/mind.cc`;
-  `register_huginn_document_types`; the epoch and foreign-type refusals ported
-  from `pipeline_store.rs:87-120`.
-- `src/receipt.rs`: `HuginnCommitReceipt`, the digest, idempotent replay, batch
-  CAS and typed `Conflict`.
-- `src/admission.rs`: `admit`, the identity check, the per-kind rules, derived
-  writes.
-- `src/refusal.rs`: the service half of `PipelineRefusal` (D2).
+Every `file:line` below is against these trees, all verified clean and pushed
+this pass.
 
-**Authority map.**
+| Repo | Branch | HEAD | Notes |
+|---|---|---|---|
+| Epiphany | `codex/eureka-pipeline-state` | `ca7e230c` | in sync with `origin`. `epiphany-pipeline/src/lib.rs` last moved at `dddf9ede` (1,937 lines, 26 tests); anchors are against that file at that commit, which is byte-identical at `ca7e230c`. |
+| Huginn | `eureka/memory-organ` | `4094e68` | in sync with `origin`. Three stub crates, zero dependencies, `Cargo.lock` holds only the three members (CRLF, no `.gitattributes`). |
+| CultLib | `main` | `4a2fdaf` | `git diff --stat a0813c6 4a2fdaf -- packages/cultcache-rs packages/cultnet-rs packages/cultmesh-rs` is **empty**: the three Rust runtimes are byte-identical at the pin Epiphany uses and at `main`. Huginn pins `a0813c6eed24d30bf88073ef615b633c77ebfcd6`, the same rev, and must: a second rev of the same git URL is a second `cultcache-rs` package, and `epiphany_pipeline`'s `DatabaseEntry` wrappers would not unify with Huginn's cache. |
+| gamecult-ops | `main` | — | read only for R15 (Qdrant is voidbot's container, `compose/voidbot-retrieval.yggdrasil.yaml`) and the `[[dependencies]]` shape (`Ghostlight/deployment/idunn/recipe.toml:173-187`). Cut 8 names no dependency; that is Cut 14's. |
 
-- **Owner:** `huginn-mind`, for every per-kind rule, every derivation, and the
-  receipt.
-- **Inputs:** the mind image and the batch.
-- **Outputs:** outcomes, receipts, views.
-- **Derived state:** in-force status, open items, admitted time, the index
-  (Cut 11).
-- **Forbidden writers:** `huginn-daemon`, `eureka-state` and the index may not
-  validate documents, derive status, or write a mind except through `admit`.
-  Nothing outside `huginn-mind` constructs a `HuginnCommitReceipt`.
-- **Shared paths:** `admit` is the single write path for the CultNet surface
-  (Cut 10) and the import path (Cut 12).
-- **Deletion line:** n/a (new), but the *replaced* liability is named: the
-  writer lease, the git preconditions and the merge tool, all deleted in Cut 4.
+Body facts the brief asked to verify, not trust:
 
-**Verification.** Every rule gets a test that fails under its own mutation.
+- **`epiphany-pipeline` has exactly four normal dependencies** (`Cargo.toml:17-21`: `chrono`, `cultcache-rs`, `schemars`, `serde`) and three dev-dependencies (`:23-26`: `anyhow`, `rmp-serde`, `serde_json`). A throwaway crate pinning it by git rev resolved **91 packages, no `epiphany-core`, no Ghostlight, one `cultcache-rs`, `redb 4.3.0`, `schemars 1.2.2`** (probe: `cargo generate-lockfile` in the session scratchpad, no compile). After this cut it has six normal dependencies; see Epiphany half.
+- **`epiphany-core` pins CultLib at `a0813c6`** for `cultcache-rs`, `cultmesh-rs`, `cultnet-rs` (`epiphany-core/Cargo.toml:15-17`; root `Cargo.toml:24-25`). Huginn pins the same rev, above.
+- **Huginn's crates are empty stubs**: `crates/huginn-mind/src/lib.rs` 0 bytes, `crates/huginn-daemon/src/main.rs` is `fn main() {}`, `crates/eureka-state/src/lib.rs` 0 bytes; each `Cargo.toml` has an empty `[dependencies]`.
+- **The receipt logic in `epiphany-core` at HEAD** is `commit_authorized_mind_mutation` (`reasoning_context.rs:1584-1701`, 118 lines), `EpiphanyMindCommitReceipt` and its `validate` (`:543-602`), `EpiphanyMindCommitAuthority` (`:604-616`), `EpiphanyMindCommitOutcome` (`:618-624`), `EpiphanyMindDocumentVersion` (`:159-202`), `mind_commit_receipt_id` (`:1836-1851`), `validate_unique_envelope_identities` (`:1853-1861`), `validate_mind_document_versions` (`:1863-1875`), `current_write_collisions` (`:1877-1893`). **About 260 lines, not the 120 FU-3 names.** Everything but the receipt struct and outcome is `pub(crate)` or private (R10 still holds).
+- **The leaf's write path is test-only.** `PipelineDocument::prepare` (`lib.rs:475-487`), `decode` (`:489-499`), `register_pipeline_document_types` (`:502-511`) and `validate_pipeline_write_envelope` (`:739-757`) are all `#[cfg(test)]` and `pub(crate)`, and the `anyhow`/`CultCache`/`CultCacheEnvelope` imports they need are gated with them (`:32-39`). Their doc comments say "until the organ prepares, decodes and validates them (Cut 8)". **So Cut 8 touches Epiphany**, and the old section's silence on that was wrong. Without this, Huginn would have to re-declare the thirteen `DatabaseEntry` wrappers and their type ids: a second authority over the wire shape.
+- **No epoch constant exists anywhere in code.** `PIPELINE_SCHEMA_EPOCH` died with Cut 4's fix batch (Landed, correction list, "Cut 8 writes them in the organ"). The string `epiphany.pipeline.epoch.v1` survives only in prose (`schemas/cultnet/README.md:41-44`, the map). Ruling 1 makes the epoch a schema fact Epiphany owns; a Huginn-local literal would be the S5 drift shape. It goes back into the leaf as one `pub const` (Epiphany half).
+- **`cultcache-rs` at `a0813c6` offers two redb stores**, both keyed one row per `(type, key)` with a transactional `compare_and_swap_batch` that refuses a replacement whose identity already exists and is not in `expected` (`lib.rs:1098-1150` transient, `:1492-1543` owned). `RedbMessagePackBackingStore` (`:966`) reopens the database per operation; `OwnedRedbMessagePackBackingStore` (`:1340-1445`) holds an fs2 exclusive lock on `<path>.lock`, the file handle and the open database for its lifetime, records the file identity (dev/inode on unix, `GetFileInformationByHandle` on Windows, `:1772-1795`), and clones share that ownership. Both implement `CacheBackingStore` (`:1713`, `:1844`). `CultCache::add_backing_store` gives a type exactly one home store (`:1968-2015`) and `pull_all_backing_stores` refuses an unregistered type (`:2022-2046`).
+- **`cultnet-rs`** (`packages/cultnet-rs`, 0.1.0) is not a Cut 8 dependency and is not read further; R6/R7 carry for Cut 10.
 
-| Test | Rule it pins |
+### What changed against the old Cut 8 section
+
+1. **Epiphany is touched.** A small "Epiphany half" lands first: the leaf's prepare/decode/register/validate path stops being `cfg(test)`, `anyhow` and `rmp-serde` become normal dependencies, the epoch constant returns, and the live registrar stops registering the test stand-in. Huginn then pins that commit.
+2. **The store is `OwnedRedbMessagePackBackingStore` at `<state_root>/minds/<instance>/mind.redb`**, not the transient redb store at `mind.cc`. Owned gives the single-writer invariant a mechanism (the lock is held for the daemon's life, so a second opener of the same mind is refused structurally, in or out of process) instead of a sentence. `.redb`, not `.cc`: Epiphany selects its backend by extension (`runtime_store_backend.rs:29-34`) and CultCache Studio inspects `cultcache.store.v1` files (P7); a redb file named `.cc` would lie to both.
+3. **The receipt is duplicated, bounded, and smaller than Epiphany's.** No authority enum, no companions, no `invariant_owner`, no `store_id`; provenance is a field on the receipt, not a companion document; the digest excludes provenance so exact replay is idempotent across sessions (old D4's rule, which Epiphany's digest does not give). The moving alternative is costed under "FU-3" and not recommended now.
+4. **The rule set is stated in full** (the old section pointed at "the old D4", which is now in History only through refusal names). `WrongReferenceKind` is gone: references are looked up by `(kind.type_id(), id)`, so a wrong kind is a missing reference. `RepoNotInCampaign` splits into `RepoNotStewarded` (campaign repos against the mind's stewardship, D3 step 5) and `RepoNotInCampaign` (spec/report repo against the campaign).
+5. **`hand_off` is admitted here with its derivations on this mind's side only**; Cut 12 composes the two-mind operation and the import over `admit_prepared`. The old section's `hand_off_derives_stewardship_on_both_sides` moves to Cut 12, where both minds exist.
+6. **The batch and outcome types are `pub` and derive `JsonSchema`** so Cut 10's wire and Cut 13's tools can carry them whichever way Q13 is ruled.
+7. **The mutation suite is an entries file in Huginn run through Epiphany's harness with a `-Repo` parameter** (Q14), not a copied harness.
+8. **Tests: 25, mutations: 20**, replacing the old 16/3. Estimate about +2,100 lines in Huginn and +40/−20 in Epiphany, not +1,400.
+
+### Repo, branch, ordering
+
+- **Epiphany half:** `codex/eureka-pipeline-state`, one commit, pushed before the Huginn half's lock is generated (Cargo fetches the rev from GitHub). Epiphany's remaining stake is schema ownership; this commit is inside that stake, not a new service surface.
+- **Huginn half:** `eureka/memory-organ` from `4094e68`, four commits: (1) `Cargo.toml`, `store.rs`, `mind.rs` with the opener and identity rules; (2) `receipt.rs` and the commit primitive; (3) `admission.rs` and `refusal.rs` with the rule table; (4) `tools/eureka-cut8-mutations.psd1`. Soul can verify per commit; if Hands' attempt runs long, the split point is between (2) and (3), and the map records it as 8a/8b.
+- Depends on Cuts 6c and 7 (both landed). Blocks Cuts 9, 10, 12.
+
+### Deletes first
+
+Epiphany, `epiphany-pipeline/src/lib.rs` at `dddf9ede`:
+
+| Path | Lines | What dies |
+|---|---:|---|
+| `:32-39` | 8 | The two `#[cfg(test)]` gates on `use anyhow::Result;` and `use cultcache_rs::{CultCache, CultCacheEnvelope};` and the four-line comment explaining why they were dev-dependencies. |
+| `:475-479`, `:489-491`, `:502-506`, `:739-743` | 17 | Four `#[cfg(test)]` attributes and the four doc comments that say "test scaffolding until the organ ... (Cut 8)". Replaced by one-line live doc comments. |
+| `:509` | 1 | `cache.register_entry_type::<ForeignDocument>()?;` inside the live registrar. The test stand-in moves to the tests' `schema_cache` (`:977-981`). A live registrar that registers a `cfg(test)` type does not compile un-gated, so this delete is forced, not optional. |
+| `Cargo.toml:23-26` | 2 | `anyhow` and `rmp-serde` leave `[dev-dependencies]`. |
+
+Huginn: nothing; the crate is empty. The *replaced* liability is named: the writer lease, git preconditions and merge tool Cut 4 deleted, and the transient-store/session-lease split the old D3 needed.
+
+### Keeps and moves
+
+- **Keeps, Epiphany:** every kind, type id, field, bound, format, key, `pipeline_key`, `pipeline_id` (stays private; Huginn looks references up by `(type_id, key)` and never parses an id, so it needs no reader), `PipelineRefusal`'s four variants including `ForeignStore` (raised by `decode`, which stays here; D2's "moves to the organ" for this one variant is corrected: the raiser stays, so the variant stays), the twenty-six tests unchanged in name, `ForeignDocument` still `cfg(test)`, the wrappers still `pub(crate)`, `schemas/cultnet/` byte-identical (no kind, field or type id moves; `git diff --stat -- schemas/cultnet/` empty).
+- **Moves, Epiphany:** `anyhow` and `rmp-serde` from dev to normal dependencies (both already in the workspace lock; zero lock change). `register_entry_type::<ForeignDocument>` from the registrar to `schema_cache`.
+- **Keeps, Huginn:** `Cargo.toml` workspace (`:1-11`), `README.md`, `AGENTS.md` (the stub caveat at `AGENTS.md:15-17` and `README.md:33-35` becomes false for `huginn-mind` and is reworded in commit 1 to say which crate is live).
+- **Not moved (FU-3):** `epiphany-core`'s receipt. Moving it to CultLib means a `cultcache-rs` change under an in-flight QUIC campaign at `4a2fdaf`, a new CultLib rev to re-pin in Epiphany (campaign two) and Huginn, a receipt generic over an authority type Epiphany's three-variant enum and Huginn's provenance would both instantiate, and a C# reference-parity question for a helper only Rust uses. Moving it into `epiphany-pipeline` breaks the leaf's own charter (`lib.rs:3-7`: no storage). **Recommendation: duplicate, bounded to one file `receipt.rs` of at most 220 lines, with the digest formula written in its doc comment so a later extraction is mechanical.** FU-3 stands with "a third consumer" as the trigger, and its line count is corrected to about 260 in Epiphany.
+
+### Adds
+
+### Epiphany half, `epiphany-pipeline`
+
+| Add | Owner | Live consumer | Protected invariant | Why not an existing owner |
+|---|---|---|---|---|
+| `pub const PIPELINE_SCHEMA_EPOCH: &str = "epiphany.pipeline.epoch.v1"` | the leaf (ruling 1) | `huginn-mind`'s opener and first write | One epoch string, owned where the schemas are; a breaking bump refuses the old store (Q2, ruling 8) | No constant exists; a Huginn literal is the S5 shape. |
+| `pub fn register_pipeline_document_types(&mut CultCache)` (un-gated, thirteen types only) | the leaf | `Mind::open` | Only the leaf names the wrappers; the organ registers what the leaf publishes and nothing else | The wrappers are `pub(crate)`; this is the one door. |
+| `pub fn PipelineDocument::prepare(&self, &CultCache) -> anyhow::Result<CultCacheEnvelope>` (un-gated) | the leaf | `Mind::admit` | Every stored payload is `[value]` prepared with `prepare_entry_named` and keyed by `pipeline_key` | Same door. |
+| `pub fn PipelineDocument::decode(&CultCacheEnvelope) -> Result<Self, PipelineRefusal>` (un-gated) | the leaf | `Mind::get`, Cut 9's views, Cut 12's import | A decode is type-matched both ways (`ForeignStore` on any other type) | Same door. |
+| `pub fn validate_pipeline_write_envelope(&CultCacheEnvelope) -> Result<(), PipelineRefusal>` (un-gated; return type narrowed from `anyhow::Result<()>`) | the leaf | `Mind::admit_prepared` (Cut 8) and the import replay (Cut 12) | Bounds, formats, then key recomputation, on the envelope that will be stored, whoever prepared it | The organ must not re-derive this check. The narrowing removes a `downcast_ref` at `:1072-1076`; every failure path is already a `PipelineRefusal`. |
+
+### Huginn half, `crates/huginn-mind`
+
+Dependencies (`Cargo.toml`): `anyhow`, `chrono = "0.4.44"`, `cultcache-rs` (git `a0813c6…`), `epiphany-pipeline` (git, `rev` = the Epiphany half's commit), `rmp-serde = "1"`, `schemars = "1"`, `serde`, `sha2 = "0.10"`. Dev: `tempfile = "3"`. No `reqwest`, no `cultnet-rs`, no `cultmesh-rs`, no socket. `sha2` is the one package new to Huginn's graph that the leaf does not already bring (it is in Epiphany's lock, not the leaf's 36).
+
+| Add | Owner | Live consumer | Protected invariant | Why not an existing owner |
+|---|---|---|---|---|
+| `store.rs`: `pub trait MindStore: CacheBackingStore + Clone { fn compare_and_swap_batch(&self, expected: &[CultCacheEnvelope], replacements: Vec<CultCacheEnvelope>) -> anyhow::Result<bool>; }` with `impl MindStore for OwnedRedbMessagePackBackingStore`; `#[cfg(test)] MemoryStore` (a `BTreeMap` behind a `Mutex`, cloneable) and `#[cfg(test)] RefusingStore` (a `MemoryStore` whose CAS returns `Ok(false)` or `Err` on command) | `huginn-mind` | `Mind::open` (owned redb), every admission test (memory), Cut 12's atomicity test (refusing) | The commit primitive is testable without redb, a daemon or Qdrant; CAS is not on `CacheBackingStore`, so the narrow trait is the only way to inject it | `cultcache-rs` exposes CAS as inherent methods on concrete stores. Epiphany's `RuntimeSpineBackingStore` enum solves it with an extension switch the organ does not need. |
+| `mind.rs`: `pub struct Mind<S: MindStore> { instance: Slug, store: S, image: CultCache }`; `pub fn open(state_root: &Path, instance: &Slug) -> Result<Mind<OwnedRedbMessagePackBackingStore>, MindRefusal>`; `pub fn open_with(store: S, instance: &Slug) -> Result<Mind<S>, MindRefusal>`; `pub fn instance(&self) -> &Slug`; `pub fn get(&self, kind: PipelineKind, id: &str) -> Result<Option<PipelineDocument>, MindRefusal>`; `pub fn envelope(&self, kind, id) -> Option<&CultCacheEnvelope>`; `pub fn envelopes(&self) -> &[CultCacheEnvelope]` (the image, for Cut 10's snapshot source); `pub fn receipts(&self) -> Result<Vec<HuginnCommitReceipt>, MindRefusal>`; `pub fn is_empty(&self) -> bool`; `pub fn path_for(state_root, instance) -> PathBuf` (`<state_root>/minds/<instance>/mind.redb`) | `huginn-mind` | Cut 10's daemon (`open`, `envelopes`), Cut 9 (`get`, `envelopes`, `receipts`), Cut 12 (`envelope`) | Ruling 14: a store is canonical to one instance, and identity lives in the state (the `instance` document) not the path; ruling 15: one writer (the owned lock); ruling 20's analogue: the opener refuses before it attaches | Nothing in Huginn exists; Epiphany's opener is `pub(crate)` and bound to its Mind types. |
+| `mind.rs`: `HuginnMindEpoch` (`DatabaseEntry`, type `huginn.mind_epoch.v1`, slot 0 `schema_epoch: String`, keyed by the epoch string) | `huginn-mind` | the opener; the first write (derived) | The store carries the schema epoch it was written at, so a breaking bump can refuse it (`ForeignEpoch`) | Epiphany's `EpiphanyPipelineIdentity` died in Cut 4 and its type id was Epiphany's. |
+| `receipt.rs`: `HuginnCommitReceipt` (`DatabaseEntry`, type `huginn.mind_commit_receipt.v1`, slots: `schema_version`, `receipt_id`, `instance: String`, `provenance: PipelineProvenance`, `strong_reads: Vec<DocumentVersion>`, `writes: Vec<DocumentVersion>`, `committed_at: String`), `DocumentVersion { document_type, document_key, schema_id, payload_msgpack, payload_sha256 }`, `pub(crate) fn receipt_id(instance, strong_reads, writes) -> String` = `"mind-commit-" + sha256(rmp_serde::to_vec_named(&(instance, strong_reads, writes)))`, `validate`, `pub(crate) fn commit(&mut Mind, provenance, strong_reads, writes, now) -> Result<Committed \| AlreadyAdmitted \| Conflict, MindRefusal>` (the one construction site of a receipt; the CAS; the conflict re-read) | `huginn-mind` | `Mind::admit_prepared` only | A batch lands whole with a receipt naming its exact bytes, or not at all; exact replay answers with the stored receipt; a lost CAS is typed `Conflict`; the receipt id is a digest of what was read and written, never of who wrote it | FU-3: Epiphany's is `pub(crate)` and shaped for its scheduler. |
+| `admission.rs`: `Faculty { SelfFaculty, Imagination, Hands, Soul, MindSteward, Eyes, Operator }`, `PipelineProvenance { faculty, agent: Short, session: Short, tool: Short }`, `PipelineAdmissionBatch { instance: Slug, provenance, documents: Vec<PipelineDocument> }` (1..=64), `PipelineAdmissionOutcome { Committed { receipt_id, committed_at, writes: Vec<PipelineRef> }, AlreadyAdmitted { receipt_id }, Refused(MindRefusal), Conflict { identities: Vec<PipelineRef> } }`, `impl Mind { pub fn admit(&mut self, batch, now: DateTime<Utc>) -> PipelineAdmissionOutcome; pub fn admit_prepared(&mut self, instance, provenance, envelopes: Vec<CultCacheEnvelope>, now) -> PipelineAdmissionOutcome }`, the rule table below, the derivations | `huginn-mind` | Cut 10's sink calls `admit`; Cut 12's hand-off and import call `admit_prepared`; Cut 13 constructs `PipelineAdmissionBatch` and reads `PipelineAdmissionOutcome` (through the wire, Q13) | Every cross-field and cross-document rule lives here and nowhere else; the leaf never gains one; the daemon and the client never re-derive one | D1/D2: admission is Huginn's. `JsonSchema` on the four public types costs nothing (`schemars` is already in the graph through the leaf) and keeps Q13 open. |
+| `refusal.rs`: `pub enum MindRefusal` = `Document(epiphany_pipeline::PipelineRefusal)`, `ForeignInstance { declared, mind }`, `MissingIdentity`, `ForeignEpoch { found, expected }`, `ForeignStore { r#type }`, `MindAlreadyOwned { path }`, `BatchSize { actual }`, `IdentityCollision { kind, id }`, `MissingReference { kind, id }`, `AlreadyResolved { subject }`, `IncompatibleResolution { subject_kind, outcome }`, `CitesResolvedDocument { kind, id }`, `EmptySupersession`, `UnknownSupersessor { id }`, `RevisionWithoutSupersession { kind, revision }`, `DuplicateLabel { field, label }`, `InvalidOptions { question }`, `InvalidChoice { ruling, choice }`, `QuoteWithoutOperator { ruling }`, `RepoNotStewarded { repo }`, `RepoNotInCampaign { repo }`, `CutReportWithoutSpec { report }`, `SpecMismatch { field }`, `RangeOutsideCommits { head }`, `FalsifiedClaimWithoutConfirmedFinding { claim }`, `UnprovenClaimWithConfirmedFinding { claim }`, `PromiseWithoutVerdict { promise }`, `UnknownMutationLabel { label }`, `FindingWithoutRange`, `FindingWithoutEvidence`, `UnknownInvariant { label }`, `NotStewarded { repo }`, `Unavailable { detail }`; `Display`, `Error`, `JsonSchema` | `huginn-mind` | the outcome above; Cut 13's tool outputs | Refusals are data with a field an agent can act on, never a transport error | D2 assigned the service half here. `Document(..)` wraps rather than copies the leaf's four. |
+
+`Faculty` and `PipelineProvenance` are the shapes Cut 4 deleted from Epiphany (`ca275c7b^:pipeline_documents.rs`, `Faculty` unit enum and `PipelineProvenance` value type), re-created here because their only consumer is the receipt. Cut 9's `faculty` query filter and `PipelineDocumentView.faculty` read them from receipts. `faculty` is attribution, not authority (ruling 18); no rule below trusts it.
+
+### The opener, exactly
+
+`Mind::open_with(store, instance)`, fail-closed and in this order, nothing attached until every step passes:
+
+1. `store.pull_all()` → the raw envelopes. A store error is `Unavailable`.
+2. Every envelope's type is one of the thirteen pipeline type ids, `huginn.mind_epoch.v1` or `huginn.mind_commit_receipt.v1`; else `ForeignStore { type }`. (A runtime or Mind store passed by mistake dies here, as in Cut 3a.)
+3. If any envelope exists: exactly one `HuginnMindEpoch` keyed `PIPELINE_SCHEMA_EPOCH` whose value equals it, else `MissingIdentity` (none) or `ForeignEpoch { found, expected }` (another).
+4. If any envelope exists: exactly one `instance` document, else `MissingIdentity`; its `instance` field equals the declared `instance`, else `ForeignInstance { declared, mind }`. **This is ruling 14's "identity lives in the state, not in a path": the path is derived from the slug for convenience and the document is the authority.** A store moved to another instance's directory is refused.
+5. Register the fifteen types, `add_generic_backing_store(store.clone())`, `pull_all_backing_stores()`.
+
+`Mind::open(state_root, instance)` computes the path, calls `OwnedRedbMessagePackBackingStore::new(path)` (creates parent directories, takes the exclusive lock; a second owner fails there and is mapped to `MindAlreadyOwned { path }`), then `open_with`. An empty store is a valid open (`is_empty()`), and only the first admission may write into it.
+
+### Admission, exactly
+
+`admit(batch, now)` prepares every document through the leaf (`validate()`, then `prepare()`) and calls `admit_prepared`. `admit_prepared` is the single commit path for Cuts 8, 10 and 12, in this order; the first failing step is the outcome and nothing after it runs:
+
+| # | Step | Refusal |
+|---|---|---|
+| A1 | `batch.instance == mind.instance()` | `ForeignInstance { declared, mind }` |
+| A2 | 1..=64 envelopes | `BatchSize` |
+| A3 | Every envelope: `validate_pipeline_write_envelope` (bounds, formats, key) | `Document(..)` |
+| A4 | Identities unique within the batch | `IdentityCollision` |
+| A5 | Every document carrying an instance field names this mind: `instance.instance`, `stewardship.instance`; `hand_off.from_instance == mind || hand_off.to_instance == mind` | `ForeignInstance` |
+| A6 | Empty mind: the batch contains exactly one `instance` document (else `MissingIdentity`) and admission **derives** the `HuginnMindEpoch` write. Non-empty mind: an `instance` document in the batch collides (A8). | `MissingIdentity` |
+| A7 | References: every `PipelineRef` and every full-id `Short` field names a document present in image ∪ batch under `(kind.type_id(), id)`. Fields: `question.raised_in`, `ruling.answers`, `cut_spec.rulings`, `cut_spec.questions`, `cut_report.cut_spec`, `cut_report.forks`, `verdict.cut_report`, `verdict.claims[].findings`, `finding.verdict`, `follow_up.source`, `resolution.subject`, `resolution.outcome.{by,to}`, `hand_off.documents`. `Fixed.commit` and `ForeignRef` are syntax only (ruling B, D6). | `MissingReference { kind, id }` |
+| A8 | Per-kind rules, table below, including derivations. Derived writes are appended to the batch and pass A3-A8 themselves. | per row |
+| A9 | Replay: compute `receipt_id` over `(instance, strong_reads, writes)`; if a receipt with that id exists, its writes (minus `committed_at`) must equal ours, and the outcome is `AlreadyAdmitted { receipt_id }`. **Validation before replay (ruling 20):** a replayed batch the current rules refuse is refused at A3-A8, never answered from the store. | — |
+| A10 | Collision: any write whose `(type, key)` exists in the image | `IdentityCollision { kind, id }`; for a `resolution` key, `AlreadyResolved { subject }` (the same collision, named for what it means: a subject resolves at most once because its resolution key is outcome-invariant) |
+| A11 | Commit through `receipt::commit`: `strong_reads` = the exact image envelopes of every document A7 resolved in the image (cited bytes pinned into the receipt); `writes` = the batch plus derived writes; the receipt envelope appended; one `compare_and_swap_batch(expected = strong_reads, replacements = writes + receipt)`. `true` → re-pull the image, `Committed`. `false` → re-pull, diff, `Conflict { identities }`. | `Unavailable` on a store error |
+
+Per-kind rules (A8). "In force" means no resolution names it in image ∪ batch.
+
+| Kind | Rule | Refusal |
+|---|---|---|
+| campaign | `repos` non-empty and every repo is stewarded by this mind (an in-force `stewardship` for `(mind, repo)` exists in image ∪ batch) | `InvalidOptions`-style `FieldBound` comes from the leaf; `RepoNotStewarded { repo }` |
+| target | `revision == 1`, or revision N with a `resolution(Superseded{by: this target})` of revision N−1 in the batch; invariant labels unique | `RevisionWithoutSupersession`, `DuplicateLabel` |
+| question | ≥ 2 options with unique labels; `recommended` is one of them | `InvalidOptions`, `DuplicateLabel` |
+| ruling | `operator_quote.is_some()` ⇒ `authority == Operator` (6c); `answers`, if set, names an in-force question and `choice` is one of its options; admission **derives** `resolution { subject: that question, outcome: Answered { by: this ruling }, rationale: ruling.ruling, resolved_on: ruled_on }` unless the batch already carries an identical one | `QuoteWithoutOperator`, `AlreadyResolved`, `InvalidChoice` |
+| cut_spec | `repo ∈ campaign.repos`; every cited ruling in force; revision rule as target, same `cut` | `RepoNotInCampaign`, `CitesResolvedDocument`, `RevisionWithoutSupersession` |
+| cut_report | cites its spec (A7) and the spec is in force; `repo` and `branch` equal the spec's; `range.head ∈ commits[].sha` | `CutReportWithoutSpec` (missing), `CitesResolvedDocument`, `SpecMismatch { field }`, `RangeOutsideCommits` |
+| verdict | cites its report (A7); each `Falsified` claim cites ≥ 1 `Confirmed` finding in image ∪ batch; an `Unproven` claim cites no `Confirmed` finding; **every promise of the cited report is named by exactly one claim's `promise`** (ruling A); every `claims[].mutations` label exists in the report's `mutations[].label` | `FalsifiedClaimWithoutConfirmedFinding`, `UnprovenClaimWithConfirmedFinding`, `PromiseWithoutVerdict { promise }` (zero or two claims), `UnknownMutationLabel` |
+| finding | `range` present (type fact; the refusal exists for the import path's raw envelopes), `evidence` ≥ 1, `locations` ≥ 1; every `invariants[]` label exists in the in-force target of the campaign | `FindingWithoutRange`, `FindingWithoutEvidence`, `UnknownInvariant` |
+| follow_up | source exists (A7) | — |
+| resolution | subject exists (A7) and is not already resolved (A10); outcome fits the matrix below; every `by`/`to` referent exists (A7, named `UnknownSupersessor` when the outcome is `Superseded`) and is in force; `Superseded.by` non-empty; up to 8 supersessors, each named (Q10) | `IncompatibleResolution`, `EmptySupersession`, `UnknownSupersessor`, `CitesResolvedDocument` |
+| instance | only on an empty mind (A6); `instance == mind` (A5) | — |
+| stewardship | `instance == mind` (A5); no in-force stewardship of the same repo (the key collides, A10) | — |
+| hand_off | one side is this mind (A5). **Source side** (`from == mind`): an in-force `stewardship(mind, repo)` exists, every `documents[]` id exists here (A7), and admission **derives** `resolution { subject: that stewardship, outcome: Withdrawn { reason: <hand_off key> } }`. **Receiving side** (`to == mind`): admission **derives** `stewardship { instance: mind, repo, assigned_on: handed_on, note: <hand_off key> }`. Cut 12 admits the same `hand_off` into both minds atomically and imports the named documents. | `NotStewarded { repo }` |
+
+Resolution matrix (admission's, this crate; the leaf never refuses a row of it):
+
+| Subject | Allowed outcomes |
 |---|---|
-| `first_write_must_carry_identity_and_instance` | Ruling 14; the mind is never left un-owned |
-| `admission_refuses_a_foreign_instance` | Ruling 14's refusal, `ForeignInstance` |
-| `cut_report_without_spec_refuses` | A report cites its spec |
-| `cut_report_citing_superseded_spec_refuses` | — |
-| `finding_without_range_or_evidence_refuses` | A finding names its range and evidence |
-| `falsified_claim_requires_confirmed_finding` / `unproven_claim_refuses_confirmed_finding` | Verdict vocabulary |
-| `ruling_supersedes_by_resolution_never_overwrite` | Re-putting a ruling key is `IdentityCollision`; the superseded ruling stays queryable |
-| `subject_resolves_at_most_once` | — |
-| `supersession_cycle_refuses` | — |
-| `ruling_answering_question_derives_answered_resolution_atomically` | Inspect the receipt writes |
-| `revision_requires_supersession_in_batch` | — |
-| `batch_is_all_or_nothing` | A refused third document leaves the store byte-identical |
-| `exact_replay_returns_already_admitted_across_provenance` | — |
-| `hand_off_derives_stewardship_on_both_sides` | Ruling 14's hand-off |
-| `opener_refuses_foreign_epoch_missing_identity_and_foreign_type` | Three refusals, bytes unchanged |
-| `two_minds_in_one_state_root_stay_separate` | Instance isolation on disk |
+| target | `Superseded { by: [target] }` |
+| question | `Answered { by: ruling }` (that ruling's `answers` must name this question), `Withdrawn` |
+| ruling | `Superseded { by: [ruling…] }` |
+| cut_spec | `Superseded { by: [cut_spec, same cut] }`, `Withdrawn` |
+| finding | `Fixed { commit, by: Option<cut_report> }`, `Deferred { to: follow_up }`, `Recorded`, `Withdrawn` |
+| follow_up | `Fixed { commit, by: Option<cut_report> }`, `Superseded { by: [follow_up] }`, `Withdrawn` |
+| stewardship | `Superseded { by: [stewardship] }`, `Withdrawn` |
+| resolution (Q11 A) | `Withdrawn` only: withdrawing a resolution reopens its subject; nothing else has a meaning yet |
+| campaign, cut_report, verdict, instance, hand_off | not resolvable |
 
-- **Mutations:** delete each rule's check and confirm exactly its test fails;
-  make `in_force` ignore resolutions; make the identity check compare against
-  the batch instead of the stored `instance` document.
-- **Negative greps:** `rg -n "reqwest|UdpSocket|qdrant" crates/huginn-mind/src`
-  empty. `rg -n "prepare_entry\(" crates/huginn-mind/src` empty — only
-  `prepare_entry_named`.
-- **Builds:** `cargo check -p huginn-mind --lib --tests`.
+Everything `Superseded` takes a list because the shape does (6c); the matrix constrains the referents' kinds, and each kind's row says which. The old D4's "a supersession chain cannot cycle because `by` must be in force" still holds and needs no cycle check.
 
-**Subtraction ledger:** +about 1,400 lines, of which about 120 are the receipt
-duplication named in D3. No new dependency beyond `epiphany-pipeline`.
+### The seam Cut 11 needs
+
+`Committed { writes: Vec<PipelineRef> }` names every document the batch landed, derived writes included, and `Mind::envelope(kind, id)` returns its bytes. Cut 11's daemon indexes *after* `admit` returns, from those two, and never inside it. Cut 8 defines no `IndexPort`, no `EmbeddingPort`, no `pending_index` document and no hook, callback or trait object on `Mind`; D5's ports arrive with Cut 11 in `index.rs`. The negative grep below pins that nothing index-shaped is here.
+
+### Per-file changes
+
+Epiphany, `epiphany-pipeline` at `dddf9ede` (re-anchor by content; the file has not moved since, but Hands greps the opener):
+
+| Line | Change |
+|---|---|
+| `Cargo.toml:17-21` | Add `anyhow = "1"` and `rmp-serde = "1"`; the comment at `:14-16` says the write path is live and why the two crates are normal dependencies. `:23-26` keeps `serde_json` alone. |
+| `lib.rs:28-29` | Module doc: "The wrappers are crate-private: outside code registers, prepares and decodes them through `register_pipeline_document_types`, `PipelineDocument::prepare` and `PipelineDocument::decode`, and validates a write through `validate_pipeline_write_envelope`." |
+| `lib.rs:32-39` | `use anyhow::Result; use cultcache_rs::{CultCache, CultCacheEnvelope, DatabaseEntry};` with no gates and a one-line comment. |
+| `lib.rs:43-47` | `PipelineRefusal` doc: `ForeignStore` is raised by `decode` and stays; the organ's refusals wrap this enum. |
+| after `lib.rs:644` (`LOCAL_MAX`) | `pub const PIPELINE_SCHEMA_EPOCH: &str = "epiphany.pipeline.epoch.v1";` with a doc comment carrying the README's rule: additive keeps it, a widened `PipelineKind` is additive, a breaking bump refuses the old store. |
+| `lib.rs:475-487` | `prepare`: drop `#[cfg(test)]`, `pub`, doc "Prepares the envelope the organ stores: keyed by `pipeline_key`, payload `[value]` through `prepare_entry_named`." |
+| `lib.rs:489-499` | `decode`: drop the gate, `pub`. |
+| `lib.rs:502-511` | `register_pipeline_document_types`: drop the gate, `pub`, delete `:509`. |
+| `lib.rs:515-520` | `ForeignDocument` doc: it stands in for a receipt of *any* organ; Huginn pins the rule against its real receipt type. Still `cfg(test)`. |
+| `lib.rs:739-757` | `validate_pipeline_write_envelope`: drop the gate, `pub`, return `Result<(), PipelineRefusal>`, `.into()` at `:754` removed. |
+| `lib.rs:977-981` | `schema_cache`: add `cache.register_entry_type::<ForeignDocument>()?;` after the registrar call. |
+| `lib.rs:1072-1076` | `keys_are_derived_and_mismatch_refuses`: `assert_eq!(validate_pipeline_write_envelope(&envelope), Err(PipelineRefusal::InvalidIdentity { .. }))` directly; no `downcast_ref`. |
+| `lib.rs:1299` | unchanged (`?` on a `PipelineRefusal` inside an `anyhow` test still compiles). |
+| tests, after `:1935` | `every_kind_is_at_the_epochs_version`: `PIPELINE_SCHEMA_EPOCH` ends in `.v1` and every `kind.type_id()` ends in `.v1`; the live registrar registers exactly `PipelineKind::ALL.len()` types (`registered_entry_types().len()`), so the stand-in is not among them. |
+
+`schemas/cultnet/`: no change. `notes/eureka-pipeline-state-cut.md`: Self's.
+
+Huginn at `4094e68`, all new files except:
+
+| Line | Change |
+|---|---|
+| `crates/huginn-mind/Cargo.toml:8` | the dependency list above; `[dev-dependencies] tempfile = "3"`. |
+| `Cargo.lock` | regenerated; gains about 91 packages; the CRLF→LF whole-file rewrite Soul predicted on Cut 7 lands here. |
+| `README.md:33-35`, `AGENTS.md:15-17` | "The crates are stubs" → `huginn-mind` is live (storage, identity, admission); the other two are stubs. |
+| `crates/huginn-mind/src/lib.rs` | `pub mod admission; pub mod mind; pub mod receipt; pub mod refusal; pub mod store;` and re-exports of the public names above. |
+| `crates/huginn-mind/src/{store,mind,receipt,admission,refusal}.rs` | as under Adds. Tests live beside their module. |
+| `tools/eureka-cut8-mutations.psd1` | entries H1-H20 below. |
+
+### Authority map
+
+- **Owner:** `huginn-mind`, for the mind's identity, every admission rule, every derivation of a write, and the receipt. Inside it: `Mind::open_with` owns "may this store be this instance's mind"; `Mind::admit_prepared` owns "may this batch enter"; `receipt::commit` owns "did it enter, whole, with a receipt".
+- **Inputs:** the store's envelopes (through `MindStore`), the batch, the declared instance, the caller's clock (`now: DateTime<Utc>`, passed in; the crate never reads a clock).
+- **Outputs:** `PipelineAdmissionOutcome`, `MindRefusal`, receipts, envelopes by key.
+- **Derived state:** the epoch record on the first write; the `Answered` resolution for a ruling that answers; the stewardship withdrawal or assignment on a hand-off; the image (`CultCache`) is a cache of the store and is re-pulled after every commit. In-force status is computed at rule time and never stored (Cut 9 owns the read-side derivation).
+- **Forbidden writers:** nothing outside `receipt::commit` constructs a `HuginnCommitReceipt` or calls `compare_and_swap_batch` (one test plants a receipt through `MemoryStore` to pin replay; that is the second construction site and it is deliberate, as in Cut 5). Nothing outside `huginn-mind` validates a document, derives a write, decides in-force status, or writes a mind except through `admit`/`admit_prepared`. The leaf gains no cross-field rule. The daemon, the client and the index may not touch the store. No `Mind` method reads the wall clock or the environment.
+- **Shared paths:** `admit` (typed) and `admit_prepared` (envelopes) converge before A1; Cut 10's sink, Cut 12's hand-off and import, and Cut 13's tools all end in `admit_prepared`. Four grammar paths in the leaf stay four.
+- **Deletion line:** the Epiphany deletes table, before any Huginn dependency is added.
+
+### Verification
+
+**Builds.** `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex` for both repos, path-list baseline recorded before and after. Epiphany: `cargo check -p epiphany-pipeline --lib --tests`, `cargo test -p epiphany-pipeline --lib` (27 tests, 0 warnings), then `cargo check -p epiphany-core --lib --tests` (untouched; a leaf dependency promotion does not reach it). Huginn: `cargo check -p huginn-mind --lib --tests`, `cargo test -p huginn-mind --lib`, `cargo check --workspace` (the two stubs still build), `cargo tree -p huginn-mind -e normal -d` (zero duplicates; one `cultcache-rs`). Host and target are the workstation; `OwnedRedbMessagePackBackingStore` has a unix and a windows arm and only the windows arm is exercised here; Cut 14 builds on Yggdrasil.
+
+**Tests**, `crates/huginn-mind`, each named for the rule it pins.
+
+| Test | Rule |
+|---|---|
+| `an_empty_store_opens_and_the_first_write_must_carry_the_instance` | A6, ruling 14: a batch without `instance` into an empty mind is `MissingIdentity`; with it, the receipt's writes name the instance document and the epoch record (derived). |
+| `the_instance_document_is_the_identity_not_the_path` | Opener step 4: a store written for `yggdrasil` opened as `thought-cage` (same path) is `ForeignInstance`; a store copied to `minds/thought-cage/` and opened as `yggdrasil` opens. |
+| `admission_refuses_a_foreign_instance_whatever_the_transport` | A1, A5: `batch.instance` foreign; a `stewardship` naming another instance; a `hand_off` naming neither side. All `ForeignInstance`, store bytes unchanged. |
+| `the_opener_refuses_foreign_epoch_missing_identity_and_foreign_type_before_attaching` | Steps 2-4, in order; each leaves bytes unchanged; a `MemoryStore` counts `pull_all` calls to prove nothing attached. |
+| `a_mind_has_one_owner_at_a_time` | Ruling 15: a second `Mind::open` of the same path while the first is alive is `MindAlreadyOwned`; after drop it opens. Real redb in a `tempdir`. |
+| `two_minds_in_one_state_root_stay_separate` | Path derivation and store isolation: documents admitted into one are absent from the other; `path_for` differs. |
+| `keys_are_recomputed_and_a_forged_key_refuses` | A3 through the shared path: `admit_prepared` with an envelope whose key is edited is `Document(InvalidIdentity)`. |
+| `references_must_exist_in_image_or_batch` | A7: a ruling answering an absent question, a follow-up sourced from an absent finding, a verdict citing an absent report, a resolution of an absent subject; each `MissingReference` naming kind and id; a well-formed id of the wrong kind at the same key is also `MissingReference` (no `WrongReferenceKind`). |
+| `batch_is_all_or_nothing` | A11 + `RefusingStore`: a refused third document, and separately a CAS that returns `false`, leave the store byte-identical and no receipt written. |
+| `exact_replay_returns_already_admitted_across_provenance` | A9: the same documents with a different `provenance` and a later `now` return `AlreadyAdmitted` with the first receipt id; one receipt in the store. |
+| `a_refused_batch_is_not_answered_from_a_stored_receipt` | Ruling 20's second half: admit a cut_spec citing R1; supersede R1; replay the first batch byte-for-byte → `CitesResolvedDocument`, not `AlreadyAdmitted`. |
+| `a_receipt_names_the_exact_bytes_it_read_and_wrote` | The receipt's `strong_reads` are the cited envelopes' bytes and `writes` the stored bytes, each with a matching `payload_sha256`; `receipt_id` recomputes from `(instance, strong_reads, writes)` and **not** from provenance (two receipts with different provenance and equal content have equal ids). |
+| `a_document_is_written_once_and_superseded_by_resolution` | A10 + target invariant: re-putting `ruling:R8` with new text is `IdentityCollision`; superseding it by resolution lands and the old ruling is still readable by key. |
+| `subject_resolves_at_most_once` | A10 on a resolution key: `AlreadyResolved { subject }`, whatever the second outcome. |
+| `the_resolution_matrix_is_admissions` | Every row: one accepted outcome and one refused per subject kind, `instance` and `hand_off` refused with any outcome, a resolution of a resolution accepted with `Withdrawn` and refused with `Superseded`. |
+| `supersession_names_each_supersessor_and_none_is_empty` | 6c inherited + Q10: `Superseded { by: [] }` → `EmptySupersession`; two named supersessors both existing → lands; one absent → `UnknownSupersessor`; one resolved → `CitesResolvedDocument`. |
+| `a_ruling_answering_a_question_derives_the_answered_resolution_atomically` | A8 ruling row: the receipt's writes hold ruling and resolution; `choice` not among options → `InvalidChoice`; answering a resolved question → `AlreadyResolved`. |
+| `an_operator_quote_requires_operator_authority` | 6c: `QuoteWithoutOperator`. |
+| `a_revision_requires_its_predecessors_supersession_in_the_batch` | target and cut_spec rows: `RevisionWithoutSupersession`; with the resolution in the batch, lands. |
+| `a_cut_report_cites_an_in_force_spec_and_agrees_with_it` | `CutReportWithoutSpec`, `CitesResolvedDocument`, `SpecMismatch { field: "branch" }`, `RangeOutsideCommits`. |
+| `verdict_vocabulary_binds_claims_to_findings_promises_and_mutations` | `FalsifiedClaimWithoutConfirmedFinding`, `UnprovenClaimWithConfirmedFinding`, `PromiseWithoutVerdict` (zero claims and two claims name P1), `UnknownMutationLabel`. |
+| `a_finding_names_evidence_locations_and_known_invariants` | `FindingWithoutEvidence`, `FindingWithoutRange` (through `admit_prepared` with a hand-built envelope lacking `range`, since the type makes it unreachable from `admit`), `UnknownInvariant`. |
+| `a_campaign_names_only_repos_this_mind_stewards` | `RepoNotStewarded`; with the stewardship in the same batch, lands; a cut_spec whose repo is outside `campaign.repos` → `RepoNotInCampaign`. |
+| `a_hand_off_derives_this_minds_side_only` | Source side: withdrawal of the stewardship derived, `NotStewarded` without one, `MissingReference` for an unnamed document; receiving side: stewardship derived; the same `hand_off` admitted into both minds (two `MemoryStore`s) lands in both with the same key. |
+| `decode_refuses_the_organs_own_receipt` | S5 closed here: a `HuginnCommitReceipt` envelope through `PipelineDocument::decode` is `ForeignStore { type: "huginn.mind_commit_receipt.v1" }`, against the real type. |
+
+Epiphany, one new test named under Per-file changes; the twenty-six existing unchanged in name and assertion.
+
+**Mutations.** `F:\Projects\Huginn\tools\eureka-cut8-mutations.psd1`, entries H1-H20, run through Epiphany's `tools/eureka-mutations.ps1` with the `-Repo` parameter Q14 adds:
+
+```
+powershell -File F:\Projects\Epiphany\tools\eureka-mutations.ps1 -Repo F:\Projects\Huginn `
+    -Entries tools/eureka-cut8-mutations.psd1 `
+    -Target crates/huginn-mind/src/mind.rs,crates/huginn-mind/src/receipt.rs,crates/huginn-mind/src/admission.rs `
+    -Test 'cargo test -p huginn-mind --lib'
+```
+
+Anchors are content the entry names; Hands writes them against the code it lands, exactly once each, and M0 is built in. Every entry below is a ruling this cut implements, mutated to restore the old permissiveness, killed by one named test.
+
+| # | Ruling | Mutation, exactly | Killed by |
+|---|---|---|---|
+| H1 | 14: admission refuses another instance's identity | A1: `if batch.instance != self.instance` → `if false` | `admission_refuses_a_foreign_instance_whatever_the_transport` |
+| H2 | 14: identity in the state | Opener step 4: compare the stored instance against the declared one → compare against itself | `the_instance_document_is_the_identity_not_the_path` |
+| H3 | 14: a mind is never un-owned | A6: drop the `MissingIdentity` return on an empty mind | `an_empty_store_opens_and_the_first_write_must_carry_the_instance` |
+| H4 | 14: the epoch record is derived on the first write | A6: drop the derived `HuginnMindEpoch` write | the same test (the receipt lacks the epoch write); collaterally the opener test on re-open |
+| H5 | 15: one writer | `Mind::open`: `OwnedRedbMessagePackBackingStore::new` → `RedbMessagePackBackingStore::new` wrapped (the transient store; requires a `cfg(test)`-free `impl MindStore` for it, which Hands adds only in the mutation, so the entry is `MustNotCompile = $false` and the killer is the second open succeeding) | `a_mind_has_one_owner_at_a_time` |
+| H6 | 20: fail-closed opener | Opener: move the attach (`add_generic_backing_store`) above step 2 | `the_opener_refuses_foreign_epoch_missing_identity_and_foreign_type_before_attaching` (the `pull_all` count) |
+| H7 | 20: validation before replay | A9 moved above A7 | `a_refused_batch_is_not_answered_from_a_stored_receipt` |
+| H8 | Q2/epoch: foreign epoch refused | Opener step 3: `found != PIPELINE_SCHEMA_EPOCH` → `false` | the opener test |
+| H9 | Opener: foreign type refused | Step 2: skip the type check | the opener test |
+| H10 | Receipt: idempotent replay | A9: skip the lookup (always commit) | `exact_replay_returns_already_admitted_across_provenance` (`IdentityCollision` instead) |
+| H11 | Receipt: the digest is content, not author | `receipt_id`: add `provenance` to the digested tuple | `a_receipt_names_the_exact_bytes_it_read_and_wrote` |
+| H12 | Receipt: strong reads pin cited bytes | A11: `expected = &[]` | `a_receipt_names_the_exact_bytes_it_read_and_wrote` (empty `strong_reads`) and `batch_is_all_or_nothing`'s CAS branch |
+| H13 | All-or-nothing | A11: on `false`, return `Committed` | `batch_is_all_or_nothing` |
+| H14 | Supersession, not overwrite | A10: skip the collision check (the store's CAS still refuses, so the outcome becomes `Conflict`) | `a_document_is_written_once_and_superseded_by_resolution` (expects `IdentityCollision`) |
+| H15 | Resolution matrix in admission | `matrix(subject_kind, outcome)` → `true` | `the_resolution_matrix_is_admissions` |
+| H16 | 6c: `EmptySupersession` | drop the `is_empty` check | `supersession_names_each_supersessor_and_none_is_empty` |
+| H17 | Q10 + 6c: `UnknownSupersessor` | resolution referents skipped in A7 | the same test |
+| H18 | 6c: `QuoteWithoutOperator` | drop the check | `an_operator_quote_requires_operator_authority` |
+| H19 | Ruling A: every promise measured once | `PromiseWithoutVerdict`: `count != 1` → `count == 0` | `verdict_vocabulary_binds_claims_to_findings_promises_and_mutations` (the two-claims forgery) |
+| H20 | 6c: `UnknownMutationLabel` | drop the check | the same test |
+
+Stated limits: `ForeignStore` through `decode` is the leaf's rule and is pinned there; H5's mutant needs a helper impl the entry supplies in `New`, which is a two-edit entry on `store.rs` and `mind.rs` (the harness supports `Edits`). `MindAlreadyOwned` is the store's lock, not a Huginn check; H5 pins that Huginn chose the owning store, not that fs2 works.
+
+**Negative greps.**
+
+- `rg -n "reqwest|UdpSocket|qdrant|ollama|cultnet|cultmesh|IndexPort|EmbeddingPort|pending_index" F:\Projects\Huginn\crates\huginn-mind` empty (Cut 11 owns the ports; Cut 10 the socket).
+- `rg -n "prepare_entry\(" crates/huginn-mind/src` empty: only `prepare_entry_named`, and only inside `receipt.rs` (the receipt) — pipeline documents are prepared by the leaf.
+- `rg -n "compare_and_swap_batch" crates/huginn-mind/src`: the trait, its impl(s), and exactly one call in `receipt.rs`.
+- `rg -n "HuginnCommitReceipt \{" crates/huginn-mind/src`: two sites, `receipt::commit` and the replay-planting test.
+- `rg -n "Utc::now|SystemTime::now|std::env::var" crates/huginn-mind/src` empty.
+- `rg -n "epiphany_core|epiphany-core|ghostlight" F:\Projects\Huginn --glob '!.voidbot/**'` empty; `cargo tree -p huginn-mind -e normal | rg -c "epiphany-core"` is 0.
+- `rg -n "cfg\(test\)" F:\Projects\Epiphany\epiphany-pipeline\src\lib.rs` shows only `ForeignDocument`, `derived_schema` and `mod tests`.
+- `rg -n "impl Bounded|fn validate" crates/huginn-mind/src` shows no impl over a leaf type (the leaf's `Bounded` is `pub(crate)`; if Hands needs it, that is a finding, not a workaround).
+- `git diff --stat dddf9ede -- schemas/cultnet/` empty. `git diff --stat 4094e68 -- .voidbot` empty.
+
+**Operator checks:** none blocking. Q13 and Q14 are asked below; both have a default Hands can build under.
+
+### Subtraction estimate
+
+Epiphany: −28 lines (gates, comments, one registration, two dev-dependency lines), +about 40 (constant, doc lines, one test, two dependency lines); net about +12 outside tests, +15 tests. Zero schema, kind, field, type id, epoch or lock change. Liability retired: the last `cfg(test)`-shaped "until the organ" waivers, and the drift hazard of an epoch string nobody owned in code.
+
+Huginn: +about 2,100 lines (store 120, mind 260, receipt 220, refusal 90, admission 700, tests 650, entries file 120), +1 live crate, +8 direct dependencies, about +91 lock packages, +2 document types (`huginn.mind_epoch.v1`, `huginn.mind_commit_receipt.v1`), zero binaries, zero targets. Of the receipt file, about 200 lines duplicate `epiphany-core`'s 260; the rest is the service boundary D1 chose. Nothing in Huginn is removed because nothing is there.
+
+### Build budget
+
+- **Packages that compile:** Epiphany `epiphany-pipeline` (lib + tests); `epiphany-core` check only, no rebuild expected since the leaf is not its dependency. Huginn `huginn-mind` (lib + tests) and its 90 transitive packages, the two stubs.
+- **Profiles/targets/platforms:** debug only, workstation host = target, no features, no codegen paths, no release profile.
+- **Footprint:** `C:\Users\Meta\.cargo-target-codex` measured this pass at **9,872 paths, 8.2 GiB (`debug/` only)**, drive C: 261 GiB free. `libcultcache_rs`, `libredb` and `libepiphany_pipeline` rlibs are already present from Epiphany builds; Huginn's feature unification may or may not reuse them. **Expected delta: +400 to +900 paths, +0.4 to +0.9 GiB**, all under `debug/`. Hands records the before/after path list as every cut has, and reports a miss.
+- **Retention:** the shared dir is the operator's; nothing is deleted by this cut.
+
+### Operator questions
+
+- **Q13. Where do the batch and outcome types live for the client?** `eureka-state` (Cut 13) must construct `PipelineAdmissionBatch` and read `PipelineAdmissionOutcome`/`MindRefusal`, and the map says it does not depend on `huginn-mind` ("would invite a second validator", Cut 13). Cut 10 puts the wire types in the `huginn-daemon` *binary* crate, which a client cannot import either. Options: **A.** `eureka-state` depends on `huginn-mind` for types, with a negative grep that it never calls `open`, `admit` or `admit_prepared`; the graph cost is one package beyond what the leaf already brings (`redb` comes with the leaf regardless). **B.** A fourth crate `huginn-wire` holding only the request/response/outcome types; doctrine's "a named external consumer with a hard dependency boundary" argument (D1) applies weakly, since the boundary is a discipline a grep can pin. **C.** Put them in `epiphany-pipeline`; refused here because D6 already rules Huginn's transport contracts are Huginn's. **Recommended: A.** Cut 8 makes the types `pub` and `JsonSchema` so A or B both work; the choice is Cut 10/13's, but it should be ruled before Cut 10 writes `wire.rs` into a binary crate.
+- **Q14. How does Huginn run the mutation harness?** **A.** Add `-Repo` (default: the harness's own parent) to `tools/eureka-mutations.ps1` in Epiphany, about four lines, and keep one harness; Huginn holds only its entries file and its verification names Epiphany's path. **B.** Copy the harness into Huginn: a second copy of a 19 KB script the operator will notice, one bug away from two behaviours. **C.** Move the harness to the Eureka skill repo (`GameCult/Eureka`), the owner of cross-repo Eureka tooling, and point both repos at `~/.claude/skills/eureka/tools/`: coherent, three repos touched, and Cut 15 ("Skill wiring") is its natural home. **Recommended: A now, C in Cut 15.** *Taken as a default by Self, 2026-09-16: not a product fork.*
+- **Q15. `mind.redb`, not `mind.cc`.** D3 wrote `mind.cc`; `F:\Projects\CLAUDE.md` says "all state should be CultCache `.cc` files". A redb-backed CultCache store is CultCache state in a different container, and the extension is what Epiphany's backend selector and CultCache Studio key on. **Recommended: `mind.redb`**, and the doctrine sentence reads "CultCache state", which this is. If the operator wants `.cc` literally, the cost is Epiphany's selector convention and Studio misreading the file, both real.
+- **Q16 (carried, not new). Q6/ruling 18 stands:** identity is declared. This spec builds no credential path; `ForeignInstance` is collision and attribution control (D8). *Not a question: ruling 18 is in force and nothing here reopens it. Left as written so the reader sees it was checked.*
+
+### Findings not assignable to a cut
+
+- **FU-3's number is stale:** the Epiphany receipt path is about 260 lines, not 120, and Huginn's copy is about 200 because it drops authority variants, companions, `invariant_owner` and `store_id`. Self corrects the follow-up text.
+- **`open_runtime_spine_cache` (`runtime_spine.rs:646-653`) declares `SingleFileMessagePackBackingStore` while `commit_authorized_mind_mutation` (`reasoning_context.rs:1612`) passes a `RuntimeSpineBackingStore`;** one of the two is not what it reads as, or a conversion hides between them. Not read further because it is Epiphany's Mind path and Soul is in that tree; it belongs to campaign two or a Mind Steward note, not to Cut 8.
+- **The map's Cut 10 puts `HuginnMindRequest`/`HuginnMindResponse` in the daemon binary crate and Cut 13 forbids a `huginn-mind` dependency** — the client then has no crate to get the wire types from. Q13 above; the fix is Cut 10's spec.
+- **`README.md:33-35` and `AGENTS.md:15-17` in Huginn go stale the moment commit 1 lands**; the per-file table rewords them, but the "describe the live system" tension Soul raised on Cut 7 recurs at every Huginn cut until the workspace is whole.
+- **Huginn's `.gitignore` still carries `node_modules/`** (Cut 7 correction 27); one line, not this cut's.
+- **The old D4 rule text survives only in git history** (`304832ad^:notes/eureka-pipeline-state-cut.md:546-632`); the live map has the refusal names and no rules. This spec restates them in full; Self should make the map's Cut 8 section the owner so the next reader does not need `git show`.
+
+### Pinned HEADs
+
+Epiphany `ca7e230c` (lib.rs at `dddf9ede`), Huginn `4094e68`, CultLib `main` `4a2fdaf` with the Rust runtimes identical to `a0813c6`, Eureka skill checkout untouched. Probe artifacts: the lockfile resolution ran in the session scratchpad (`pin-probe/`, removed after this spec was written) and compiled nothing. The shared target dir read 9,872 paths before this pass and 9,874 after; this pass ran no cargo build, so the two paths belong to a concurrent build (Soul is in the Epiphany tree). Both repo trees are clean at the pinned HEADs.
 
 ## Cut 9. `huginn-mind`: queries and derivations
 
@@ -2741,10 +2996,15 @@ operator may simply want recorded.
   the Persona path in Huginn or correct the doctrine to name VoidBot. Owner:
   the operator, via a Mind Steward proposal.
 - **FU-3. The receipt is implemented twice.** `EpiphanyMindCommitReceipt` in
-  Epiphany and `HuginnCommitReceipt` in Huginn share a shape and about 120 lines
-  of digest, replay and CAS logic (D3). This is the price of the service
-  boundary. If a third consumer ever appears, extract the primitive into CultLib
-  rather than adding a third copy.
+  Epiphany and `HuginnCommitReceipt` in Huginn share a shape and the digest,
+  replay and CAS logic (D3). Epiphany's path is about 260 lines at `dddf9ede`
+  (`reasoning_context.rs:543-624`, `:1584-1701`, `:1836-1893`), not the 120
+  first written here; Huginn's copy is bounded to one file of at most 220,
+  smaller because it drops the authority enum, companions, `invariant_owner`
+  and `store_id`. Moving it was priced in Cut 8 (a CultLib change under the
+  QUIC campaign, two re-pins, a C# parity question) and declined. This is the
+  price of the service boundary. If a third consumer ever appears, extract
+  the primitive into CultLib rather than adding a third copy.
 - **FU-4. `EpiphanyMindCommitReceipt` naming scar** is now resolved by accident:
   with the pipeline profile gone, the type serves only Mind again. No action.
 - **FU-5. The Epiphany map's epoch claim is stale.** `state/map.yaml:76-77` says
