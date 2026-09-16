@@ -648,8 +648,8 @@ pub fn pipeline_key(document: &PipelineDocument) -> Result<String, PipelineRefus
         // ordinary id, so it composes as a subject like any other; each nesting
         // prepends `resolution.` (11 bytes), so a chain `n` deep over a
         // depth-one local of `L` bytes composes `11 * (n - 1) + L` bytes
-        // against the 64-byte bound in `local`, which is the only depth limit
-        // and needs no guard.
+        // against `LOCAL_MAX` in `local`, which is the only depth limit and
+        // needs no guard.
         D::Resolution(value) => {
             let field = "resolution.subject.id";
             let (subject_root, subject_local) = pipeline_id(field, &value.subject.id.0, value.subject.kind)?;
@@ -1306,6 +1306,18 @@ mod tests {
             Err(format_error("read_back", &campaign_key)),
             "a campaign key is not an instance id"
         );
+
+        // Soul X1 and X11: the reader's root and local are each `dotted_text`
+        // whole, so a trailing dot on either is refused by the reader itself,
+        // not only by the writer that never composes one. A leading dot and
+        // an empty part are the same rule on the local.
+        for malformed in ["c.:target:x", "c:target:x.", "c:target:.x", "c:target:a..b"] {
+            let read = pipeline_id("read_back", malformed, PipelineKind::Target);
+            assert!(
+                matches!(&read, Err(PipelineRefusal::InvalidFormat { field, .. }) if field == "read_back"),
+                "{malformed:?} is not an id of any kind, got {read:?}"
+            );
+        }
 
         // The instance root's own key segment is validated, not merely bounded.
         // Nothing else stands between a `Slug` and a key: a space would compose

@@ -12,8 +12,11 @@
 # pass: N7 and N8 re-anchor Cut 6's M12 and M13 on `key_segment`, N3 is the
 # analogue of Cut 6's M5 on `local`, N6 of Cut 6's M15 on the reader, and N9
 # and N10 are the dotted-root mutations that survived until
-# `dotted_roots_key_and_read_back`. The file holds an `é` literal in
-# `bounds_refuse_in_utf8_bytes`, which is why the harness I/O is byte-exact.
+# `dotted_roots_key_and_read_back`. X1 and X11 are Soul's third pass, the
+# reader trimming a trailing dot from the root or the local, killed by the
+# malformed fixtures in `keys_read_back_as_ids_of_their_kind`. The file holds
+# an `é` literal in `bounds_refuse_in_utf8_bytes`, which is why the harness
+# I/O is byte-exact.
 #
 # Soul's N4 moved the bound in `local` and both 64s in the depth test to 60
 # together and survived: the test restated the literal. `LOCAL_MAX` now names
@@ -169,6 +172,24 @@
             Test = 'tests::dotted_roots_key_and_read_back'
             Old  = '    dotted_text(field, root)?;'
             New  = '    label_text(field, root)?;'
+        },
+        # Soul X1 and X11, the reader's halves of S4: a trailing dot on the
+        # root or on the local was refused only by the writer, which never
+        # composes one, so a reader that trimmed it survived. The malformed
+        # fixtures read through `pipeline_id` kill both.
+        @{
+            Id   = 'X1'
+            Rule = 'The reader''s root check refuses a trailing dot; it does not trim one.'
+            Test = 'tests::keys_read_back_as_ids_of_their_kind'
+            Old  = '    dotted_text(field, root)?;'
+            New  = '    dotted_text(field, root.trim_end_matches(''.''))?;'
+        },
+        @{
+            Id   = 'X11'
+            Rule = 'The reader''s local check refuses a trailing dot; it does not trim one.'
+            Test = 'tests::keys_read_back_as_ids_of_their_kind'
+            Old  = '    dotted_text(field, local)?;'
+            New  = '    dotted_text(field, local.trim_end_matches(''.''))?;'
         }
     )
 }
