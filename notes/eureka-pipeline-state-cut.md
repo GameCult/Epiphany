@@ -4732,7 +4732,7 @@ Kinds, formats, epoch, leaf pin, `.cc` files: zero.
   third transport; it costs Odin registration, which is Cut 14's body. If C
   is wanted now, `MindStatus` is already the document, and the publication
   is one `publish_cultnet_message_to_rudp_catalog` call on a heartbeat that
-  Cut 14 owns.
+  Cut 14 owns. **Ruled A, 2026-09-16** ("I take your recommendations").
 - **Q23. Where does the operator interface land?** Doctrine says an earned
   daemon publishes its capabilities as Eve DSL through CultMesh, lowered by
   others. **A. Not this cut (recommended).** This cut owns `MindStatus` and
@@ -4747,7 +4747,8 @@ Kinds, formats, epoch, leaf pin, `.cc` files: zero.
   on Yggdrasil; the cost is a larger Cut 14 that already carries the Idunn
   handshake, the backup and the route. **C. Build the advertisement here**
   against a workstation-local Odin: a surface with no dashboard, and a
-  `verseId` chosen before the Verse exists; not recommended.
+  `verseId` chosen before the Verse exists; not recommended. **Ruled A,
+  2026-09-16**: a named "Verse presence" cut after Cut 14, before the proof.
 
 Decisions Self can overturn without an operator: no transport trait (D4);
 real redb minds in the daemon's tests rather than a promoted `MemoryStore`
