@@ -287,16 +287,11 @@ value_types! {
         builds: Vec<Line>[64], tests: Vec<VerificationTest>[64],
         negative: Vec<NegativeCheck>[64], operator: Vec<Line>[64],
     }
+    pub struct ReportCommit { sha: Sha, subject: Line, builds: bool }
+    pub struct MutationRecord { rule: Line, failed_as_expected: bool }
+    pub struct Deviation { what: Line, why: Line }
     // D1 tables no maximum for these lists, so they take the shared list
     // default of 64 rather than a number invented for this field alone.
-    pub struct SubtractionEstimate {
-        lines_removed: u32, lines_added: u32, removed: Vec<Short>[64], added: Vec<Short>[64],
-    }
-    pub struct ReportCommit { sha: Sha, subject: Line, builds: bool }
-    pub struct MutationRecord { rule: Line, mutation: Line, failed_as_expected: bool }
-    pub struct Deviation { what: Line, why: Line }
-    // As for `SubtractionEstimate`: D1 tables no maximum, so these lists take
-    // the shared list default.
     pub struct StructuralDelta {
         lines_added: u32, lines_removed: u32,
         dependencies_added: Vec<Short>[64], dependencies_removed: Vec<Short>[64],
@@ -324,7 +319,7 @@ value_types! {
         campaign: Slug, cut: Label, revision: u32, title: Short, repo: OrgRepo, branch: Short, base: Sha,
         depends_on: Vec<Short>[8], first: Vec<Line>[16], deletes: Vec<CutDelete>[64], keeps_moves: Vec<Line>[64],
         adds: Vec<Line>[64], file_changes: Vec<FileChange>[256], authority_map: Option<AuthorityMap>,
-        verification: CutVerification, subtraction_estimate: SubtractionEstimate,
+        verification: CutVerification,
         rulings: Vec<Short>[32], questions: Vec<Short>[16],
     }
     pub struct PipelineCutReport {
@@ -383,16 +378,6 @@ pub enum ResolutionOutcome {
     Deferred { to: Short },
     Recorded { reason: Line },
     Withdrawn { reason: Line },
-}
-
-impl Bounded for ResolutionOutcome {
-    fn validate(&self, field: &str) -> Result<(), PipelineRefusal> {
-        match self {
-            Self::Superseded { by } | Self::Answered { by } | Self::Fixed { by } => by.validate(field),
-            Self::Deferred { to } => to.validate(field),
-            Self::Recorded { reason } | Self::Withdrawn { reason } => reason.validate(field),
-        }
-    }
 }
 
 macro_rules! pipeline_kinds {
@@ -830,16 +815,13 @@ mod tests {
                     negative: vec![NegativeCheck { pattern: s("Vec<u8>"), scope: "documents".into() }],
                     operator: vec!["none".into()],
                 },
-                subtraction_estimate: SubtractionEstimate {
-                    lines_removed: 0, lines_added: 900, removed: vec![], added: vec![s("schemars")],
-                },
                 rulings: vec![id("ruling", "R8")], questions: vec![id("question", "Q1")],
             }), format!("{CAMPAIGN}:cut_spec:cut-3a.r1")),
             (D::CutReport(PipelineCutReport {
                 campaign: slug(CAMPAIGN), cut_spec: id("cut_spec", "cut-3a.r1"), attempt: 1, repo: repo(), branch: branch(),
                 commits: vec![ReportCommit { sha: sha(), subject: "Add the pipeline documents".into(), builds: true }],
                 range: range(), verification: vec![evidence()],
-                mutations: vec![MutationRecord { rule: "key derivation".into(), mutation: "drop the marker rule".into(), failed_as_expected: true }],
+                mutations: vec![MutationRecord { rule: "key derivation".into(), failed_as_expected: true }],
                 deviations: vec![Deviation { what: "names".into(), why: "glob exports".into() }],
                 forks: vec![id("question", "Q1")],
                 structural_delta: StructuralDelta {
