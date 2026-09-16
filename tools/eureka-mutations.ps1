@@ -64,10 +64,16 @@
 #   run's targets, is repaired: the file is restored from it, hash-verified,
 #   and the sidecar removed, and the run prints that a previous run died
 #   mid-mutation and was repaired. A file that already equals its sidecar is
-#   left alone and the run says so. A file that differs is never overwritten
+#   left alone and the run says so. A file that is missing is recreated from
+#   its sidecar and the run says so. A file that differs is never overwritten
 #   silently: its current bytes go to `<target>.eureka-mutation-overwritten`
-#   first, and the run prints that path and its SHA-256. A file that cannot
-#   be written keeps its sidecar and the run stops, naming the file.
+#   before the restore is written, and the run prints that path and its
+#   SHA-256 once the restore has landed; a restore that fails without opening
+#   the file removes that copy again, so it exists only when something was
+#   overwritten. A file that cannot be written keeps its sidecar and the run
+#   stops, naming the file. A sidecar of a sidecar is not something a run
+#   leaves behind and cannot be ordered against its sibling, so the run stops
+#   before any repair, naming both.
 # - M0 is built in and cannot be omitted: before any entry, every target's
 #   bytes are decoded and re-encoded through the harness I/O path and compared
 #   to the original bytes before anything is written. If a byte differs, the
@@ -127,6 +133,7 @@ function Find-Sidecars([string] $root) {
 }
 # The first offset at which two byte arrays differ, or -1 when they are equal.
 function Find-FirstDifference([byte[]] $left, [byte[]] $right) {
+    if ($null -eq $left -or $null -eq $right) { throw 'harness broken: Find-FirstDifference was handed a null byte array; a missing file is its own case and is decided before any comparison.' }
     if ([System.Linq.Enumerable]::SequenceEqual($left, $right)) { return -1 }
     $shared = [Math]::Min($left.Length, $right.Length)
     for ($offset = 0; $offset -lt $shared; $offset++) {
@@ -266,35 +273,68 @@ $suite = foreach ($mutation in $mutations) {
 # The whole repo is searched, not only this run's targets: a sidecar left
 # beside a file another suite mutates is the same dead run and the same
 # corrupted tree.
-foreach ($sidecar in @(Find-Sidecars $repo)) {
+$sidecars = @(Find-Sidecars $repo)
+# The harness never mutates a sidecar, so a sidecar whose file is itself a
+# sidecar was not left by a run and the two cannot be ordered: whichever is
+# restored first decides which bytes are "original". Nothing is touched; a
+# human resolves it.
+foreach ($sidecar in $sidecars) {
     $path = $sidecar.Substring(0, $sidecar.Length - $sidecarSuffix.Length)
-    $original = [System.IO.File]::ReadAllBytes($sidecar)
-    $hash = Get-BytesHash $original
-    $current = if (Test-Path -LiteralPath $path) { [System.IO.File]::ReadAllBytes($path) } else { [byte[]] @() }
-    if ((Find-FirstDifference $current $original) -lt 0) {
-        Remove-Item -LiteralPath $sidecar -Force
-        Write-Host "A previous run left $sidecar; sidecar matched; nothing to restore. The sidecar was removed."
-        continue
+    if ($path.EndsWith($sidecarSuffix)) {
+        throw "$sidecar is a sidecar of a sidecar ($path), which no run leaves behind; which file holds the original bytes cannot be decided here. Nothing was written and no sidecar was repaired; resolve both by hand."
     }
-    # The bytes about to be overwritten may be a hand edit made after the
-    # crash, so they are kept beside the file before anything is written.
+}
+foreach ($sidecar in $sidecars) {
+    $path = $sidecar.Substring(0, $sidecar.Length - $sidecarSuffix.Length)
     $overwritten = "$path.eureka-mutation-overwritten"
     try {
-        if ($current.Length) {
-            [System.IO.File]::WriteAllBytes($overwritten, $current)
-            Write-Host "The current bytes of $path (SHA-256 $(Get-BytesHash $current)) are kept in $overwritten."
+        $original = [System.IO.File]::ReadAllBytes($sidecar)
+        $hash = Get-BytesHash $original
+        # A missing file is its own case: the sidecar holds the only copy of
+        # its bytes, so there is nothing to compare and nothing to keep.
+        if (-not (Test-Path -LiteralPath $path)) {
+            [System.IO.File]::WriteAllBytes($path, $original)
+            if ((Get-Hash $path) -ne $hash) {
+                throw "recreating it from $sidecar did not land the original bytes (SHA-256 $hash)."
+            }
+            Remove-Item -LiteralPath $sidecar -Force
+            Write-Host "A previous run left $sidecar and $path was missing; the file was recreated from the sidecar (SHA-256 $hash) and the sidecar removed."
+            continue
         }
-        [System.IO.File]::WriteAllBytes($path, $original)
+        $current = [System.IO.File]::ReadAllBytes($path)
+        if ((Find-FirstDifference $current $original) -lt 0) {
+            Remove-Item -LiteralPath $sidecar -Force
+            Write-Host "A previous run left $sidecar; sidecar matched; nothing to restore. The sidecar was removed."
+            continue
+        }
+        # The bytes about to be overwritten may be a hand edit made after the
+        # crash. They are copied beside the file before the restore is written,
+        # because once the restore lands the copy is their only home; if the
+        # restore then fails without touching the file, the copy is removed
+        # below so it never claims an overwrite that did not happen.
+        [System.IO.File]::WriteAllBytes($overwritten, $current)
+        try {
+            [System.IO.File]::WriteAllBytes($path, $original)
+        }
+        catch {
+            if ((Find-FirstDifference ([System.IO.File]::ReadAllBytes($path)) $current) -lt 0) {
+                Remove-Item -LiteralPath $overwritten -Force -ErrorAction SilentlyContinue
+                throw "the restore did not open the file and nothing was overwritten, so $overwritten was removed. $_"
+            }
+            throw "the restore changed the file before failing; its pre-repair bytes (SHA-256 $(Get-BytesHash $current)) are kept in $overwritten. $_"
+        }
         if ((Get-Hash $path) -ne $hash) {
-            throw "restoring it from $sidecar did not land the original bytes (SHA-256 $hash)."
+            throw "restoring it from $sidecar did not land the original bytes (SHA-256 $hash); its pre-repair bytes (SHA-256 $(Get-BytesHash $current)) are kept in $overwritten."
         }
+        Write-Host "The bytes $path held before the repair (SHA-256 $(Get-BytesHash $current)) are kept in $overwritten."
+        Remove-Item -LiteralPath $sidecar -Force
+        Write-Host "A previous run died mid-mutation of $path; it was repaired from $sidecar (SHA-256 $hash) and the sidecar removed."
     }
     catch {
-        Write-Host "$path could not repair, sidecar kept ($sidecar, SHA-256 $hash). Nothing ran."
-        throw
+        $message = "$path could not repair, sidecar kept ($sidecar). Nothing ran. $($_.Exception.Message)"
+        Write-Host $message
+        throw $message
     }
-    Remove-Item -LiteralPath $sidecar -Force
-    Write-Host "A previous run died mid-mutation of $path; it was repaired from $sidecar (SHA-256 $hash) and the sidecar removed."
 }
 
 # --- M0: the no-op control ----------------------------------------------------
