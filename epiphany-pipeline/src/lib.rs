@@ -44,7 +44,15 @@ use serde::{Deserialize, Serialize};
 /// store's identity and its schema epoch are not decided here, since this
 /// crate owns no store, and belong to the organ that will admit these
 /// documents.
-#[derive(Clone, Debug, PartialEq, Eq)]
+///
+/// Serialised externally tagged, serde's default for an enum: each variant is
+/// a one-key map from the variant's name to its named fields, so `field` and
+/// `value` are on the wire under their own names and a reader of a refusal
+/// carried over a wire reads the same parts a local caller matches on. No
+/// attribute buys that, which is why there is none: an internal or adjacent
+/// tag would move the fields under a content key without making any of them
+/// more visible.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum PipelineRefusal {
     FieldBound { field: String, limit: u32, actual: u32 },
     InvalidFormat { field: String, value: String },
@@ -440,7 +448,18 @@ macro_rules! pipeline_kinds {
             }
         }
 
-        #[derive(Clone, Debug, PartialEq, Eq)]
+        /// The envelope enum, adjacently tagged on the kind name: a document
+        /// on a wire is `{ kind, value }`, and `kind` is exactly what
+        /// `PipelineKind::name()` returns, so a reader dispatches on the kind
+        /// segment it already knows from the key and needs no second registry
+        /// mapping variant spellings to kinds. Adjacent rather than internal
+        /// because a value is a named map of its own and an internal tag would
+        /// have to be merged into it; the tag stays beside the value instead.
+        /// This is not a published schema: `schemas/cultnet` publishes the
+        /// thirteen per-kind value documents, and the envelope is the wire's
+        /// shape, not a document's.
+        #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+        #[serde(tag = "kind", content = "value", rename_all = "snake_case")]
         pub enum PipelineDocument { $($variant($value)),* }
 
         impl PipelineKind {
@@ -1916,6 +1935,86 @@ mod tests {
         let local = key.split(':').nth(2).expect("three segments");
         assert_eq!(local.split('.').count(), 3, "{key}: the receiver is one part, not two");
         assert_eq!(local.split('.').next(), Some("thought-cage_dGameCult"));
+    }
+
+    /// Cut 8: the leaf owns the serialisation of the shapes it owns, so a wire
+    /// carrying a document or a refusal reads back the same value rather than
+    /// a mirror definition kept in step by hand in the reader's repo. Both
+    /// encodings are pinned: JSON is what a schema describes, MessagePack is
+    /// what a CultCache payload is written in, and an adjacent tag has to
+    /// survive both. The tag is asserted against `name()` rather than against
+    /// a literal, because the point of the tag is that a reader dispatching on
+    /// a key's kind segment finds the same string here.
+    #[test]
+    fn every_document_and_refusal_serialises_and_reads_back() -> Result<()> {
+        for (document, _) in samples() {
+            let json = serde_json::to_value(&document)?;
+            assert_eq!(json["kind"].as_str(), Some(document.kind().name()), "{json} is tagged with its kind name");
+            assert_eq!(serde_json::from_value::<PipelineDocument>(json.clone())?, document, "{json} reads back");
+            let packed = rmp_serde::to_vec_named(&document)?;
+            assert_eq!(
+                rmp_serde::from_slice::<PipelineDocument>(&packed)?,
+                document,
+                "{:?} reads back through MessagePack",
+                document.kind()
+            );
+        }
+
+        // Every variant, and every one of them carrying its named parts: a
+        // refusal read off a wire names the field it refused, as a local one
+        // does.
+        let refusals = [
+            PipelineRefusal::FieldBound { field: "campaign.title".into(), limit: 200, actual: 201 },
+            PipelineRefusal::InvalidFormat { field: "campaign.slug".into(), value: "a b".into() },
+            PipelineRefusal::InvalidIdentity {
+                kind: PipelineKind::Campaign,
+                key: format!("{CAMPAIGN}:campaign:forged"),
+                expected: format!("{CAMPAIGN}:campaign:self"),
+            },
+            PipelineRefusal::ForeignStore { r#type: <ForeignDocument as DatabaseEntry>::TYPE.into() },
+        ];
+        for refusal in &refusals {
+            let json = serde_json::to_value(refusal)?;
+            assert_eq!(&serde_json::from_value::<PipelineRefusal>(json.clone())?, refusal, "{json} reads back");
+            let packed = rmp_serde::to_vec_named(refusal)?;
+            assert_eq!(
+                &rmp_serde::from_slice::<PipelineRefusal>(&packed)?,
+                refusal,
+                "{refusal:?} reads back through MessagePack"
+            );
+        }
+
+        // The derived schemas list the same two sets. A `const` in the tag
+        // position is what a schema reader dispatches on, so it is read as the
+        // schema writes it and compared to `name()`, not to a literal list.
+        let tag = |variant: &serde_json::Value| {
+            variant["properties"]["kind"]["const"]
+                .as_str()
+                .unwrap_or_else(|| panic!("a document variant schema carries a kind const: {variant}"))
+                .to_owned()
+        };
+        let document_schema = serde_json::to_value(schemars::schema_for!(PipelineDocument))?;
+        let variants = document_schema["oneOf"].as_array().expect("the document schema is a oneOf");
+        assert_eq!(PipelineKind::ALL.len(), 13, "thirteen kinds");
+        assert_eq!(
+            variants.iter().map(tag).collect::<Vec<_>>(),
+            PipelineKind::ALL.iter().map(|kind| kind.name().to_owned()).collect::<Vec<_>>(),
+            "the document schema lists exactly the thirteen kinds, by name"
+        );
+
+        let refusal_schema = serde_json::to_value(schemars::schema_for!(PipelineRefusal))?;
+        let refusal_variants = refusal_schema["oneOf"].as_array().expect("the refusal schema is a oneOf");
+        let named = refusal_variants
+            .iter()
+            .map(|variant| {
+                let properties = variant["properties"].as_object().expect("a refusal variant is an object");
+                assert_eq!(properties.len(), 1, "{variant} is externally tagged");
+                properties.keys().next().expect("one key").to_owned()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(named, vec!["FieldBound", "InvalidFormat", "InvalidIdentity", "ForeignStore"]);
+        assert_eq!(named.len(), refusals.len(), "every refusal variant is in the schema and in the round trip");
+        Ok(())
     }
 
     #[test]
