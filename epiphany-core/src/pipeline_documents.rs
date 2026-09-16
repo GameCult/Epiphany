@@ -17,7 +17,11 @@
 //! admission path, never by registering or preparing a pipeline type itself.
 
 use anyhow::Result;
-use cultcache_rs::{CultCache, CultCacheEnvelope, DatabaseEntry};
+use cultcache_rs::DatabaseEntry;
+// Envelopes are a test-only shape here until the organ prepares, decodes and
+// validates them (Cut 8); only the type ids survive into the live path.
+#[cfg(test)]
+use cultcache_rs::{CultCache, CultCacheEnvelope};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -413,7 +417,11 @@ macro_rules! pipeline_kinds {
                 match self { $(Self::$variant(value) => value.validate($name)),* }
             }
 
-            #[cfg_attr(not(test), expect(dead_code, reason = "the organ's admission prepares writes through this"))]
+            /// Test scaffolding until the organ prepares writes (Cut 8). Every
+            /// caller is a test, and the only cache carrying these types is the
+            /// `cfg(test)` registrar beside it, so this is `cfg(test)` rather
+            /// than a live path wearing a dead-code waiver.
+            #[cfg(test)]
             pub(crate) fn prepare(&self, cache: &CultCache) -> Result<CultCacheEnvelope> {
                 let key = pipeline_key(self)?;
                 Ok(match self {
@@ -423,6 +431,9 @@ macro_rules! pipeline_kinds {
                 })
             }
 
+            /// Test-only with its only caller, the write validator below, until
+            /// the organ decodes admitted envelopes (Cut 8).
+            #[cfg(test)]
             pub(crate) fn decode(envelope: &CultCacheEnvelope) -> Result<Self, PipelineRefusal> {
                 let invalid = |error: rmp_serde::decode::Error| format_error("payload", &error.to_string());
                 $(if envelope.r#type == <$document as DatabaseEntry>::TYPE {
@@ -573,8 +584,10 @@ pub fn pipeline_key(document: &PipelineDocument) -> Result<String, PipelineRefus
 }
 
 /// Bounds, formats, then key recomputation, for one envelope. Per-kind
-/// admission rules belong to the organ's admission path.
-#[cfg_attr(not(test), expect(dead_code, reason = "the organ's admission validates every write through this"))]
+/// admission rules belong to the organ's admission path. Its only caller is a
+/// test until the organ validates writes through it (Cut 8), so it is
+/// `cfg(test)` rather than a live path wearing a dead-code waiver.
+#[cfg(test)]
 fn validate_pipeline_write_envelope(envelope: &CultCacheEnvelope) -> Result<()> {
     let document = PipelineDocument::decode(envelope)?;
     document.validate()?;
