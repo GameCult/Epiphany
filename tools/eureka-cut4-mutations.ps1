@@ -6,7 +6,11 @@
 # mutation at a time, runs that test alone, and restores the file from disk
 # before the next one, so a failed run never leaves the tree mutated.
 #
-#   pwsh -File tools/eureka-cut4-mutations.ps1
+#   powershell -File tools/eureka-cut4-mutations.ps1
+#
+# Windows PowerShell 5.1 is the interpreter on this host; there is no `pwsh`.
+# The guard below refuses anything else rather than failing later on a path or
+# cmdlet difference.
 #
 # Requires CARGO_TARGET_DIR to be set the way the cut ran it, or it will build
 # into the repo-local target/.
@@ -16,6 +20,11 @@
 # refusals in two different files, so every entry names its own file.
 
 $ErrorActionPreference = 'Stop'
+
+if ($PSVersionTable.PSVersion.Major -lt 5 -or $env:OS -ne 'Windows_NT') {
+    throw "This script runs under Windows PowerShell 5.1 on Windows (powershell -File tools/eureka-cut4-mutations.ps1). Found PowerShell $($PSVersionTable.PSVersion) on $(if ($env:OS) { $env:OS } else { 'a non-Windows host' })."
+}
+
 $repo = Split-Path -Parent $PSScriptRoot
 $documents = 'epiphany-core/src/pipeline_documents.rs'
 $spine = 'epiphany-core/src/runtime_spine.rs'
@@ -127,8 +136,12 @@ foreach ($mutation in $mutations) {
     $eol = if ($original.Contains("`r`n")) { "`r`n" } else { "`n" }
     $old = ($mutation.Old -replace "`r`n", "`n") -replace "`n", $eol
     $new = ($mutation.New -replace "`r`n", "`n") -replace "`n", $eol
-    if (-not $original.Contains($old)) {
-        throw "$($mutation.Id): anchor not found in $($mutation.File). The mutation is stale."
+    # Exactly one site, not merely at least one: `.Replace` below mutates every
+    # match, so a second site would change more than the entry describes and the
+    # test could then fail for a reason the entry does not name.
+    $sites = [regex]::Matches($original, [regex]::Escape($old)).Count
+    if ($sites -ne 1) {
+        throw "$($mutation.Id): anchor matches $sites times in $($mutation.File), expected exactly 1. The mutation is stale."
     }
     $mutated = $original.Replace($old, $new)
     if ($mutated -eq $original) {
