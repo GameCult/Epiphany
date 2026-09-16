@@ -6,10 +6,19 @@ operator rejected the repo-owned store.
 Status: cut map. The ends are owned by `notes/eureka-pipeline-state-target.md`;
 this document owns the means. Self updates this header in every landing commit.
 
-**Cuts 1-6 landed and are Soul-verified. Everything from Cut 7 on is unbuilt,
-and none of it is in this repo.** The old Cuts 3b-7 described a repo-owned store
-and are dead; they are kept, clearly marked, under "History" at the end of this
-file. Nothing above that section describes the old model.
+**Cuts 1-6 landed and are Soul-verified, with two fix batches on Cut 6. Cut 6b
+(the key grammar) is in Hands. Cut 6c (the Ghostlight shapes) is specified and
+waits on 6b. Everything from Cut 7 on is unbuilt, and none of it is in this
+repo.** The old Cuts 3b-7 described a repo-owned store and are dead; they are
+kept, clearly marked, under "History" at the end of this file. Nothing above
+that section describes the old model.
+
+**The campaign pauses after Cut 6c.** Operator decision, 2026-09-16: the
+StreamPixels rescue is the portfolio piece, so CultLib's TypeScript QUIC
+realtime plane goes first and Huginn (Cuts 7-16) resumes after StreamPixels
+ships. The stop point is chosen so that `epiphany-pipeline` is a clean leaf with
+published schemas and no half-built service. Self writes a postmortem at the
+pause saying exactly why it stopped there.
 
 - **Cut 1 landed** at `2b76c2e7`, `df82992c`. CultLib re-pinned to `a0813c6`.
 - **Cut 2 landed** at `00991c1b`, `46460efc`, `cb6ef5d2`. One commit owner,
@@ -22,11 +31,15 @@ file. Nothing above that section describes the old model.
 - **Cut 5 landed** at `1758ad50`, `4c091f57`, fixes at `617c397d`. One commit
   owner, no profile.
 - **Cut 6 landed** at `7ab838f1`, `d17cc441`, `08c1c9d9`, fixes at `eb55efe9`,
-  `b6f6e802`, `80db5db6`, `3ee78e05`. `epiphany-pipeline` is a leaf library
-  Huginn can depend on without `epiphany-core`.
+  `b6f6e802`, `80db5db6`, `3ee78e05`, second fix batch at `9b68d83c`,
+  `4cccb45c`, `4a654351`. `epiphany-pipeline` is a leaf library Huginn can
+  depend on without `epiphany-core`.
+- **Cut 6b in Hands** against `4a654351`. The second fix batch's Soul pass found
+  the same invariant open one level up for the third time, so the key grammar
+  is redesigned rather than patched a fourth time.
 - **Target rewritten** at `5fb4eb22`.
 
-**Cut 6 was the last cut inside Epiphany.** Cuts 7-16 build Huginn's Rust
+**Cut 6c is the last cut inside Epiphany.** Cuts 7-16 build Huginn's Rust
 workspace and the `eureka-state` MCP client; this repo's remaining stake is
 schema ownership through `epiphany-pipeline`.
 
@@ -331,6 +344,110 @@ the three new kinds' tests asserted key strings and never parsed them back.
 `keys_read_back_as_ids_of_their_kind` is the pin that would have caught both,
 and it is now in the Keeps list for every kind added after this.
 
+**Cut 6's second fix batch landed** at `9b68d83c` (one composer,
+`KeyParts::key`, for every non-root, non-resolution key, with `.` escaped to
+`_d`), `4cccb45c` (a resolution reads back by the key it has; `declared_kind`
+added) and `4a654351` (the per-run schema directory's cost stated). It closed
+Soul's second-pass findings:
+
+- **F-A, the composed hand-off key was still not injective.** S1's fix made the
+  repo *segment* injective and left the *composition* open: a dotted
+  `to_instance` and a dotted date could trade bytes across the `.` separator.
+  Fixed at the composer, not the segment.
+- **F-B, a resolution was unreferenceable.** Soul's mutation adding
+  `| PipelineKind::Resolution` to the root case survived, because nothing read
+  a resolution's key back. Fixed with a Resolution arm in `pipeline_id`.
+
+**Soul's third pass, on that batch, found the same invariant open again**, one
+level higher, and Self stopped the patch sequence. Three consecutive fixes had
+each made one composition site injective (segment, then composed local, then
+root namespace) and left the site above it ambiguous. Per doctrine, escalating
+guards mean the ownership is wrong. The three CONFIRMED High findings, all
+`epiphany-pipeline/src/lib.rs` at `4a654351`, became Cut 6b:
+
+- **Campaign and instance share one root namespace** (`:693-700`, `:553-556`).
+  Campaign `yggdrasil` and instance `yggdrasil` key identically. Soul measured
+  254 documents keying to 234 distinct keys, 20 colliding, 10 from this pair.
+- **A resolution's key discards its subject's root kind** (`:703-707` with
+  `:529-538`). `declared_kind` hardcodes `Campaign` for a bare slug; a mutation
+  flipping it to `Instance` survived because the information was already gone.
+- **A resolution of a resolution composes `resolution:resolution:…`**
+  (`:564-568`), which `pipeline_id` reads back as `InvalidFormat`. The comment
+  beside it names the path as live.
+
+Three medium survivors go into the same cut: the composed local's total length
+check is unpinned (a hand-off local reaches about 140 bytes against a
+documented 64); the root check inside the composer is unpinned (`pipeline_key`
+is `pub` and a colon in a root yields four segments); and "a kind's tail arity
+is fixed by the arm" is enforced by a doc comment, not the type.
+
+Cut 6 corrections, continued:
+
+19. **`<Org_Repo>` escapes three bytes, not two.** The Keys paragraph below
+    said `_` and `/`; `9b68d83c` added `.` → `_d` so that an escaped repo can
+    sit inside a `.`-separated local without trading bytes with its neighbours.
+    Cut 6b generalises the escape to every slug entering a local and the
+    paragraph is superseded there.
+20. **The key table never stated the resolution key.** `resolution:<subject id>`
+    was the shape since Cut 3a and appeared in no table. Pre-existing; Cut 6b's
+    grammar table is the first complete one.
+21. **`rg -n "std::process" epiphany-pipeline/src` is not empty**, and should
+    not be: the per-run temp directory from S6 reads `std::process::id()` under
+    `#[cfg(test)]`. The intent (no process is spawned, no socket is opened)
+    holds; the grep is narrowed to `Command|UdpSocket|BackingStore`. Second
+    negative grep this campaign to drift from its intent; the first was
+    correction 15.
+22. **The shared cargo target directory was left at 8,642 paths against an
+    8,284 baseline, and that is ruled acceptable for this pass.** The growth is
+    one debug profile of this package's dependency tree, with no new package,
+    target, profile or platform, and deleting it would evict a cache the next
+    build re-creates. This is a judgment per pass, not a loosening of the rule:
+    the path list is still recorded and compared every time. (`find | wc -l`
+    counts the root directory and PowerShell's `Get-ChildItem -Recurse` does
+    not, so 8,642 and 8,641 are the same count.)
+23. **Cut 5's Soul addendum carries a second "byte-identical" claim about
+    `epiphany-state.exe`.** Its other half is stronger than claimed and stands:
+    the negative greps are empty across the whole tree including untracked and
+    ignored files. But the binary claim has the shape correction 17 withdrew,
+    and that artifact's hash is build-root dependent. Marked suspect, not
+    evidence; no hash replaces it.
+24. **`schemas/cultnet/README.md:5` promises the folder helps "foreign
+    consumers inspect the wire shape", and `:40-44` now says a widened enum is
+    additive because "these readers are ours".** Both sentences are true today
+    and they will contradict each other the day Eureka has an outside reader.
+    Recorded, not resolved: it needs a real answer if a foreign consumer
+    appears, and the answer is a versioning policy, not a README edit.
+
+**Mutation harness audit (Eyes, 2026-09-16).** Soul's third pass ran a no-op
+control mutation and it "killed" `bounds_refuse_in_utf8_bytes`: the harness's
+text round-trip had collapsed the test's `é` literal to one byte, so every
+mutation through that path would have reported a kill whatever it changed.
+Soul caught it only because it ran the control. Eyes then audited every suite
+in this repo and in Ghostlight:
+
+- **No committed suite has the defect.** `tools/eureka-cut4-mutations.ps1` (at
+  `a9f06c2a`), `cut5` and `cut6` all use `[IO.File]::ReadAllText` /
+  `WriteAllText`, measured byte-identical on every live target. The corrupting
+  harness was Soul's own inline one and is not on disk anywhere; its text is
+  unrecoverable. That is the shape finding S9 under History already names as
+  Standing: a mutation with no artifact on disk is unverifiable.
+- **Cut 1's M1-M3 are suspect for a different reason.** The ad-hoc
+  `eureka-c1-mutate.ps1` joined lines with `\n`, rewriting two CRLF files to LF
+  for the whole file while mutated; `core.autocrlf=true` hid the rewrite from
+  `git diff`. Whether that changed a verdict is unknown and was not re-run.
+  Cuts 3a, 4, 5, 6, the Cut 2 fix pass and all Ghostlight verdicts are not
+  suspect.
+- **No suite in either repo has a no-op control**, and the committed suites
+  structurally forbid one: each throws when a replacement changes nothing
+  (`cut4:86`, `cut5:216`, `cut6:237`). Ghostlight has never had a scripted
+  harness; its mutations are hand edits restored by `git checkout`.
+- **The measured rule** is encoding symmetry and end-of-line preservation, not
+  `-Encoding utf8` by itself: mixed-encoding round-trips corrupt the `é`, and
+  any non-`-Raw` `Get-Content` corrupts line endings regardless of encoding.
+
+Cut 6b's suite is the first with a control (M0) and the rule is now in the
+Eureka skill.
+
 ## Probes and source reads this pass
 
 No cargo build ran this pass. Every new mechanism claim below was settled by a
@@ -463,22 +580,25 @@ were the display record of the per-clone lease.
 | `stewardship` | `epiphany.pipeline.stewardship.v1` | `instance: Slug`, `repo: OrgRepo`, `assigned_on: Date`, `note: Line` | Ruling 14's "stewardship is an assignment". Query "which repos does this instance steward"; the Rehydrate brief; admission's campaign-repo check. |
 | `hand_off` | `epiphany.pipeline.hand_off.v1` | `from_instance: Slug`, `to_instance: Slug`, `repo: OrgRepo`, `documents: Vec<Short>[256]`, `reason: Para`, `handed_on: Date` | Ruling 14's "reassignment is an explicit typed hand-off recorded in both minds". Cut 12's import path. |
 
-**Keys.**
+**Keys.** *Superseded by Cut 6b's grammar (correction 19, 20). Kept as the
+shape Cut 6 landed; the live table is in Cut 6b.*
 
-| Kind | Key |
-|---|---|
-| `instance` | `<instance slug>` |
-| `stewardship` | `<instance>:stewardship:<Org_Repo>` |
-| `hand_off` | `<from>:hand_off:<to>.<repo>.<date>` |
-| campaign | `<slug>` (unchanged) |
-| everything else | `<campaign>:<kind>:<local>` (unchanged) |
+| Kind | Key as landed by Cut 6 | Key after Cut 6b |
+|---|---|---|
+| `instance` | `<instance slug>` | `<instance>:instance:self` |
+| `stewardship` | `<instance>:stewardship:<Org_Repo>` | unchanged |
+| `hand_off` | `<from>:hand_off:<to>.<repo>.<date>` | `<from>:hand_off:<to escaped>.<repo>.<date>` |
+| campaign | `<slug>` | `<campaign>:campaign:self` |
+| resolution | `resolution:<subject id>` (never stated here before) | `<subject root>:resolution:<subject kind>.<subject local>` |
+| everything else | `<campaign>:<kind>:<local>` | unchanged |
 
-`<Org_Repo>` is the `OrgRepo` with both `_` and `/` escaped: `_` → `__`,
-`/` → `_-`. `/` is not a `Label` byte and the key must segment unambiguously.
-Every other byte passes through and is never `_`, so a reader going left to
-right takes each `_` with the byte after it and never has a choice: the encoding
-is reversible, therefore injective. Admission recomputes it and refuses a
-mismatch with the existing `InvalidIdentity`.
+`<Org_Repo>` is the `OrgRepo` with `_`, `/` and `.` escaped: `_` → `__`,
+`/` → `_-`, `.` → `_d` (the third added at `9b68d83c`, correction 19). `/` is
+not a `Label` byte, `.` is the local separator, and the key must segment
+unambiguously. Every other byte passes through and is never `_`, so a reader
+going left to right takes each `_` with the byte after it and never has a
+choice: the encoding is reversible, therefore injective. Admission recomputes
+it and refuses a mismatch with the existing `InvalidIdentity`.
 
 **Corrected 2026-09-16, after Soul.** This read "`/` replaced by `_`", which is
 not injective: `GameCult_Epiphany/thing` and `GameCult/Epiphany_thing` are both
@@ -985,12 +1105,251 @@ surface at all, which is correct: its consumption is campaign two.
   - `rg -n "serde_json::Value|Vec<u8>" epiphany-pipeline/src` empty
     (`serde_json` is a dev-dependency only).
   - `rg -n "std::process|UdpSocket|BackingStore" epiphany-pipeline/src` empty.
-  - `rg -n "pipeline" epiphany-core/src` empty.
+    *Corrected (21): `process::Command|UdpSocket|BackingStore`; the per-run
+    test directory reads `std::process::id()` under `#[cfg(test)]`.*
+  - `rg -n "pipeline" epiphany-core/src` empty. *Corrected (15): the narrower
+    grep over the type names.*
 - **Operator:** none.
 
 **Subtraction ledger:** Epiphany-core −623 lines; new package +about 700
 including the three kinds, +about 400 derived JSON. Net repo change is small;
 the point is the dependency boundary, not the line count.
+
+## Cut 6b. The key grammar
+
+Anchor: `epiphany-pipeline/src/lib.rs` at `4a654351`, 1,508 lines. Lands
+**before** Cut 6c and does not absorb it. Spec by Imagination 2026-09-16;
+in Hands.
+
+### Why a grammar and not a fourth fix
+
+Three passes each made one composition site injective and left the site above
+it ambiguous. The key space had **four** shapes and no single reader: `<slug>`
+for campaign and instance (two early returns at `:693-700`), `<root>:<kind>:<local>`
+for ten kinds (`KeyParts::key`, `:671-683`), `resolution:<subject id>` (a third
+early return at `:703-707`), and recursively `resolution:resolution:…`. Three of
+the four are written by an early `return` that never reaches the composer, so
+the reader `pipeline_id` (`:545-586`) needs a `match kind` with a root arm and a
+recursive arm to undo them, plus `declared_kind` (`:529-538`) to guess the kind
+of a string that does not carry one. Every confirmed defect lives in one of
+those exceptions. A fourth pass would guard an arm that should not exist.
+
+### The grammar
+
+```
+key      ::= root ":" kind ":" local
+root     ::= slug
+kind     ::= one of the thirteen `PipelineKind` names, literally
+local    ::= part ( "." part )*
+part     ::= label
+slug     ::= label ( "." label )*            ; total <= 64 bytes
+label    ::= [A-Za-z0-9_-]{1,64}
+```
+
+Two byte facts already in the source: `label_text` (`:118-126`) admits neither
+`.` nor `:`; `dotted_text` (`:131-139`) is `label ("." label)*` bounded at 64
+bytes with no empty parts. Two rules the cut adds:
+
+- **R1. Every key has exactly three segments.** Roots included.
+- **R2. No local part is a `Slug`.** A `Slug` or `OrgRepo` entering a local is
+  escaped to one label first. So `local.split('.')` recovers its parts exactly
+  at any arity.
+
+Unambiguity then follows from the alphabet, not from checks: `:` is in no part,
+so segment recovery is forced; the kind is a literal segment, so nothing is
+inferred; `.` is in no part, so local recovery is exact. `declared_kind` has no
+successor because there is nothing left to guess.
+
+| Kind | Key |
+|---|---|
+| campaign `c` | `c:campaign:self` |
+| instance `y` | `y:instance:self` |
+| resolution of `c:question:Q1` | `c:resolution:question.Q1` |
+| resolution of campaign `c` | `c:resolution:campaign.self` |
+| resolution of that resolution | `c:resolution:resolution.question.Q1` |
+| hand-off | `<from>:hand_off:<to escaped>.<repo escaped>.<date>` |
+| stewardship | `<instance>:stewardship:<repo escaped>` |
+| the nine others | `<campaign>:<kind>:<local>`, unchanged |
+
+Roots take the reserved constant `self` as local; a reader recovers a root's
+identity from segment 1 and never consults it. A resolution is keyed inside its
+subject's root with the subject's kind and local as its own local. Nesting is
+bounded by construction: each level costs eleven bytes of `resolution.` against
+the 64-byte local, so depth is at most five, and `pipeline_id` does not recurse.
+
+**The one escape, generalised.** `repo_segment` (`:619-636`, `_`→`__`,
+`/`→`_-`, `.`→`_d`, injectivity verified by Soul) becomes `key_segment` and
+gains one caller: `hand_off.to_instance`, the only place a raw `Slug` reached a
+local (`:720`) and exactly Soul's pass-2 collision pair, closed from the other
+side. Its output is not assumed to be a label; `Game Cult/x` escapes and is
+refused downstream by `label_text`, which is already tested.
+
+**Where the total length bound lives:** in one function,
+`local<const N: usize>(field, parts: [&str; N])`, which runs every part through
+`label_text` and the join through one 64-byte `bound`. It is not a type fact and
+is not dressed as one; it is pinned by M4. Today the total check (`:681`) is the
+second of two `dotted_text` calls on overlapping data, which is why deleting it
+was invisible to every sample.
+
+**Where tail arity lives:** `local` takes an array, not a chainable builder, so
+a conditional tail cannot be written as a quiet extra chain call. That does
+*not* prove one arm emits one arity, and after this cut arity is no longer
+load-bearing: under R2 a local reads back at any arity. The property the doc
+comment at `:663-670` defended is retired, and the invariant that replaces it,
+"no local part carries the separator", has a runtime mutation (M6).
+
+### Deletes first
+
+| Path | Lines | What dies |
+|---|---:|---|
+| `lib.rs:526-538` | 13 | `declared_kind`. Defect 2's hardcoded `Campaign` dies with the function. |
+| `lib.rs:550-570` | 21 | `pipeline_id`'s `match kind`: the root arm, the resolution arm and its recursion, and the comment defending them. |
+| `lib.rs:638-684` | 47 | `KeyParts`, its constructors and `key`. Replaced by a free function, not renamed. |
+| `lib.rs:692-707` | 16 | `pipeline_key`'s three early `return`s. The cut is not done until they are gone. |
+
+97 lines. No file, schema file or type dies. The deletes go **before** `local`
+is written; if they coexist with the new composer at any commit the cut has
+produced a fourth shape.
+
+### Keeps, moves, adds
+
+Keeps: every kind, type id, field, bound and format type; no `value_types!` or
+`pipeline_kinds!` entry moves; `PipelineRef` and its `Bounded` impl
+(`:365-370`) unchanged. `repo_segment` → `key_segment`, same body.
+`parent_local` (`:589-600`) unchanged. `parent_cut` (`:605-617`) keeps both
+rules; `rsplit_once('.')` becomes an index into the split, net −4. The
+outcome-invariance assertion in `keys_are_derived_and_mismatch_refuses`
+(`:1077-1084`) and the `!key.starts_with("<campaign>:")` assertion in
+`instance_stewardship_and_hand_off_round_trip` (`:1311-1315`) stay true.
+
+Adds: `const ROOT_LOCAL: &str = "self"` and `fn local`. `pipeline_id` is
+**replaced whole**, one shape with no `match kind`: exactly three segments, kind
+segment equals `kind.name()`, root through `dotted_text`, every local part
+through `label_text`, local bounded whole, returns `(root, local)`.
+
+### Per-file changes, `epiphany-pipeline/src/lib.rs`
+
+| Line | Change |
+|---|---|
+| `:12-13` | Module doc states the grammar in four lines. |
+| `:117` | `Label`'s doc comment retargets `KeyParts::key` to `local`. |
+| `:526-538` | Delete `declared_kind`. |
+| `:540-586` | Replace `pipeline_id` whole. |
+| `:605-617` | `parent_cut`: index into `local.split('.')`. |
+| `:619-636` | Rename `repo_segment` → `key_segment`; generalise its doc comment. |
+| `:638-684` | Delete `KeyParts`; add `local` and `ROOT_LOCAL`. |
+| `:687-752` | `pipeline_key`: thirteen arms, one exit. Campaign/Instance emit `local(field, [ROOT_LOCAL])`. Resolution parses its subject id once, then `local(field, [subject_kind.name(), subject_local_parts…])`. `HandOff` gains `key_segment` on `to_instance`. |
+| `:780-781`, `:824-934` | Thirteen expected sample keys move. |
+| `:1088-1166` | `composed_keys_cannot_collide`: the probe built `KeyParts` directly and moves to `local`; the hand-off pair keeps its conclusion with a dotted receiver now escaping to `thought-cage_dGameCult`. |
+| `:1256-1291` | `a_resolution_is_named_by_the_key_it_has`: `{CAMPAIGN}:resolution:R8` becomes well-formed grammar and leaves the refused list; reachability is admission's rule. Said in the doc comment. |
+| `:1329-1363` | `keys_read_back_as_ids_of_their_kind`: **body unchanged.** |
+| `:1419-1455` | `hand_off_names_both_instances`: add a dotted-receiver assertion. |
+
+`schemas/cultnet/`: **no file changes.** `notes/eureka-pipeline-state-cut.md`:
+the Keys table above is marked superseded and the scar at the old `:483-488`
+stays.
+
+### Authority map
+
+- **Owner:** `pipeline_key` (`:687`), through the single composer `local`. No
+  arm has a path to a key the composer never saw.
+- **Inputs:** the document's own fields. No clock, store, registry or counter.
+- **Outputs:** one `String`, or a `PipelineRefusal` naming the field.
+- **Derived state:** the key is derived, never stored. `pipeline_id` is the key
+  read backwards and holds no state. `declared_kind`'s inference is deleted.
+- **Forbidden writers:** no arm of `pipeline_key` may `return` a key; no local
+  part may be a raw `Slug`, `Short`, `OrgRepo` or `Date`; nothing may infer a
+  kind from an id's shape; reachability ("does this document exist", "may this
+  kind be resolved") stays with admission in `huginn-mind` per the resolution
+  matrix above. Cross-field rules stay out of `Bounded`.
+- **Shared paths:** `pipeline_key`, `pipeline_id`, `PipelineRef::validate`
+  (`:365-370`), `validate_pipeline_write_envelope` (`:759-772`). Four paths,
+  one grammar, no fifth.
+- **Deletion line:** the 97 lines above, before `local` is written.
+
+### Verification
+
+Builds: `cargo check -p epiphany-pipeline --lib --tests`, then
+`cargo check -p epiphany-core --lib --tests` (untouched; its only mention of
+the package is a doc comment at `runtime_spine.rs:8754-8758`).
+`CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex`, path-list baseline.
+
+Tests: `cargo test -p epiphany-pipeline --lib`, thirteen existing plus six.
+
+| Test | Rule it pins |
+|---|---|
+| `every_key_has_exactly_three_segments` | R1, over every sample plus a nested resolution: three segments, segment 1 a `Slug`, segment 2 in `PipelineKind::ALL` by name, each local part a `Label`. Also asserts a `Target` whose campaign is `Slug("a:b")` is refused by the `pub` `pipeline_key` (M5). |
+| `roots_of_different_kinds_do_not_share_a_key` | Defect 1: campaign `yggdrasil` and instance `yggdrasil`, `assert_ne!`. |
+| `a_resolution_names_its_subjects_kind` | Defect 2: resolutions of `c:question:Q1` and `c:ruling:Q1` key differently, as do resolutions of campaign `c` and instance `c`, and each reads back recovering its subject kind. |
+| `a_resolution_of_a_resolution_reads_back` | Defect 3: a resolution whose subject is a resolution validates, keys, reads back; five nestings key, six refuse on the local bound with `field == "resolution.key"`. |
+| `a_composed_local_is_bounded_whole` | The total bound: a hand-off whose escaped receiver is 60 label bytes composes about 80 and is refused `InvalidFormat { field: "hand_off.key" }`. |
+| `no_local_part_carries_the_separator` | R2: `local("probe", ["a.b"])` and `local("probe", ["a", "b.c"])` both refused; a hand-off with a dotted `to_instance` keys to an escaped local. |
+
+Unchanged in name and assertion: `keys_read_back_as_ids_of_their_kind`,
+`keys_are_derived_and_mismatch_refuses`,
+`every_pipeline_kind_round_trips_through_named_slot_zero`,
+`pipeline_published_schemas_match_derivation`,
+`decode_refuses_an_envelope_of_a_foreign_type`, `bounds_refuse_in_utf8_bytes`,
+`repo_fields_must_be_org_slash_repo`, `parent_ids_are_parsed_strictly`,
+`resolution_subject_is_a_full_id_of_its_kind`.
+
+Negative checks: `rg -n "declared_kind|KeyParts" epiphany-pipeline/src` empty;
+no `return Ok(` inside `pipeline_key`; `rg -n "match kind"` empty;
+`git diff --stat 4a654351 -- schemas/cultnet/` **empty**;
+`rg -n "to_instance.0.clone\(\)"` empty. If Hands finds any consumer of a
+pipeline key outside `epiphany-pipeline/src/lib.rs`, the cut is wrong; stop.
+
+### Mutations
+
+Committed as `tools/eureka-cut6b-mutations.ps1` with byte-exact UTF-8 I/O,
+anchors that must match exactly once, and **M0, a no-op control** that rewrites
+the file through the same path and must leave every test green. A redesign's
+mutations restore the old permissiveness rather than break a check.
+
+| # | Survivor | Mutation, exactly | Killed by |
+|---|---|---|---|
+| M1 | Roots share a namespace | `Campaign` arm returns `Ok(value.slug.0.clone())` | `roots_of_different_kinds_do_not_share_a_key`; collaterally the three-segment test and the read-back test |
+| M2 | Resolution key drops the subject kind | `Resolution` arm omits `subject_kind.name()` from the parts | `a_resolution_names_its_subjects_kind` (both pairs key `c:resolution:Q1`) |
+| M3 | Nested resolution unnameable | `Resolution` arm returns `format!("resolution:{}", subject.id)` | `a_resolution_of_a_resolution_reads_back`; the three-segment test |
+| M4 | Total bound unpinned | In `local`, delete the `bound` on the join, keep per-part `label_text` | `a_composed_local_is_bounded_whole` |
+| M5 | Root check unpinned | In `pipeline_key`, drop `dotted_text` on the root | the refusal assertion in `every_key_has_exactly_three_segments` |
+| M6 | Head may carry a dot | In `local`, `dotted_text` on `parts[0]` instead of `label_text` | `no_local_part_carries_the_separator` |
+
+M6's stated limit: the array type is a compile fact with no runtime mutation,
+and one-arm-one-arity is not proven and no longer needs to be.
+
+### Ordering against Cut 6c
+
+Cut 6c's central keep ("no key moves") is false after this cut, its retyping of
+`ResolutionOutcome`'s referents to `PipelineRef` rests on the `pipeline_id`
+this cut replaces whole, and this cut is the smaller diff in the shared sample
+block. So 6b lands first, and Imagination reissues 6c against the landed
+grammar with three edits: re-anchor by content (everything from `:526` shifts
+by about −60 lines); replace "no key moves" with "keys moved in 6b and are
+settled; 6c moves none further, checked by `git diff -- schemas/cultnet/`
+naming exactly six files"; and add one fixture the new grammar makes available,
+a `Superseded` entry naming a resolution (`c:resolution:question.Q1`).
+
+### Subtraction estimate
+
+−97 source, +38 outside tests, +110 tests; net −59 outside tests. Zero schema
+files, types, kinds, dependencies, targets, formats or epoch. **Every key
+moves**, which is the cut's whole cost and is free exactly once: nothing reads
+these keys yet. Once `huginn-mind` reads them, the same change is a
+stored-document re-key.
+
+## Cut 6c. The Ghostlight shapes
+
+Specified 2026-09-16 (zero new kinds: two unit enums, one new value type, one
+deleted, five fields, three retypings; six of thirteen schemas regenerate; no
+kind widens, so the epoch holds; about −17 source, +115 including 75 test
+lines). Rulings taken: Soul measures every promise and `Unproven` carries the
+ones it could not reach; `Fixed { commit: Sha }` is admitted with its referent
+outside the document set; multi-supersession closes as `Vec<PipelineRef>[8]`,
+cardinality being an admission rule and not a shape, with Q10 asked against
+Cut 8. **The full spec is reissued by Imagination after Cut 6b lands** and is
+folded in here then; until it is, the operative text is
+`scratchpad/cut-6b-spec.md` under that earlier name.
 
 ## Cut 7. Retire Huginn's TypeScript body
 
@@ -1762,6 +2121,40 @@ operator may simply want recorded.
   and that coupling must be declared as a `[[dependencies]]` entry rather than
   left implicit. B removes the coupling and costs a second Qdrant's memory and
   storage for one small corpus.
+- **Q10. May one record be superseded by several?** Depends on: Cut 8's
+  admission rules. Cut 6c ships `Superseded { by: Vec<PipelineRef> }` bounded
+  at 8, so the shape admits it. **Recommended: yes, each named.** Cardinality
+  is an admission rule; the library carries the shape.
+- **Q11. Does a resolution of a resolution stay expressible?** Depends on: Cut
+  6b, and the resolution matrix.
+  - **A. Nesting stays.** The grammar reads it back bounded at depth five; no
+    arm, no guard, no check.
+  - **B. A `SubjectKind` type** with twelve variants, so the case stops
+    compiling. About +25 lines and one schema file moves.
+  - **C. Runtime refusal** in `pipeline_key`, +3 lines.
+
+  **Recommended: A.** B and C move a row of the resolution matrix out of
+  admission and into the library, and the matrix is admission's. The
+  incoherence was the key shape, and it is gone; deleting the capability is
+  right only when the capability is the incoherence. If the operator wants
+  nesting refused, admission is the coherent place, beside `instance` and
+  `hand_off`. Hands lands 6b under A.
+- **Q12. Should `OrgRepo` be tightened?** Depends on: nothing in a cut. Soul
+  measured that `a/b.`, `./.` and `a/.b` used to be refused as key segments and
+  now key, because `.` is escaped rather than refused. That is injective, so not
+  a collision, but `./.` is not a repository. The widening's real location is
+  `org_repo_text` (`:141-150`), which imposes no byte class at all; the key
+  layer had been acting as its format check by accident.
+  - **A. Tighten `org_repo_text`** to refuse an org or repo part that is
+    exactly `.` or `..`. About +4 lines, closes it everywhere `OrgRepo` appears,
+    mutation M7 killed by `a_repo_part_is_not_a_bare_dot`.
+  - **B. GitHub's full rule**, `[A-Za-z0-9._-]`. Not verified from a source, and
+    it would refuse repos that key fine today.
+  - **C. Leave it.**
+
+  **Recommended: A**, as a four-line follow-up after 6b lands, with no key
+  moving. B is a separate small cut with its own evidence if wanted. 6b lands
+  with C in place.
 
 ## Target contradictions for Self to reconcile
 
