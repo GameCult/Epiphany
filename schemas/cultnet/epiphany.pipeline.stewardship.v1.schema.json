@@ -23,7 +23,7 @@
   },
   "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.stewardship.v1.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "Stewardship over a repo, as an assignment recorded in a mind. One\ninstance may steward several repos, so the repo is part of the key.",
+  "description": "Stewardship over a repo, as an assignment recorded in a mind. One\ninstance may steward several repos, so the repo is part of the key.\n`sequence` is per `(instance, repo)`, set by the writer, `1` for the\nfirst, so a repo transferred away and back is two records under one\nprefix rather than one document overwriting the other. `assigned_on`\nis a field, not a key part. As on a resolution, whether the sequence\nis the previous plus one, and which assignment is in force, are\nadmission's rules and not this crate's.",
   "properties": {
     "assigned_on": {
       "$ref": "#/$defs/Date"
@@ -36,11 +36,17 @@
     },
     "repo": {
       "$ref": "#/$defs/OrgRepo"
+    },
+    "sequence": {
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
     }
   },
   "required": [
     "instance",
     "repo",
+    "sequence",
     "assigned_on",
     "note"
   ],

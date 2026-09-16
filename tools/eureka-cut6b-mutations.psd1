@@ -35,8 +35,8 @@
             Id   = 'M2'
             Rule = 'A resolution''s key carries its subject''s kind (defect 2).'
             Test = 'tests::a_resolution_names_its_subjects_kind'
-            Old  = '            let parts = std::iter::once(value.subject.kind.name()).chain(subject_local.split(''.'')).collect::<Vec<_>>();'
-            New  = '            let parts = subject_local.split(''.'').collect::<Vec<_>>();'
+            Old  = '            let parts = std::iter::once(value.subject.kind.name()).chain(subject_local.split(''.'')).chain(std::iter::once(sequence.as_str())).collect::<Vec<_>>();'
+            New  = '            let parts = subject_local.split(''.'').chain(std::iter::once(sequence.as_str())).collect::<Vec<_>>();'
         },
         @{
             Id   = 'M3'

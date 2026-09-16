@@ -17,7 +17,10 @@
 //! none excused: the root is a `Slug`, the kind is the literal kind name, and
 //! the local is `Label`s joined by `.`, so no local part carries a dot and a
 //! reader recovers the parts by splitting. A root's local is the constant
-//! `self`; a resolution's local is its subject's kind and local.
+//! `self`; a resolution's local is its subject's kind and local. A
+//! resolution's local ends in its per-subject sequence, `n<N>`, and a
+//! stewardship's in its per-repo sequence, so a subject's resolutions and a
+//! repo's assignments each share a prefix.
 //!
 //! **Validation follows the type.** `value_types!` is the single field list: it
 //! emits the struct and its `Bounded` impl from the same tokens, so a field
@@ -360,7 +363,15 @@ value_types! {
         campaign: Slug, label: Label, source: PipelineRef, repo: OrgRepo, locations: Vec<CodeLocation>[16],
         item: Line, why_it_can_wait: Line, owner: Short,
     }
-    pub struct PipelineResolution { subject: PipelineRef, outcome: ResolutionOutcome, rationale: Para, resolved_on: Date }
+    /// The record of how a subject was closed and by what. `sequence` is per
+    /// subject and set by the writer, `1` for the first, and it is the last
+    /// part of the key, so a subject's resolutions share a prefix and a
+    /// withdrawn one is kept under its subject rather than overwritten.
+    /// Whether a sequence is the previous plus one, and whether an earlier
+    /// resolution still stands, are admission's rules: this crate refuses
+    /// neither `0` nor a gap, exactly as it refuses neither `revision: 0` nor
+    /// a `revision` with no predecessor.
+    pub struct PipelineResolution { subject: PipelineRef, sequence: u32, outcome: ResolutionOutcome, rationale: Para, resolved_on: Date }
 
     /// A mind's identity document. A store is canonical to exactly one
     /// instance, and this says which; identity lives in the state, not in a
@@ -368,7 +379,13 @@ value_types! {
     pub struct PipelineInstance { instance: Slug, display_name: Short, created_at: Date, host: Short }
     /// Stewardship over a repo, as an assignment recorded in a mind. One
     /// instance may steward several repos, so the repo is part of the key.
-    pub struct PipelineStewardship { instance: Slug, repo: OrgRepo, assigned_on: Date, note: Line }
+    /// `sequence` is per `(instance, repo)`, set by the writer, `1` for the
+    /// first, so a repo transferred away and back is two records under one
+    /// prefix rather than one document overwriting the other. `assigned_on`
+    /// is a field, not a key part. As on a resolution, whether the sequence
+    /// is the previous plus one, and which assignment is in force, are
+    /// admission's rules and not this crate's.
+    pub struct PipelineStewardship { instance: Slug, repo: OrgRepo, sequence: u32, assigned_on: Date, note: Line }
     /// A reassignment of stewardship, recorded in both minds. `documents` names
     /// what travels with it.
     pub struct PipelineHandOff {
@@ -693,23 +710,27 @@ pub fn pipeline_key(document: &PipelineDocument) -> Result<String, PipelineRefus
         D::Campaign(value) => ("campaign.slug", value.slug.0.as_str(), local(&key_field, &[ROOT_LOCAL])?),
         D::Instance(value) => ("instance.instance", value.instance.0.as_str(), local(&key_field, &[ROOT_LOCAL])?),
         // A resolution is keyed inside its subject's root, with the subject's
-        // kind and local as its own local. A resolution's own key is an
+        // kind and local as its own local and its per-subject sequence last, so
+        // the subject's resolutions and only they share the prefix
+        // `<root>:resolution:<kind>.<local>.n`. A resolution's own key is an
         // ordinary id, so it composes as a subject like any other; each nesting
-        // prepends `resolution.` (11 bytes), so a chain `n` deep over a
-        // depth-one local of `L` bytes composes `11 * (n - 1) + L` bytes
-        // against `LOCAL_MAX` in `local`, which is the only depth limit and
-        // needs no guard.
+        // prepends `resolution.` (11 bytes) and appends `.n<s>` (3 bytes for
+        // one digit), so a chain `n` deep over a depth-one local of `L` bytes
+        // composes `14 * (n - 1) + L` bytes against `LOCAL_MAX` in `local`,
+        // which is the only depth limit and needs no guard.
         D::Resolution(value) => {
             let field = "resolution.subject.id";
             let (subject_root, subject_local) = pipeline_id(field, &value.subject.id.0, value.subject.kind)?;
-            let parts = std::iter::once(value.subject.kind.name()).chain(subject_local.split('.')).collect::<Vec<_>>();
+            let sequence = format!("n{}", value.sequence);
+            let parts = std::iter::once(value.subject.kind.name()).chain(subject_local.split('.')).chain(std::iter::once(sequence.as_str())).collect::<Vec<_>>();
             (field, subject_root, local(&key_field, &parts)?)
         }
         // Stewardship and hand-off hang off an instance rather than a campaign.
         // The root is the whole difference; the key shape is the same.
         D::Stewardship(value) => {
             org_repo_text("stewardship.repo", &value.repo.0)?;
-            ("stewardship.instance", value.instance.0.as_str(), local(&key_field, &[&key_segment(&value.repo.0)])?)
+            let sequence = format!("n{}", value.sequence);
+            ("stewardship.instance", value.instance.0.as_str(), local(&key_field, &[&key_segment(&value.repo.0), &sequence])?)
         }
         D::HandOff(value) => {
             dotted_text("hand_off.to_instance", &value.to_instance.0)?;
@@ -935,10 +956,10 @@ mod tests {
                 why_it_can_wait: "The organ owns admission.".into(), owner: s("Hands"),
             }), format!("{CAMPAIGN}:follow_up:FU-4")),
             (D::Resolution(PipelineResolution {
-                subject: PipelineRef { kind: PipelineKind::Question, id: id("question", "Q1") },
+                subject: PipelineRef { kind: PipelineKind::Question, id: id("question", "Q1") }, sequence: 1,
                 outcome: ResolutionOutcome::Answered { by: PipelineRef { kind: PipelineKind::Ruling, id: id("ruling", "R8") } },
                 rationale: "Ruled A.".into(), resolved_on: date(),
-            }), format!("{CAMPAIGN}:resolution:question.Q1")),
+            }), format!("{CAMPAIGN}:resolution:question.Q1.n1")),
             // The mind's own three kinds. They are appended rather than
             // inserted because the helpers below index this list by position.
             (D::Instance(PipelineInstance {
@@ -946,9 +967,9 @@ mod tests {
                 host: s("yggdrasil"),
             }), format!("{INSTANCE}:instance:self")),
             (D::Stewardship(PipelineStewardship {
-                instance: slug(INSTANCE), repo: repo(), assigned_on: date(),
+                instance: slug(INSTANCE), repo: repo(), sequence: 1, assigned_on: date(),
                 note: "The Eureka campaign repo.".into(),
-            }), format!("{INSTANCE}:stewardship:GameCult_-Epiphany")),
+            }), format!("{INSTANCE}:stewardship:GameCult_-Epiphany.n1")),
             (D::HandOff(PipelineHandOff {
                 from_instance: slug(INSTANCE), to_instance: slug("thought-cage"), repo: repo(),
                 documents: vec![s(CAMPAIGN), id("ruling", "R8")],
@@ -1248,7 +1269,7 @@ mod tests {
         valid.subject = PipelineRef { kind: PipelineKind::Ruling, id: id("ruling", "R8") };
         assert_eq!(
             pipeline_key(&PipelineDocument::Resolution(valid)),
-            Ok(format!("{CAMPAIGN}:resolution:ruling.R8"))
+            Ok(format!("{CAMPAIGN}:resolution:ruling.R8.n1"))
         );
     }
 
@@ -1267,7 +1288,7 @@ mod tests {
             PipelineDocument::FollowUp(follow_up).validate()
         };
         let key = pipeline_key(&PipelineDocument::Resolution(resolution_sample())).expect("the sample keys");
-        assert_eq!(key, format!("{CAMPAIGN}:resolution:question.Q1"));
+        assert_eq!(key, format!("{CAMPAIGN}:resolution:question.Q1.n1"));
         assert_eq!(sourced(&key), Ok(()), "a resolution is named by the key it has");
         assert_eq!(sourced(&format!("{CAMPAIGN}:resolution:R8")), Ok(()), "well-formed grammar is not the reader's to refuse");
 
@@ -1293,7 +1314,7 @@ mod tests {
         let mut of_campaign = resolution_sample();
         of_campaign.subject = PipelineRef { kind: PipelineKind::Campaign, id: Short(format!("{CAMPAIGN}:campaign:self")) };
         let root_key = pipeline_key(&PipelineDocument::Resolution(of_campaign)).expect("a root subject keys");
-        assert_eq!(root_key, format!("{CAMPAIGN}:resolution:campaign.self"));
+        assert_eq!(root_key, format!("{CAMPAIGN}:resolution:campaign.self.n1"));
         assert_eq!(sourced(&root_key), Ok(()));
     }
 
@@ -1410,7 +1431,7 @@ mod tests {
         let stewardship = stewardship_sample();
         assert_eq!(stewardship.repo, OrgRepo("GameCult/Epiphany".into()));
         let key = pipeline_key(&PipelineDocument::Stewardship(stewardship.clone()));
-        assert_eq!(key, Ok(format!("{INSTANCE}:stewardship:GameCult_-Epiphany")));
+        assert_eq!(key, Ok(format!("{INSTANCE}:stewardship:GameCult_-Epiphany.n1")));
         assert!(!key.unwrap().contains('/'), "no key segment carries a slash");
 
         // The escape is not a cosmetic substitution, and the pair that proves it
@@ -1425,11 +1446,11 @@ mod tests {
         let underscored_repo = keyed("GameCult/Epiphany_thing");
         assert_eq!(
             underscored_org,
-            Ok(format!("{INSTANCE}:stewardship:GameCult__Epiphany_-thing"))
+            Ok(format!("{INSTANCE}:stewardship:GameCult__Epiphany_-thing.n1"))
         );
         assert_eq!(
             underscored_repo,
-            Ok(format!("{INSTANCE}:stewardship:GameCult_-Epiphany__thing"))
+            Ok(format!("{INSTANCE}:stewardship:GameCult_-Epiphany__thing.n1"))
         );
         assert_ne!(underscored_org, underscored_repo, "two repos cannot claim one key");
 
@@ -1527,7 +1548,7 @@ mod tests {
     /// validate the document first, so this is reachable without one.
     #[test]
     fn every_key_has_exactly_three_segments() {
-        let nested = resolution_of(PipelineKind::Resolution, &format!("{CAMPAIGN}:resolution:question.Q1"))
+        let nested = resolution_of(PipelineKind::Resolution, &format!("{CAMPAIGN}:resolution:question.Q1.n1"))
             .expect("a resolution of a resolution keys");
         let keys = samples()
             .into_iter()
@@ -1613,10 +1634,10 @@ mod tests {
         );
 
         let resolution = resolution_of(PipelineKind::Campaign, &campaign_key).expect("a resolution of a dotted campaign keys");
-        assert_eq!(resolution, "game.cult:resolution:campaign.self");
+        assert_eq!(resolution, "game.cult:resolution:campaign.self.n1");
         assert_eq!(
             pipeline_id("read_back", &resolution, PipelineKind::Resolution),
-            Ok(("game.cult", "campaign.self")),
+            Ok(("game.cult", "campaign.self.n1")),
             "a resolution under a dotted root reads back"
         );
     }
@@ -1822,13 +1843,16 @@ mod tests {
     }
 
     /// Defect 3: a resolution's own key is an ordinary id, so it composes as a
-    /// subject like any other, and the key reads back to the inner key. Depth
-    /// is bounded by the local alone: each nesting prepends `resolution.`, 11
-    /// bytes, so a chain `n` deep over a depth-one local of `L` bytes composes
-    /// `11 * (n - 1) + L` bytes against `LOCAL_MAX`. The deepest chain that
-    /// keys is therefore `(LOCAL_MAX - L) / 11 + 1`, and it depends on the
-    /// subject: at 64, `ruling.A` (8 bytes) keys six deep, `question.Q1` (11
-    /// bytes) five.
+    /// subject like any other, and the key reads back to the inner key -- the
+    /// whole inner key, sequence included, since the subject is recovered by
+    /// stripping this resolution's own sequence from the end and the kind from
+    /// the front. Depth is bounded by the local alone: each nesting prepends
+    /// `resolution.` (11 bytes) and appends `.n<s>` (3 for one digit), so a
+    /// chain `n` deep over a depth-one local of `L` bytes composes
+    /// `14 * (n - 1) + L` bytes against `LOCAL_MAX`. The deepest chain that
+    /// keys is therefore `(LOCAL_MAX - L) / 14 + 1`, and it depends on the
+    /// subject: at 64, `ruling.A.n1` (11 bytes) and `question.Q1.n1` (14
+    /// bytes) both key four deep.
     #[test]
     fn a_resolution_of_a_resolution_reads_back() {
         let inner = resolution_of(PipelineKind::Question, &id("question", "Q1").0).expect("the inner keys");
@@ -1837,13 +1861,14 @@ mod tests {
         let outer = PipelineDocument::Resolution(outer);
         assert_eq!(outer.validate(), Ok(()));
         let key = pipeline_key(&outer).expect("a resolution of a resolution keys");
-        assert_eq!(key, format!("{CAMPAIGN}:resolution:resolution.question.Q1"));
+        assert_eq!(key, format!("{CAMPAIGN}:resolution:resolution.question.Q1.n1.n1"));
         let (root, local) = pipeline_id("read_back", &key, PipelineKind::Resolution).expect("reads back");
-        let (subject_kind, subject_local) = local.split_once('.').expect("the local names a subject");
+        let (subject_kind, rest) = local.split_once('.').expect("the local names a subject");
+        let (subject_local, _sequence) = rest.rsplit_once('.').expect("the local ends in this resolution's sequence");
         assert_eq!(format!("{root}:{subject_kind}:{subject_local}"), inner, "the recovered subject is the inner key");
 
         let prefix = format!("{CAMPAIGN}:resolution:").len();
-        let nesting = "resolution.".len();
+        let nesting = "resolution.".len() + ".n1".len();
         for (subject_kind, subject_id) in [(PipelineKind::Ruling, id("ruling", "A")), (PipelineKind::Question, id("question", "Q1"))] {
             let mut key = resolution_of(subject_kind, &subject_id.0).expect("the depth-one resolution keys");
             let depth_one = key.len() - prefix;
@@ -1887,8 +1912,9 @@ mod tests {
         // it is a plain label or an escaped repo. A hand-off local is
         // `<receiver>.<repo>.<date>`, the repo `GameCult_-Epiphany` and the
         // date ten bytes, so the receiver fills the rest; a stewardship local is
-        // the escaped repo alone, `GameCult_-` and the name.
+        // `<repo escaped>.n<N>`, so `GameCult_-` and `.n1` bound the name.
         let hand_off_rest = "GameCult_-Epiphany".len() + ".".len() + date().0.len() + ".".len();
+        let stewardship_rest = "GameCult_-".len() + ".n1".len();
         let received = |receiver: usize| {
             let mut hand_off = hand_off_sample();
             hand_off.to_instance = Slug("a".repeat(receiver));
@@ -1901,7 +1927,7 @@ mod tests {
         };
         for (label, at_64, at_65) in [
             ("plain label", received(64 - hand_off_rest), received(65 - hand_off_rest)),
-            ("escaped repo", stewarded(64 - "GameCult_-".len()), stewarded(65 - "GameCult_-".len())),
+            ("escaped repo", stewarded(64 - stewardship_rest), stewarded(65 - stewardship_rest)),
         ] {
             let keyed = at_64.unwrap_or_else(|error| panic!("{label}: a 64-byte local keys: {error}"));
             assert_eq!(keyed.split(':').nth(2).map(str::len), Some(64), "{label}: {keyed} fills the local exactly");
@@ -1935,6 +1961,157 @@ mod tests {
         let local = key.split(':').nth(2).expect("three segments");
         assert_eq!(local.split('.').count(), 3, "{key}: the receiver is one part, not two");
         assert_eq!(local.split('.').next(), Some("thought-cage_dGameCult"));
+    }
+
+    /// Q17 B: a subject's resolutions are distinct records, ordered by a
+    /// per-subject sequence the key carries as its last part, so a withdrawn
+    /// resolution stays under its subject and the next closure is nameable.
+    /// The sequence is a field the writer sets and this crate only composes:
+    /// it bounds nothing beyond `u32` and the local's own width, so `0` and a
+    /// gap both key. Which sequence a document may claim, and whether an
+    /// earlier resolution still stands, are admission's rules, exactly as
+    /// `revision: 0` is.
+    #[test]
+    fn a_subject_keeps_every_resolution_it_had() {
+        let resolved = |sequence: u32| {
+            let mut resolution = resolution_sample();
+            resolution.sequence = sequence;
+            pipeline_key(&PipelineDocument::Resolution(resolution)).expect("a sequenced resolution keys")
+        };
+        let first = resolved(1);
+        let second = resolved(2);
+        assert_eq!(first, format!("{CAMPAIGN}:resolution:question.Q1.n1"));
+        assert_eq!(second, format!("{CAMPAIGN}:resolution:question.Q1.n2"));
+        assert_ne!(first, second, "two resolutions of one subject are two documents");
+        for (sequence, key) in [(1, &first), (2, &second)] {
+            let (root, local) = pipeline_id("read_back", key, PipelineKind::Resolution).expect("reads back");
+            assert_eq!(root, CAMPAIGN, "{key}: the subject's root");
+            let last = format!("n{sequence}");
+            assert_eq!(local.rsplit('.').next(), Some(last.as_str()), "{key} ends in its sequence");
+            assert_eq!(local.split('.').count(), 3, "{key}: subject kind, subject local, sequence");
+        }
+
+        // Outcome-invariance now holds per sequence: one record under two
+        // outcomes is still one key, which is exactly why a second closure of
+        // a subject needs a second sequence and not a second outcome.
+        let mut withdrawn = resolution_sample();
+        withdrawn.outcome = ResolutionOutcome::Withdrawn { reason: "moot".into() };
+        assert_eq!(
+            pipeline_key(&PipelineDocument::Resolution(withdrawn)),
+            Ok(first.clone()),
+            "one sequence is one key whatever the outcome"
+        );
+
+        // Stated limits. Both are admission's to refuse and neither is the
+        // leaf's, so both compose here.
+        assert_eq!(resolved(0), format!("{CAMPAIGN}:resolution:question.Q1.n0"), "the leaf refuses no sequence value");
+        let mut widest = resolution_sample();
+        widest.subject = PipelineRef { kind: PipelineKind::Ruling, id: id("ruling", "A") };
+        widest.sequence = u32::MAX;
+        assert_eq!(
+            pipeline_key(&PipelineDocument::Resolution(widest)),
+            Ok(format!("{CAMPAIGN}:resolution:ruling.A.n4294967295")),
+            "the widest sequence is an eleven-byte label, not a refusal"
+        );
+    }
+
+    /// D2: the sequence is the *last* part, so a subject's resolutions and
+    /// only they share the prefix `<root>:resolution:<kind>.<local>.n`. R2 is
+    /// what makes the prefix exact: no local part carries a dot, so
+    /// `question.Q1.n` cannot match `question.Q10.n1`, and the withdrawal of
+    /// `Q1`'s first resolution is a record of that resolution, one nesting
+    /// out and outside `Q1`'s prefix. Pinned as a string property, which is
+    /// what a prefix query is.
+    #[test]
+    fn a_subjects_resolutions_share_a_prefix_no_other_key_has() {
+        let resolved = |kind: PipelineKind, subject: &str, sequence: u32| {
+            let mut resolution = resolution_sample();
+            resolution.subject = PipelineRef { kind, id: Short(subject.into()) };
+            resolution.sequence = sequence;
+            pipeline_key(&PipelineDocument::Resolution(resolution)).expect("the subject keys")
+        };
+        let history = [1, 2, 3].map(|sequence| resolved(PipelineKind::Question, &id("question", "Q1").0, sequence));
+        let others = [
+            resolved(PipelineKind::Question, &id("question", "Q10").0, 1),
+            resolved(PipelineKind::Ruling, &id("ruling", "Q1").0, 1),
+            resolved(PipelineKind::Campaign, &format!("{CAMPAIGN}:campaign:self"), 1),
+            resolved(PipelineKind::Resolution, &history[0], 1),
+        ];
+        assert_eq!(
+            others[3],
+            format!("{CAMPAIGN}:resolution:resolution.question.Q1.n1.n1"),
+            "a withdrawal keys under the resolution it withdraws, not under the subject"
+        );
+        let prefix = format!("{CAMPAIGN}:resolution:question.Q1.n");
+        let selected = history
+            .iter()
+            .chain(others.iter())
+            .filter(|key| key.starts_with(&prefix))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            selected,
+            history.iter().collect::<Vec<_>>(),
+            "the prefix selects the subject's resolutions and nothing else"
+        );
+    }
+
+    /// Q18 A and Q20 A: a repo's stewardships on a mind are distinct records,
+    /// ordered by a per-`(instance, repo)` sequence the key carries last, so a
+    /// repo transferred away and later transferred back is two records under
+    /// one prefix rather than one document overwriting the other. The date is
+    /// not in the key: `assigned_on` is validated where every field is, by the
+    /// derived `Bounded` impl, and two assignments differing only in it are
+    /// one document.
+    #[test]
+    fn a_repo_keeps_every_stewardship_it_had() {
+        let stewarded = |repo: &str, sequence: u32, assigned_on: &str| {
+            let mut stewardship = stewardship_sample();
+            stewardship.repo = OrgRepo(repo.into());
+            stewardship.sequence = sequence;
+            stewardship.assigned_on = Date(assigned_on.into());
+            pipeline_key(&PipelineDocument::Stewardship(stewardship)).expect("a sequenced stewardship keys")
+        };
+        let first = stewarded("GameCult/Epiphany", 1, "2026-09-15");
+        let second = stewarded("GameCult/Epiphany", 2, "2026-09-16");
+        assert_eq!(first, format!("{INSTANCE}:stewardship:GameCult_-Epiphany.n1"));
+        assert_eq!(second, format!("{INSTANCE}:stewardship:GameCult_-Epiphany.n2"));
+        assert_ne!(first, second, "two assignments of one repo are two documents");
+        for (sequence, key) in [(1, &first), (2, &second)] {
+            let (root, local) = pipeline_id("read_back", key, PipelineKind::Stewardship).expect("reads back");
+            assert_eq!(root, INSTANCE, "{key}: the mind's root");
+            let last = format!("n{sequence}");
+            assert_eq!(local.rsplit('.').next(), Some(last.as_str()), "{key} ends in its sequence");
+            assert_eq!(local.split('.').count(), 2, "{key}: the escaped repo and the sequence, nothing else");
+        }
+
+        assert_eq!(
+            stewarded("GameCult/Epiphany", 1, "2026-09-16"),
+            first,
+            "assigned_on is a field, not a key part: one sequence is one key whatever the date"
+        );
+
+        let others = [
+            stewarded("GameCult/Epiphany_thing", 1, "2026-09-15"),
+            stewarded("GameCult/Huginn", 1, "2026-09-15"),
+        ];
+        let prefix = format!("{INSTANCE}:stewardship:GameCult_-Epiphany.n");
+        let history = [first, second];
+        let selected = history
+            .iter()
+            .chain(others.iter())
+            .filter(|key| key.starts_with(&prefix))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            selected,
+            history.iter().collect::<Vec<_>>(),
+            "the prefix selects the repo's assignments on this mind and nothing else"
+        );
+
+        assert_eq!(
+            stewarded("GameCult/Epiphany", 0, "2026-09-15"),
+            format!("{INSTANCE}:stewardship:GameCult_-Epiphany.n0"),
+            "the leaf refuses no sequence value"
+        );
     }
 
     /// Cut 8: the leaf owns the serialisation of the shapes it owns, so a wire
