@@ -76,7 +76,30 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
   recursive in-force, the four sequence and in-force refusals, the Q19 cap,
   the collision arm deleted) and `fcb7fdd` (entries H40-H51 including the
   six Cut 8 test gaps, README stubs); 33 tests each side; H1-H51 killed.
-  Soul in flight on both. Cut 9 is mapped after it closes.
+  **Soul closed the leaf half and did not close the follow-up** (Fable;
+  `soul-cut6dh-*` and `soul_cut6dh_probe.rs` in the session scratchpad,
+  real redb over two stores). Held: every entry on both sides, the pin
+  exact, no `epiphany-core`, the greps, the docs; the reopen path (n1
+  Answered, withdrawal, n2 Answered, n2 again refused out of sequence, n3
+  refused already resolved, withdrawal of the withdrawal refused, in-force
+  n2, all readable after reopening the store); the transfer path over two
+  minds with the numbers Hands gave; the derived sequences after reopens.
+  Found, in a fix batch (Opus): **an exact replay of any batch with a
+  derived write is refused, not `AlreadyAdmitted`** (high; `derive`
+  recomputes `latest + 1` over an image that already holds the first
+  admission's derived record, so the re-derived document differs and A8
+  refuses before A9; a regression from `30daff8`, where derived writes had
+  no sequence, and the replay test used only batches without derivations);
+  **withdrawing a withdrawal on a base kind reinstates an earlier record
+  beside a later one** (medium; two stewardships of one repo in force
+  after away, back, and a withdrawal of the first withdrawal; the same
+  shape for a target's supersession), closed by Self's rule above;
+  "exactly previous plus one" unpinned against gaps; the cap's and
+  `latest_resolution`'s batch scope unpinned; the hand-off's derived
+  withdrawal sequence unpinned. Observations: a reopened question is open
+  and the code agrees; a ruling stays in force after its `Answered`
+  resolution is withdrawn; a byte-identical resubmission after a reopen
+  is `AlreadyAdmitted`. Cut 9 is mapped after the fix batch closes.
 - **Cut 8 landed**: the Epiphany half at `a65c6420` (Soul-closed) with the
   Cut 10 prerequisite at `b4b17fc`; the Huginn half on `eureka/memory-organ`
   at `946758f`, `a4c5b79`, `0bd7133`, `ca30d3e`, fix batch `1cfa81d`,
@@ -2989,8 +3012,16 @@ checks sequence then in-force: `sequence` must equal the latest for the
 subject (or the `(instance, repo)`) plus one, else `ResolutionOutOfSequence`
 / `StewardshipOutOfSequence`; and no resolution (stewardship) may be in
 force for that subject (repo), else `AlreadyResolved` / `AlreadyStewarded`.
-A withdrawal cannot itself be withdrawn (Q19 A): a resolution whose subject
-is a resolution with outcome `Withdrawn` is refused after the matrix.
+A withdrawal cannot itself be withdrawn (Q19 A), read as nesting depth: a
+resolution whose subject's own subject is a resolution is refused after
+the matrix, so a chain is at most base, closure, withdrawal. *(First
+written here as an outcome reading, "a resolution with outcome
+`Withdrawn`"; the code and the ruling text implement the nesting reading,
+which Soul confirmed. Corrected 2026-09-16.)* Under Self's ruling
+extending Q19's rationale, a withdrawal is also refused when the base
+subject already has an in-force record later than the one the withdrawal
+would reinstate (`WouldReinstateOverLater`), so no base ever has two
+records in force.
 
 | Kind | Rule | Refusal |
 |---|---|---|
@@ -3371,6 +3402,13 @@ collection.
     transfer, not a lease (Q18); this cut models no return and gains one
     test, `a_repo_handed_back_takes_the_next_sequence`, that two hand-offs
     A→B→A leave A stewarding at n2 and B withdrawn.)*
+  - **Import replays in sequence order, one record per batch where a
+    subject's history is concerned.** Soul on the Cut 6d follow-up: each
+    record in a batch sees the later one as the subject's latest, so
+    `[n1, n2]` in one batch is `OutOfSequence { 3, 1 }` and reversed is
+    `AlreadyResolved`. Spec-consistent, and a constraint on this cut's
+    import loop. Replay is idempotent per batch (`AlreadyAdmitted`),
+    including batches with derived writes, after the follow-up's fix batch.
   - `import(&mut Mind, foreign: &Path, HandOffRef)` replays the named
     documents' exact envelopes through `admit` against the target mind. Envelope
     bytes are carried, not reserialised, so additive fields written by a newer
