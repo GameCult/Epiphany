@@ -1807,8 +1807,43 @@ Corrections and scars from Hands:
     anything else.
 32. **The refusal `value` is the failing part, not the whole id**, so the
     third-batch reader fixture asserts `field` only, as Cut 6b's did.
+33. **"The nineteen 6b entries" is seventeen** (M1-M6, S2, S4, S5, N3,
+    N6-N10, X1, X11). Self's count, corrected by Soul.
 
-Soul in flight.
+**Soul's pass on Cut 6c and the third batch** (Fable; `soul-cut6c-*` in the
+session scratchpad) held every shape, schema and key promise: all thirteen
+derived schemas byte-identical to the committed files, exactly six changed
+against `117f54b7`, the bound under `Superseded.by` alone, `Fixed.by`
+nullable and `commit` the sha pattern, `Promise` in the report schema with
+its bound, the thirteen expected keys identical before and after, the
+`Bounded` impl reading only its own fields, and the extra estimate
+assertion moving nothing else. All four suites green-and-killed through the
+harness; Hands' attack script reruns identically; a one-second timeout on
+real cargo kills cleanly and leaves no lock. Non-revert mutations that
+validated only the first supersessor, mis-indexed the refusal path, or
+skipped `Some` in the blanket impl all died. Three fixtures were missing:
+
+- **`Fixed.commit` is unpinned when `by` is `Some`** (medium): the only
+  forgery had `by: None`, so an impl that trusts the reference and skips
+  the sha passes the suite. That is half of ruling B.
+- **The validator's supersession bound is unpinned**; only the schema
+  attribute's 8 is, so the two could drift.
+- **The `Recorded`/`Withdrawn` reason bound was never pinned**, before or
+  after 6c.
+
+And three harness follow-ups: a stale sidecar for a file outside the
+current targets is ignored rather than repaired; repair overwrites hand
+edits without recording them; a locked target during repair throws a raw
+exception. A stated limit, not a defect: widenings of `Promise.label` and
+the verdict claim's label fields cannot be reached by a `Bounded` test
+because the samples spell them through the newtype (scar 29's class), and
+no published schema carries a dot-free pattern, so that rule is Rust-side
+only. Self-deferral passes the shape and is admission's. The 9,165 versus
+9,807 target-dir discrepancy was files versus paths; paths is the
+convention.
+
+**Fix batch in Hands**, followed in the same tree by the Epiphany half of
+Cut 8.
 
 ## Cut 7. Retire Huginn's TypeScript body
 
