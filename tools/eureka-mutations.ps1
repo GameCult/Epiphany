@@ -28,6 +28,9 @@
 #           harness itself, inside the entry's own restore, so a hung cargo is
 #           ended by the harness rather than by whatever tool is running the
 #           harness; the entry gets no verdict.
+# -Repo     the repo root that `-Entries` and `-Target` are relative to and
+#           that commands run from. Defaults to this script's parent, so a
+#           suite in another repo names this harness and passes its own root.
 #
 # Entry shape: `Id`, `Rule`, `Test`, and either `Old`/`New` (with an optional
 # `File`) or `Edits = @(@{ File; Old; New }, ...)`. `New = ''` deletes the
@@ -56,9 +59,15 @@
 # - A hard kill runs no `finally`. So before any target is written, its
 #   original bytes are copied to a sidecar beside it,
 #   `<target>.eureka-mutation-original`, which is deleted only after a
-#   hash-verified restore. At startup, a target whose sidecar exists is
-#   restored from it, hash-verified, and the sidecar removed, and the run
-#   prints that a previous run died mid-mutation and was repaired.
+#   hash-verified restore. At startup, every sidecar under the repo root
+#   (`target/`, `node_modules/` and `.git/` excluded), not only those of this
+#   run's targets, is repaired: the file is restored from it, hash-verified,
+#   and the sidecar removed, and the run prints that a previous run died
+#   mid-mutation and was repaired. A file that already equals its sidecar is
+#   left alone and the run says so. A file that differs is never overwritten
+#   silently: its current bytes go to `<target>.eureka-mutation-overwritten`
+#   first, and the run prints that path and its SHA-256. A file that cannot
+#   be written keeps its sidecar and the run stops, naming the file.
 # - M0 is built in and cannot be omitted: before any entry, every target's
 #   bytes are decoded and re-encoded through the harness I/O path and compared
 #   to the original bytes before anything is written. If a byte differs, the
@@ -72,7 +81,8 @@ param(
     [Parameter(Mandatory = $true)] [string] $Entries,
     [Parameter(Mandatory = $true)] [string[]] $Target,
     [Parameter(Mandatory = $true)] [string] $Test,
-    [int] $TimeoutSeconds = 1800
+    [int] $TimeoutSeconds = 1800,
+    [string] $Repo
 )
 
 $ErrorActionPreference = 'Stop'
@@ -85,7 +95,7 @@ if (-not $env:CARGO_TARGET_DIR) {
 }
 if ($TimeoutSeconds -lt 1) { throw "TimeoutSeconds must be at least 1, got $TimeoutSeconds." }
 
-$repo = Split-Path -Parent $PSScriptRoot
+$repo = if ($Repo) { (Resolve-Path -LiteralPath $Repo).Path } else { Split-Path -Parent $PSScriptRoot }
 $utf8 = [System.Text.UTF8Encoding]::new($false)
 # `powershell -File` hands a comma-separated argument over as one string, so
 # split it here rather than asking the caller to know that.
@@ -101,6 +111,20 @@ function Get-BytesHash([byte[]] $bytes) {
     ([System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes) | ForEach-Object { $_.ToString('X2') }) -join ''
 }
 function Get-SidecarPath([string] $path) { "$path.eureka-mutation-original" }
+$sidecarSuffix = '.eureka-mutation-original'
+# Every sidecar under `$root`, pruning the directories no target lives in.
+function Find-Sidecars([string] $root) {
+    $pending = [System.Collections.Generic.Stack[string]]::new()
+    $pending.Push($root)
+    while ($pending.Count) {
+        $directory = $pending.Pop()
+        foreach ($child in [System.IO.Directory]::EnumerateDirectories($directory)) {
+            if ([System.IO.Path]::GetFileName($child) -in @('target', 'node_modules', '.git')) { continue }
+            $pending.Push($child)
+        }
+        [System.IO.Directory]::EnumerateFiles($directory, "*$sidecarSuffix")
+    }
+}
 # The first offset at which two byte arrays differ, or -1 when they are equal.
 function Find-FirstDifference([byte[]] $left, [byte[]] $right) {
     if ([System.Linq.Enumerable]::SequenceEqual($left, $right)) { return -1 }
@@ -239,18 +263,38 @@ $suite = foreach ($mutation in $mutations) {
 
 # --- Repair a previous run that died mid-mutation --------------------------------
 
-foreach ($file in $Target) {
-    $path = $targets[$file]
-    $sidecar = Get-SidecarPath $path
-    if (-not (Test-Path -LiteralPath $sidecar)) { continue }
+# The whole repo is searched, not only this run's targets: a sidecar left
+# beside a file another suite mutates is the same dead run and the same
+# corrupted tree.
+foreach ($sidecar in @(Find-Sidecars $repo)) {
+    $path = $sidecar.Substring(0, $sidecar.Length - $sidecarSuffix.Length)
     $original = [System.IO.File]::ReadAllBytes($sidecar)
     $hash = Get-BytesHash $original
-    [System.IO.File]::WriteAllBytes($path, $original)
-    if ((Get-Hash $path) -ne $hash) {
-        throw "A previous run died mid-mutation of $file, and restoring it from $sidecar did not land the original bytes (SHA-256 $hash). The sidecar is kept; nothing ran."
+    $current = if (Test-Path -LiteralPath $path) { [System.IO.File]::ReadAllBytes($path) } else { [byte[]] @() }
+    if ((Find-FirstDifference $current $original) -lt 0) {
+        Remove-Item -LiteralPath $sidecar -Force
+        Write-Host "A previous run left $sidecar; sidecar matched; nothing to restore. The sidecar was removed."
+        continue
+    }
+    # The bytes about to be overwritten may be a hand edit made after the
+    # crash, so they are kept beside the file before anything is written.
+    $overwritten = "$path.eureka-mutation-overwritten"
+    try {
+        if ($current.Length) {
+            [System.IO.File]::WriteAllBytes($overwritten, $current)
+            Write-Host "The current bytes of $path (SHA-256 $(Get-BytesHash $current)) are kept in $overwritten."
+        }
+        [System.IO.File]::WriteAllBytes($path, $original)
+        if ((Get-Hash $path) -ne $hash) {
+            throw "restoring it from $sidecar did not land the original bytes (SHA-256 $hash)."
+        }
+    }
+    catch {
+        Write-Host "$path could not repair, sidecar kept ($sidecar, SHA-256 $hash). Nothing ran."
+        throw
     }
     Remove-Item -LiteralPath $sidecar -Force
-    Write-Host "A previous run died mid-mutation of $file; it was repaired from $sidecar (SHA-256 $hash) and the sidecar removed."
+    Write-Host "A previous run died mid-mutation of $path; it was repaired from $sidecar (SHA-256 $hash) and the sidecar removed."
 }
 
 # --- M0: the no-op control ----------------------------------------------------
