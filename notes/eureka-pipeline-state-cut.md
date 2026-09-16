@@ -272,7 +272,40 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
   Raising the window is not a substitute for the refusal; it only stops
   ordinary reads from meeting it. No silent truncation, no pagination behind
   the caller's back, and Cut 13 caps its default limit. F6-F9 land in the
-  module's stated limits rather than blocking. **Fix batch in Hands.**
+  module's stated limits rather than blocking.
+
+  **The fix batch landed** at `4fba6cc` (the instance check pinned against
+  names resembling the mind's own: equal length differing in the last byte,
+  and a shared prefix, with the briefed length comparison back as a loosening
+  beside first-byte, gate-only-when-longer and prefix mutants), `25a841d` (a
+  read's refusal pinned as crossing the dispatch unchanged, with mutants that
+  rewrap and mutants that swallow each into the empty answer of its own
+  kind), `9bbe746` (the oversize refusal) and `44ed8a9` (its loosening). 72
+  tests, 52 entries plus the control, cut8 and cut9 rerun clean. The window
+  is unchanged at 1,228,800 bytes and documented as the current bound rather
+  than a design target, per the amendment sent mid-flight.
+
+  **The measurement that changes the question.** One cut spec with every list
+  at the leaf's bound encodes to 1,315,551 bytes as a view response, over the
+  limit by 86,751, while a real one at 1,189,495 bytes is delivered whole. So
+  **a document admission accepts cannot be read back through this door**, which
+  is a write-and-read asymmetry rather than a size limit, and is the operator's
+  to rule. The body plane exists in CultMesh for exactly this class of content
+  and is the obvious candidate; nothing is designed for it yet.
+
+  **Pipelined reads remain wrong and are documented as such**: the gate is
+  stateless, measuring one answer against the window rather than against what
+  the session still has room for, so a second large reply sent before the
+  first is acknowledged still fails to send and still only logs.
+
+  **One entry was refused rather than faked.** The open-items dispatch arm
+  raises no refusal of its own and its only failing paths need a corrupt
+  store, so no mutant of it can fail a test here. Stated in the entries header
+  and the test's doc comment instead of substituted with an easier target,
+  which is the discipline the replaced loosenings broke. **Scoped Soul in
+  flight**, told to verify that claim rather than accept it, and to judge one
+  flagged placement: the oversize refusal is the daemon's rule living in the
+  mind's refusal type, because the response schema carries exactly one refusal.
 - **Self's ruling on the boundary Hands pinned, 2026-09-16.** A resolution id
   carrying no sequence part is well formed to the leaf and is not refused
   there. The leaf owns the grammar of ids; per-kind local shape belongs to
