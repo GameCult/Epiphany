@@ -306,6 +306,36 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
   flight**, told to verify that claim rather than accept it, and to judge one
   flagged placement: the oversize refusal is the daemon's rule living in the
   mind's refusal type, because the response schema carries exactly one refusal.
+- **Soul's pass on the Cut 10 fix batch, 2026-09-17** (Fable, banked and its
+  findings acted on directly rather than paying a successor to rewrite the
+  report; probe sources and a pristine detached worktree in the session
+  scratchpad). Held: 72 tests; all three suites green in a clean worktree; the
+  gate's boundary equal to the transport's own, byte for byte, at 1,228,800
+  delivered and 1,228,801 refused; the oversize refusal itself 299 bytes, so
+  it always fits, which was worth checking rather than assuming; the
+  pipelined-read loss exactly as documented.
+  - **Both size measurements reproduced independently**, by the test's own
+    print and by Soul's probe: the wide document 1,315,551 bytes, the fitting
+    one 1,189,495, envelope overhead 231. The transport refused the wide reply
+    and accepted the fitting one. **The write-and-read asymmetry is fact, not
+    inference**: a document admission accepts cannot be read back.
+  - **The honest gap was wrong.** Hands had recorded that the open-items
+    dispatch arm could carry no mutation entry because its only failing paths
+    need a corrupt store. Soul built a store-integrity probe from the daemon
+    crate's public surface that kills both the swallowing and the rewrapping
+    mutant, and both survive the shipped suite. This is the first real
+    application of the rule adopted the same day: the probe gets committed,
+    because a kill living in an agent's scratchpad is not evidence anyone can
+    rerun. An honest gap beats a fabricated kill, and a falsified gap beats
+    both.
+  - Low: mutants measuring the payload rather than the envelope, and
+    off-by-one mutants at the comparison, survive; a case-folding comparison
+    of instance names survives, because the slug type permits uppercase and no
+    fixture pair differs only in case.
+  - Corrections: the suite has 53 entries, not 52. Informational: the window
+    is 1023 packets rather than 1024 until the acceptance is acknowledged,
+    which would make a naive boundary test flaky.
+  - **Second fix batch in Hands.**
 - **Operator rulings on the read side, 2026-09-17.** The generic selection
   vocabulary does **not** land here: it fills the hole in CultNet, mapped at
   `F:\Projects\CultLib\docs\cultnet-selection-cut.md`, and the organ becomes a
