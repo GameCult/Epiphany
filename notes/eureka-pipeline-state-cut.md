@@ -57,8 +57,21 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
   batch `fcfbda3f`, `3f7d58d1`, harness repairs `b3bd4a82`, `aef0e1bf`.
 - **Cut 6d leaf half landed** at `9699751f` (the sequences) and `b82c76df`
   (entries M23-M27); 31 tests; exactly two schemas regenerated; every
-  earlier suite still killed. Soul in flight. Its Huginn follow-up commit
-  lands after Soul closes it and the pin moves. **Must land before Cut 9.**
+  earlier suite still killed. **Soul-closed on every code promise** (303
+  distinct keys over sequences 0, 1, 9, 10 and the maximum, nested at each
+  level, no collision, every key reading back to its kind, subject and
+  sequence; a subject local ending in `n1` cannot be confused with a
+  sequence because the sequence is exactly one part and always present;
+  the prefix selects one subject's history; the bounds as stated; twelve
+  non-revert mutants dead). Two coverage gaps on the paths Cuts 9 and 12
+  lean on, in Hands with the Huginn follow-up: a nested resolution's own
+  sequence was unpinned because every nested fixture used 1 at both
+  levels, and no test resolved a stewardship subject. Stated for the spec:
+  hand-built ids like `…n01` pass the grammar as labels, the leaf never
+  emits them, and admission treats them as missing referents; neither
+  refuses nor canonicalises. Tests delta was +181, not +173. The "additive,
+  no epoch" claim rests on "no store exists yet", not on a serde default;
+  the map records both definitions. **Must land before Cut 9.**
 - **Cut 8 landed**: the Epiphany half at `a65c6420` (Soul-closed) with the
   Cut 10 prerequisite at `b4b17fc`; the Huginn half on `eureka/memory-organ`
   at `946758f`, `a4c5b79`, `0bd7133`, `ca30d3e`, fix batch `1cfa81d`,
