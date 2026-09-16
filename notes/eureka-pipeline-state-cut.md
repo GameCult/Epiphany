@@ -3203,6 +3203,22 @@ operator may simply want recorded.
   stay as records under their subject, and the in-force resolution is the
   latest not withdrawn. Self's default was withdrawn from the Cut 8 fix
   batch before it landed. The key change is a leaf cut, mapped with Q18's.
+
+  The operator then checked the model behind the ruling: a subject is like
+  a GitHub issue or a Stack Overflow question, one canonical resolution
+  with an affordance to withdraw it, so discarding the withdrawn record
+  would waste context, "but that's making an assumption that this context
+  is even made available to the agents to begin with, and that it is
+  important." Self's answer, recorded as two obligations the ruling
+  carries: the ruling stands on the campaign's own principle, nothing is
+  overwritten and in-force is derived, which Self's default had violated
+  for this one kind; and the context reaches agents only if **Cut 9
+  exposes a subject's resolution history, not only its in-force state**
+  (ruling 2: rehydration and precedent before browsing) and **Cut 11
+  indexes withdrawn resolutions with their reasons**. Both are now
+  requirements on those cuts. The evidence that reversals matter is this
+  map: Q5 ruled A then C, the pause ruled then unruled, a byte-identical
+  claim withdrawn.
 - **Q18. Can a stewardship be regained after a hand-off?** Depends on: Cut
   12. The derived stewardship keys `<instance>:stewardship:<repo>`, so a
   repo handed away and handed back collides with the withdrawn record.
