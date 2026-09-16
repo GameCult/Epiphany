@@ -409,6 +409,27 @@ impl Bounded for PipelineRef {
     }
 }
 
+impl PipelineRef {
+    /// The grammar's door for a reader holding a bare reference. A read side
+    /// outside this crate is handed a `kind` and an `id` that may disagree, and
+    /// `Bounded` is crate-private, so without this there is no way to ask; a
+    /// reader with no way to ask answers empty, which reads as "no such
+    /// document" rather than "that is not a reference". It delegates, so the
+    /// grammar keeps one owner: this is exactly what a document's own
+    /// `PipelineRef` field is held to, at the field name `ref`. It is kind-deep,
+    /// like every other read of an id: whether the named document exists, and
+    /// whether the local's shape suits the kind, are admission's rules.
+    ///
+    /// A method rather than a free function because it concerns one public
+    /// type, as `prepare` and `decode` do; the two free doors act on a cache or
+    /// an envelope this crate does not own. `validate_ref` rather than a bare
+    /// `validate`, because an inherent `validate` would shadow `Bounded`'s for
+    /// every in-crate caller holding a `PipelineRef`.
+    pub fn validate_ref(&self) -> Result<(), PipelineRefusal> {
+        self.validate("ref")
+    }
+}
+
 /// How a subject was resolved. Every referent is a parsed `PipelineRef`, so a
 /// resolution names its records by ids of the kinds they declare, validated
 /// where every other referent is; a `Fixed` commit is a `Sha` whose referent
@@ -2361,6 +2382,63 @@ mod tests {
         for kind in PipelineKind::ALL {
             assert!(registered.iter().any(|name| name == kind.type_id()), "{kind:?} is registered");
         }
+        Ok(())
+    }
+
+    /// The public door onto the reference grammar, for the read side that
+    /// holds a `kind` and an `id` and no way to reach `Bounded`. Every sample
+    /// document's own key is a reference of its own kind; a kind that is not
+    /// the id's, and a local no writer composes, are `InvalidFormat` at `ref.id`.
+    #[test]
+    fn a_ref_validates_as_an_id_of_the_kind_it_declares() -> Result<()> {
+        for (document, expected) in samples() {
+            let kind = document.kind();
+            let key = pipeline_key(&document)?;
+            assert_eq!(key, expected);
+            assert_eq!(
+                PipelineRef { kind, id: s(&key) }.validate_ref(),
+                Ok(()),
+                "{kind:?}'s own key is not a reference of its kind"
+            );
+        }
+
+        let refused = |reference: PipelineRef, why: &str| {
+            let read = reference.validate_ref();
+            assert!(
+                matches!(&read, Err(PipelineRefusal::InvalidFormat { field, .. }) if field == "ref.id"),
+                "{why}: {reference:?} was not refused, got {read:?}"
+            );
+        };
+
+        // The kind and the id's kind segment cannot disagree: the whole reason
+        // the door exists, since a reader that cannot ask would look this up
+        // and report the nothing it found.
+        refused(
+            PipelineRef { kind: PipelineKind::Campaign, id: id("question", "Q1") },
+            "a question id is not a campaign reference",
+        );
+        refused(
+            PipelineRef { kind: PipelineKind::Ruling, id: id("question", "Q1") },
+            "a question id is not a ruling reference",
+        );
+        // The local is `dotted_text` whole, so a trailing dot is refused by the
+        // reader and not only by the writer that never composes one.
+        refused(
+            PipelineRef { kind: PipelineKind::Question, id: s(&format!("{CAMPAIGN}:question:Q1.")) },
+            "a trailing dot is no local",
+        );
+
+        // The boundary, pinned rather than assumed: a resolution id missing the
+        // per-subject sequence its writer always composes is still a
+        // well-formed id of its kind here. The leaf's grammar is kind-deep, and
+        // the local's per-kind shape belongs to admission; refusing this would
+        // be a new rule in `pipeline_id`, not a door onto the one that exists.
+        assert_eq!(
+            PipelineRef { kind: PipelineKind::Resolution, id: s(&format!("{CAMPAIGN}:resolution:question.Q1")) }
+                .validate_ref(),
+            Ok(()),
+            "the leaf reads a resolution id kind-deep"
+        );
         Ok(())
     }
 }

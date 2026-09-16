@@ -17,6 +17,11 @@
 # reader dispatches on is asserted against `PipelineKind::name()` for every
 # kind, and every refusal variant is round-tripped whole, so a field that
 # leaves the wire comes back empty and is not the refusal that went out.
+#
+# R1 and R2 are the public reference door, and both are killed by
+# `a_ref_validates_as_an_id_of_the_kind_it_declares`: a kind that is not the
+# id's kills the door that answers Ok to everything, and a trailing dot kills
+# the door that reads the kind segment and nothing else.
 @{
     Mutations = @(
         @{
@@ -61,6 +66,39 @@
             Test = 'tests::every_document_and_refusal_serialises_and_reads_back'
             Old  = '    FieldBound { field: String, limit: u32, actual: u32 },'
             New  = '    FieldBound { #[serde(skip)] field: String, limit: u32, actual: u32 },'
+        },
+        @{
+            Id   = 'R1'
+            Rule = 'The public door is the grammar, not a formality: a door that answers Ok to every reference leaves the read side unable to tell a malformed reference from a missing document.'
+            Test = 'tests::a_ref_validates_as_an_id_of_the_kind_it_declares'
+            Old  = @'
+    pub fn validate_ref(&self) -> Result<(), PipelineRefusal> {
+        self.validate("ref")
+    }
+'@
+            New  = @'
+    pub fn validate_ref(&self) -> Result<(), PipelineRefusal> {
+        Ok(())
+    }
+'@
+        },
+        @{
+            Id   = 'R2'
+            Rule = 'The door delegates to the one grammar: a door that checks the kind segment alone admits a local no writer composes, and the reference grammar has two owners.'
+            Test = 'tests::a_ref_validates_as_an_id_of_the_kind_it_declares'
+            Old  = @'
+    pub fn validate_ref(&self) -> Result<(), PipelineRefusal> {
+        self.validate("ref")
+    }
+'@
+            New  = @'
+    pub fn validate_ref(&self) -> Result<(), PipelineRefusal> {
+        if self.id.0.split(':').nth(1) != Some(self.kind.name()) {
+            return Err(format_error("ref.id", &self.id.0));
+        }
+        Ok(())
+    }
+'@
         }
     )
 }
