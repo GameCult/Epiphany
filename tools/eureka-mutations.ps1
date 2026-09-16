@@ -3,8 +3,9 @@
 # A suite is a data file of entries; each entry is one rule a test claims to
 # pin, together with the exact source change that removes the rule and the
 # test that must fail while the change is applied. The harness applies one
-# entry at a time, runs that test alone, restores the file by the reverse edit,
-# and reports a verdict per entry. Nothing here knows which cut it is serving.
+# entry at a time, runs that test alone, restores the file from the original
+# bytes, and reports a verdict per entry. Nothing here knows which cut it is
+# serving.
 #
 #   powershell -File tools/eureka-mutations.ps1 `
 #       -Entries tools/eureka-cut6b-mutations.psd1 `
@@ -19,6 +20,9 @@
 # -Test     the cargo command that runs the suite's tests, as one string; the
 #           harness appends `-- --exact <entry.Test>` per entry. An entry may
 #           carry its own `Command` when its test lives in another package.
+#           The string is split on whitespace with no quoting, so a command
+#           or argument carrying a space (a path with a space in it) cannot be
+#           expressed here.
 #
 # Entry shape: `Id`, `Rule`, `Test`, and either `Old`/`New` (with an optional
 # `File`) or `Edits = @(@{ File; Old; New }, ...)`. `New = ''` deletes the
@@ -27,21 +31,26 @@
 # it does; for every other entry a tree that does not build is no verdict.
 #
 # Harness rules:
-# - Every read and write is byte-exact UTF-8 with no BOM. Windows PowerShell
+# - Every target is read as bytes and decoded as UTF-8; every write encodes
+#   text back to bytes through one path, UTF-8 with no BOM. Windows PowerShell
 #   5.1 is the interpreter on this host and its default round-trip corrupts a
 #   non-ASCII literal, which fails a test on its own and fakes a kill.
 # - Anchors are written with plain newlines and converted to the target's own
 #   line endings before matching.
-# - Every anchor must match exactly once. Zero is a stale entry; more than one
-#   means `.Replace` would change more than the entry describes. Both throw,
-#   naming the entry.
-# - Restore is the reverse edit, never a checkout, and the restored bytes must
-#   hash to the original. If the reverse edit cannot be applied the original
-#   text is written back and the run throws.
-# - M0 is built in and cannot be omitted: before any entry, every target is
-#   rewritten through the harness I/O path with no change and every command
-#   the suite uses is run bare. If a byte moves or a test fails, the harness is
-#   broken and no entry runs.
+# - Every anchor must match exactly once, counting overlapping occurrences:
+#   `}\n}\n` in `}\n}\n}\n` is two sites, and a splice at the first would
+#   change a region the entry does not describe. Zero is a stale entry. Both
+#   throw, naming the entry.
+# - Restore is the original bytes written back, never a checkout, and the
+#   restored file must hash to those bytes; if it does not, the run throws.
+# - M0 is built in and cannot be omitted: before any entry, every target's
+#   bytes are decoded and re-encoded through the harness I/O path and compared
+#   to the original bytes before anything is written. If a byte differs, the
+#   harness is broken: the target and the first differing offset are named,
+#   nothing is written and no entry runs. Only then is the target rewritten
+#   through the write path and hashed; a write that lands other bytes is the
+#   same verdict, with the original bytes written back first. Then every
+#   command the suite uses is run bare, and a failure is the same verdict.
 
 param(
     [Parameter(Mandatory = $true)] [string] $Entries,
@@ -64,9 +73,35 @@ $utf8 = [System.Text.UTF8Encoding]::new($false)
 # split it here rather than asking the caller to know that.
 $Target = @($Target | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 
-function Read-Text([string] $path) { [System.IO.File]::ReadAllText($path, $utf8) }
-function Write-Text([string] $path, [string] $text) { [System.IO.File]::WriteAllText($path, $text, $utf8) }
+# The one decode and the one encode. M0 proves them inverse on every target's
+# actual bytes before any write; every write goes through `Write-Text`.
+function Decode-Bytes([byte[]] $bytes) { $utf8.GetString($bytes) }
+function Encode-Text([string] $text) { [byte[]] ($utf8.GetPreamble() + $utf8.GetBytes($text)) }
+function Write-Text([string] $path, [string] $text) { [System.IO.File]::WriteAllBytes($path, (Encode-Text $text)) }
 function Get-Hash([string] $path) { (Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash }
+function Get-BytesHash([byte[]] $bytes) {
+    ([System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes) | ForEach-Object { $_.ToString('X2') }) -join ''
+}
+# The first offset at which two byte arrays differ, or -1 when they are equal.
+function Find-FirstDifference([byte[]] $left, [byte[]] $right) {
+    if ([System.Linq.Enumerable]::SequenceEqual($left, $right)) { return -1 }
+    $shared = [Math]::Min($left.Length, $right.Length)
+    for ($offset = 0; $offset -lt $shared; $offset++) {
+        if ($left[$offset] -ne $right[$offset]) { return $offset }
+    }
+    $shared
+}
+# Occurrences of `$anchor` in `$text`, overlapping ones included: the search
+# resumes one character after each hit, not after its end.
+function Measure-Sites([string] $text, [string] $anchor) {
+    $count = 0
+    $at = $text.IndexOf($anchor, [System.StringComparison]::Ordinal)
+    while ($at -ge 0) {
+        $count++
+        $at = $text.IndexOf($anchor, $at + 1, [System.StringComparison]::Ordinal)
+    }
+    $count
+}
 
 # Runs one cargo command from the repo root; returns the test lines it printed
 # and its exit code. cargo writes build chatter to stderr, and under `Stop` a
@@ -140,22 +175,34 @@ $suite = foreach ($mutation in $mutations) {
 
 # --- M0: the no-op control ----------------------------------------------------
 
-$originals = @{}
+$originals = @{}   # decoded text per target; every edit is spliced into this
+$bytes = @{}       # the original bytes per target; the restore source
 $hashes = @{}
 $eols = @{}
 Write-Host '--- M0: no-op control'
 foreach ($file in $Target) {
     $path = $targets[$file]
-    $text = Read-Text $path
-    $hash = Get-Hash $path
+    $original = [System.IO.File]::ReadAllBytes($path)
+    $text = Decode-Bytes $original
+    $encoded = Encode-Text $text
+    $differs = Find-FirstDifference $original $encoded
+    if ($differs -ge 0) {
+        throw "harness broken: $file does not survive the harness I/O path; the re-encoded bytes first differ from the original at offset $differs (original $($original.Length) bytes, re-encoded $($encoded.Length)). Nothing was written and no entry ran."
+    }
+    $hash = Get-BytesHash $original
+    # The encode is proven; now the write path is, against the same bytes.
+    # A write that does not land the encoded bytes is restored from the
+    # original before the throw.
     Write-Text $path $text
     if ((Get-Hash $path) -ne $hash) {
-        throw "harness broken: rewriting $file through the harness I/O path changed its bytes. No entry ran."
+        [System.IO.File]::WriteAllBytes($path, $original)
+        throw "harness broken: writing $file through the harness I/O path did not land the re-encoded bytes; the original bytes were written back. No entry ran."
     }
     $originals[$file] = $text
+    $bytes[$file] = $original
     $hashes[$file] = $hash
     $eols[$file] = if ($text.Contains("`r`n")) { "`r`n" } else { "`n" }
-    Write-Host "M0: $file rewritten, bytes unchanged ($(if ($eols[$file] -eq "`r`n") { 'CRLF' } else { 'LF' }), SHA-256 $hash)"
+    Write-Host "M0: $file decoded, re-encoded and rewritten, bytes unchanged ($(if ($eols[$file] -eq "`r`n") { 'CRLF' } else { 'LF' }), SHA-256 $hash)"
 }
 foreach ($command in @($suite | ForEach-Object { $_.Command } | Select-Object -Unique)) {
     $control = Invoke-Cargo $command @()
@@ -164,7 +211,7 @@ foreach ($command in @($suite | ForEach-Object { $_.Command } | Select-Object -U
     }
     Write-Host "M0: '$command' green, $($control.Passed.Count) passed"
 }
-$results = @([pscustomobject]@{ Id = 'M0'; Test = '(suite)'; Verdict = 'green'; Rule = 'No-op control: targets rewritten through the I/O path, every command green.' })
+$results = @([pscustomobject]@{ Id = 'M0'; Test = '(suite)'; Verdict = 'green'; Rule = 'No-op control: targets round-tripped through the I/O path byte for byte, every command green.' })
 
 # --- Entries --------------------------------------------------------------------
 
@@ -174,45 +221,31 @@ foreach ($mutation in $suite) {
     # a stale anchor throws with the tree untouched.
     $texts = @{}
     foreach ($file in @($mutation.Edits | ForEach-Object { $_.File } | Select-Object -Unique)) { $texts[$file] = $originals[$file] }
-    $applied = @()
     foreach ($edit in $mutation.Edits) {
         $eol = $eols[$edit.File]
         $old = ($edit.Old -replace "`r`n", "`n") -replace "`n", $eol
         $new = ($edit.New -replace "`r`n", "`n") -replace "`n", $eol
-        $sites = [regex]::Matches($texts[$edit.File], [regex]::Escape($old)).Count
+        $sites = Measure-Sites $texts[$edit.File] $old
         if ($sites -ne 1) {
             throw "$($mutation.Id): anchor matches $sites times in $($edit.File), expected exactly 1."
         }
         if ($old -eq $new) { throw "$($mutation.Id): replacement changes nothing in $($edit.File)." }
-        # The edit is applied by position, so the reverse edit below is the
-        # same splice backwards and does not depend on the replacement being
+        # Spliced by position at the one site, so the replacement need not be
         # unique (`Ok(())` is not) or non-empty.
         $at = $texts[$edit.File].IndexOf($old, [System.StringComparison]::Ordinal)
         $texts[$edit.File] = $texts[$edit.File].Substring(0, $at) + $new + $texts[$edit.File].Substring($at + $old.Length)
-        $applied += [pscustomobject]@{ File = $edit.File; Old = $old; New = $new; At = $at }
     }
     foreach ($file in $texts.Keys) { Write-Text $targets[$file] $texts[$file] }
     try {
         $run = Invoke-Cargo $mutation.Command @('--', '--exact', $mutation.Test)
     }
     finally {
-        # Reverse every edit, last first, each at the offset it was applied.
-        $restored = @{}
-        foreach ($file in $texts.Keys) { $restored[$file] = $texts[$file] }
-        for ($index = $applied.Count - 1; $index -ge 0; $index--) {
-            $edit = $applied[$index]
-            $text = $restored[$edit.File]
-            if ($text.Length -lt $edit.At + $edit.New.Length -or $text.Substring($edit.At, $edit.New.Length) -ne $edit.New) {
-                foreach ($file in $texts.Keys) { Write-Text $targets[$file] $originals[$file] }
-                throw "$($mutation.Id): the mutated text is not at its offset on restore in $($edit.File); wrote the originals instead."
-            }
-            $restored[$edit.File] = $text.Substring(0, $edit.At) + $edit.Old + $text.Substring($edit.At + $edit.New.Length)
-        }
+        # Restore is the original bytes, whatever the entry or the build left
+        # behind, verified by hash.
         foreach ($file in $texts.Keys) {
-            Write-Text $targets[$file] $restored[$file]
+            [System.IO.File]::WriteAllBytes($targets[$file], $bytes[$file])
             if ((Get-Hash $targets[$file]) -ne $hashes[$file]) {
-                Write-Text $targets[$file] $originals[$file]
-                throw "$($mutation.Id): the reverse edit did not restore $file to the original bytes; wrote the original instead."
+                throw "$($mutation.Id): writing the original bytes back did not restore $file; it does not hash to the original."
             }
         }
     }
