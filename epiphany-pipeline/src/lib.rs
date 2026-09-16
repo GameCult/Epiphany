@@ -585,13 +585,20 @@ fn parent_cut<'a>(field: &str, local: &'a str, marker: char) -> Result<&'a str, 
     Ok(cut)
 }
 
-/// A repo as one key segment: the `OrgRepo` with its `/` replaced by `_`,
-/// because `/` is not a `Label` byte and a composed key must segment one way
-/// only. The caller checks the result against the key's segment rules, which is
-/// where an over-long repo name is refused.
+/// A repo as one key segment. `/` is not a `Label` byte, so it cannot survive
+/// into a key, but the escape that replaces it has to be injective or two repos
+/// claim one key: replacing `/` with `_` alone is not, since
+/// `GameCult_Epiphany/thing` and `GameCult/Epiphany_thing` both give
+/// `GameCult_Epiphany_thing`. So `_` is escaped as well, and both codes are two
+/// bytes starting with `_`: `_` becomes `__` and `/` becomes `_-`. Every other
+/// byte is passed through and is never `_`, so a reader going left to right
+/// takes each `_` together with the byte after it and never has a choice to
+/// make; the encoding is therefore reversible, and distinct repos give distinct
+/// segments. The caller checks the result against the key's segment rules,
+/// which is where an over-long repo name is refused.
 fn repo_segment(field: &str, repo: &OrgRepo) -> Result<String, PipelineRefusal> {
     org_repo_text(field, &repo.0)?;
-    Ok(repo.0.replace('/', "_"))
+    Ok(repo.0.replace('_', "__").replace('/', "_-"))
 }
 
 /// Derives a document's identity key (D1, "Keys: identity, not convenience").
@@ -833,12 +840,12 @@ mod tests {
             (D::Stewardship(PipelineStewardship {
                 instance: slug(INSTANCE), repo: repo(), assigned_on: date(),
                 note: "The Eureka campaign repo.".into(),
-            }), format!("{INSTANCE}:stewardship:GameCult_Epiphany")),
+            }), format!("{INSTANCE}:stewardship:GameCult_-Epiphany")),
             (D::HandOff(PipelineHandOff {
                 from_instance: slug(INSTANCE), to_instance: slug("thought-cage"), repo: repo(),
                 documents: vec![s(CAMPAIGN), id("ruling", "R8")],
                 reason: "The workstation mind takes the campaign.".into(), handed_on: date(),
-            }), format!("{INSTANCE}:hand_off:thought-cage.GameCult_Epiphany.{}", date().0)),
+            }), format!("{INSTANCE}:hand_off:thought-cage.GameCult_-Epiphany.{}", date().0)),
         ]
     }
 
@@ -1146,25 +1153,37 @@ mod tests {
         Ok(())
     }
 
-    /// The repo is one key segment, so its slash is escaped to `_`. Left
-    /// unescaped it would both add a segment the reader cannot tell from a
-    /// real one and put a byte in the key that no `Label` may carry.
+    /// The repo is one key segment, so its slash is escaped. Left unescaped it
+    /// would both add a segment the reader cannot tell from a real one and put a
+    /// byte in the key that no `Label` may carry; escaped to a bare `_` it would
+    /// let two repos claim one key, which the colliding pair below pins.
     #[test]
     fn stewardship_key_escapes_the_repo_slash() {
         let stewardship = stewardship_sample();
         assert_eq!(stewardship.repo, OrgRepo("GameCult/Epiphany".into()));
         let key = pipeline_key(&PipelineDocument::Stewardship(stewardship.clone()));
-        assert_eq!(key, Ok(format!("{INSTANCE}:stewardship:GameCult_Epiphany")));
+        assert_eq!(key, Ok(format!("{INSTANCE}:stewardship:GameCult_-Epiphany")));
         assert!(!key.unwrap().contains('/'), "no key segment carries a slash");
 
-        // The escape is not a cosmetic substitution: two repos that differ only
-        // by the escaped byte still key apart.
-        let mut underscored = stewardship.clone();
-        underscored.repo = OrgRepo("GameCult_Epiphany/thing".into());
+        // The escape is not a cosmetic substitution, and the pair that proves it
+        // is a pair: under `/` -> `_` alone both of these key to
+        // `GameCult_Epiphany_thing`, and one of the two documents is lost.
+        let keyed = |repo: &str| {
+            let mut value = stewardship.clone();
+            value.repo = OrgRepo(repo.into());
+            pipeline_key(&PipelineDocument::Stewardship(value))
+        };
+        let underscored_org = keyed("GameCult_Epiphany/thing");
+        let underscored_repo = keyed("GameCult/Epiphany_thing");
         assert_eq!(
-            pipeline_key(&PipelineDocument::Stewardship(underscored)),
-            Ok(format!("{INSTANCE}:stewardship:GameCult_Epiphany_thing"))
+            underscored_org,
+            Ok(format!("{INSTANCE}:stewardship:GameCult__Epiphany_-thing"))
         );
+        assert_eq!(
+            underscored_repo,
+            Ok(format!("{INSTANCE}:stewardship:GameCult_-Epiphany__thing"))
+        );
+        assert_ne!(underscored_org, underscored_repo, "two repos cannot claim one key");
 
         let mut no_org = stewardship.clone();
         no_org.repo = OrgRepo("Epiphany".into());
@@ -1192,7 +1211,7 @@ mod tests {
     fn hand_off_names_both_instances() {
         let key = |hand_off: PipelineHandOff| pipeline_key(&PipelineDocument::HandOff(hand_off));
         let base = key(hand_off_sample()).expect("the sample keys");
-        assert_eq!(base, format!("{INSTANCE}:hand_off:thought-cage.GameCult_Epiphany.2026-09-15"));
+        assert_eq!(base, format!("{INSTANCE}:hand_off:thought-cage.GameCult_-Epiphany.2026-09-15"));
 
         let mut other_sender = hand_off_sample();
         other_sender.from_instance = slug("thought-cage");

@@ -19,7 +19,7 @@
 # `epiphany-core/src/pipeline_documents.rs` to `epiphany-pipeline/src/lib.rs`,
 # so every entry names its own package as well as its own file. M10 still
 # mutates the spine, which kept its rule and its test. M11 and M12 are new with
-# the three kinds this cut added.
+# the three kinds this cut added, and M13-M15 came out of Soul's pass on them.
 #
 # A stale anchor is a hard failure, not a skipped entry: the check below asserts
 # each anchor matches exactly once, since `.Replace` hits every match and a
@@ -173,10 +173,22 @@ fn runtime_spine_schema_cache() -> Result<CultCache> {
         Id      = 'M12'
         Package = $pipeline
         File    = $documents
-        Rule    = 'A repo inside a key is escaped to Org_Repo.'
+        Rule    = 'A repo inside a key is escaped.'
         Test    = 'tests::stewardship_key_escapes_the_repo_slash'
-        Old     = '    Ok(repo.0.replace(''/'', "_"))'
+        Old     = '    Ok(repo.0.replace(''_'', "__").replace(''/'', "_-"))'
         New     = '    Ok(repo.0.clone())'
+    },
+    # Soul F1. Escaping is not enough on its own: the escape has to be
+    # injective, or two repos claim one key and a mind stewarding both silently
+    # loses a document. This is the escape the cut shipped, which is not.
+    @{
+        Id      = 'M13'
+        Package = $pipeline
+        File    = $documents
+        Rule    = 'The repo escape is injective, so two repos cannot claim one key.'
+        Test    = 'tests::stewardship_key_escapes_the_repo_slash'
+        Old     = '    Ok(repo.0.replace(''_'', "__").replace(''/'', "_-"))'
+        New     = '    Ok(repo.0.replace(''/'', "_"))'
     }
 )
 
