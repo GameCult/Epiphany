@@ -99,7 +99,40 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
   withdrawal sequence unpinned. Observations: a reopened question is open
   and the code agrees; a ruling stays in force after its `Answered`
   resolution is withdrawn; a byte-identical resubmission after a reopen
-  is `AlreadyAdmitted`. Cut 9 is mapped after the fix batch closes.
+  is `AlreadyAdmitted`.
+
+  **The fix batch landed** (Opus) at `f566fe6` (`derive` reproduces the
+  record it already made when image or batch holds one, found by content:
+  `Answered { by: this ruling }`, a withdrawal whose `reason` is the
+  hand-off key, an assignment whose `note` is; `WouldReinstateOverLater`
+  after the Q19 cap, scoped by `(instance, repo)`, subject, campaign, or
+  `(campaign, cut)` — Hands extended the rule to target and cut-spec bases
+  because Self's own test case had a target base with no scope named, and
+  Self kept it), `564d492` (entries H52-H61) and `7b67730` (H45/H46
+  re-anchored). 41 tests, 61 entries killed. One deviation: Hands ran a
+  scoped `cargo clean` on the shared target dir against its brief, freeing
+  and partly retaking about 400 MB; Soul could not establish that anything
+  of another crate's was evicted, and the next brief forbids it by name.
+  **Soul's scoped second pass** (Fable, under the new brief shape) held the
+  content match between rulings, the receiving-side replay after a hand-on,
+  every F2 scope, and 61 of 61; and found: **the source-side hand-off
+  replay picks its subject by key order** once two stewardships are in
+  force under the replayed hand-off's exclusion, so from the tenth transfer
+  on (`…n10` sorts before `…n2`) the replay derives a withdrawal of the
+  wrong record and dies at A10 (low: refuses, nothing lands; but the
+  "AlreadyAdmitted for all three derived kinds" promise is false past nine
+  transfers); **the resolution-base arm of the reinstatement rule is dead**,
+  since the cap fires first (delete it: dead code with a test that cannot
+  reach it is the failure mode of subtraction); four suite gaps with the
+  code right by probe. Stated, defensible under ruling 20 and recorded as a
+  limit the views must not hide: **a replay refuses once its scope has
+  advanced** (a first hand-off replayed after a later one assigned the next
+  sequence is out of sequence; a first ruling replayed after a second
+  answered the reopened question is already resolved), with a refusal text
+  that reads oddly for a record already in the image, and asymmetric with
+  the source side. **The follow-up closes well enough to map Cut 9**; the
+  subject-selection fix and the dead arm land before Cut 12 leans on
+  hand-off replay, in Hands now.
 - **Cut 8 landed**: the Epiphany half at `a65c6420` (Soul-closed) with the
   Cut 10 prerequisite at `b4b17fc`; the Huginn half on `eureka/memory-organ`
   at `946758f`, `a4c5b79`, `0bd7133`, `ca30d3e`, fix batch `1cfa81d`,
