@@ -6,18 +6,29 @@ operator rejected the repo-owned store.
 Status: cut map. The ends are owned by `notes/eureka-pipeline-state-target.md`;
 this document owns the means. Self updates this header in every landing commit.
 
-**Cuts 1, 2 and 3a landed. Everything from Cut 4 on is unbuilt.** The old Cuts
-3b-7 described a repo-owned store and are dead; they are kept, clearly marked,
-under "History" at the end of this file. Nothing above that section describes
-the old model.
+**Cuts 1-6 landed and are Soul-verified. Everything from Cut 7 on is unbuilt,
+and none of it is in this repo.** The old Cuts 3b-7 described a repo-owned store
+and are dead; they are kept, clearly marked, under "History" at the end of this
+file. Nothing above that section describes the old model.
 
 - **Cut 1 landed** at `2b76c2e7`, `df82992c`. CultLib re-pinned to `a0813c6`.
 - **Cut 2 landed** at `00991c1b`, `46460efc`, `cb6ef5d2`. One commit owner,
   parameterised by a `TypedCommitStore` profile.
 - **Cut 3a landed** at `a1473c45`, `ad18c385`, then fixes at `b4f88d29`,
   `187e01e7`, `a317d4cf`. Ten document kinds, ten derived schemas, plus the
-  store opener, writer lease and git preconditions that **Cut 4 now deletes**.
+  store opener, writer lease and git preconditions that **Cut 4 deleted**.
+- **Cut 4 landed** at `ca275c7b`, `a9f06c2a`, fixes at `43a08baa`, `8a598ebb`,
+  `186dbc62`. The repo-owned store died whole.
+- **Cut 5 landed** at `1758ad50`, `4c091f57`, fixes at `617c397d`. One commit
+  owner, no profile.
+- **Cut 6 landed** at `7ab838f1`, `d17cc441`, `08c1c9d9`, fixes at `eb55efe9`,
+  `b6f6e802`, `80db5db6`, `3ee78e05`. `epiphany-pipeline` is a leaf library
+  Huginn can depend on without `epiphany-core`.
 - **Target rewritten** at `5fb4eb22`.
+
+**Cut 6 was the last cut inside Epiphany.** Cuts 7-16 build Huginn's Rust
+workspace and the `eureka-state` MCP client; this repo's remaining stake is
+schema ownership through `epiphany-pipeline`.
 
 Pins for this pass. Code anchors are `file:line` against Epiphany
 `5fb4eb22`, tree clean, branch `codex/eureka-pipeline-state`.
@@ -56,6 +67,16 @@ superseded by 14-17; see History.
 8. **Q2 and Q5 survive the rewrite.** Additive schema changes keep the epoch and
    a breaking bump refuses the old store (Q2). `schemars` is an unconditional
    dependency and published JSON schemas are derived from the Rust types (Q5).
+
+   **Amended 2026-09-16 by operator ruling: widening a `PipelineKind` enum is
+   additive and keeps the epoch.** Soul was right that a widened enum is additive
+   for a writer and a hard validation refusal for a reader pinned to the old
+   file. The ruling accepts that, because the readers of these schemas are ours:
+   a reader ships with the kinds it knows, and a document of a kind it has never
+   heard of is not addressed to it. The cost of the other answer decided it —
+   every new kind would rev the five schemas that embed `PipelineKind`, and
+   adding kinds is most of what this campaign still does. A reader that must
+   refuse an unknown kind refuses it on the kind, not on the epoch.
 9. **The operator channel is the Claude Code session.** Eureka has no Persona.
    Blocking questions may be pushed through any notification MCP; Eureka owns no
    transport and names no provider. Answers come back in the session.
@@ -233,6 +254,83 @@ mutation reported a verdict it never earned. The committed script already threw
 on a missing anchor, the affected mutation existed only in a working copy, and
 every committed verdict was real. The Eureka changelog carries the correction.
 
+**Cut 6 landed** at `7ab838f1` (extract), `d17cc441` (docs) and `08c1c9d9`
+(mutation suite). The last cut inside Epiphany.
+
+- **`epiphany-pipeline` exists.** Four direct dependencies, 36 transitive
+  against `epiphany-core`'s 93, and **zero new packages in the workspace lock** —
+  the lock gains exactly one entry, the member itself. `cargo tree` over normal,
+  dev and build finds no path back to `epiphany-core`. The leaf is a leaf.
+- **`epiphany-core` net −1,034**, and lost a dependency: `schemars` left with the
+  code, the module having been its only user in the package.
+- **Tests 12 and 163**, both 0 warnings, the arithmetic exactly 172 − 9 moved.
+  Twelve mutations, all killed.
+- **The move is verbatim in the library code**, confirmed by Soul reading the
+  full base-to-head diff.
+
+Cut 6 corrections:
+
+13. **Cut 4's Keeps list said `schemars` stays. It did not.** The pipeline
+    documents were its only user, so it left with them. The Q5 reason to keep it
+    now lives in `epiphany-pipeline`.
+14. **The add-side estimate was never raised.** Correction 3 raised the removal
+    figure to −1,060 when the test module joined the move, and left the addition
+    figure on its pre-Cut-4 623-line base: spec +700, actual +1,292. The two
+    numbers always move together. Second ledger drift after a correction this
+    campaign; the first was Cut 5's correction 12.
+15. **`rg -n "pipeline" epiphany-core/src` cannot be empty**, and should not be.
+    Sixteen hits remain, all inside one `#[cfg(test)]` spine test that Cut 4's
+    fix batch put there deliberately. The intent holds — `epiphany-core` has no
+    pipeline *surface* — so the negative grep is the narrower one over the type
+    names. Hands refused to weaken the test to satisfy a grep, and Soul
+    confirmed that was the right call.
+16. **Ten schemas changed, not three added.** The five that embed `PipelineKind`
+    gained three variants. Ruling 8's amendment settles that as additive.
+17. **`epiphany-state.exe` "byte-identical" is withdrawn as false**, not merely
+    unverified. It is 94,720 bytes smaller at head, which is what taking ~1,000
+    lines of schemars-derived types and the `schemars` dependency out of
+    `epiphany-core` should do. No receipt for the original claim exists anywhere.
+    Soul also showed the same source hashes three ways from three different
+    roots, so the honest replacement is no hash claim at all: that artifact's
+    hash is not a comparison this branch can make.
+18. **`7ab838f1`'s message says three things changed in the move; the diff
+    carries five.** The two omissions are test fixture path literals, mechanical
+    and harmless. Self's first relay of this was wrong in its other half: the
+    `remove_dir_all` line was introduced by `08c1c9d9`, whose message devotes a
+    paragraph to it.
+
+**Cut 6's Soul findings are closed** at `eb55efe9`, `b6f6e802`, `80db5db6` and
+`3ee78e05`. Tests 13, 0 warnings; the suite is now M1-M15 and every one is
+killed by its own test, including both of Soul's survivors.
+
+- **S1, the escape was not injective.** `GameCult_Epiphany/thing` and
+  `GameCult/Epiphany_thing` both keyed to `GameCult_Epiphany_thing`; an instance
+  stewarding both would silently have lost one document. The test above it
+  claimed the property in a comment and checked one half of the pair. Both
+  special bytes are now escaped to two-byte codes starting with `_`, which is
+  reversible and therefore injective, and the test keys both halves.
+- **S2, the instance key segment was unpinned.** The validation call was in the
+  source; nothing would have noticed its removal. Soul's survivor is now M14.
+- **S3, `pipeline_key` made `Instance` a root and `pipeline_id` did not**, so an
+  instance could be written but never referenced and no resolution could take
+  one as its subject. The key writer had been extended for the new kind and the
+  id reader left behind.
+- **S6, the derivation test's temp directory is per-run**, named by pid and
+  nanos. The best-effort clear and its `.ok()` are gone rather than hardened:
+  with no directory shared between runs there is nothing to defend. The
+  mutation suite had been leaving mutated schemas in the shared one.
+- **Recorded, not fixed:** S5, the `ForeignDocument` type-id literal can drift
+  from `epiphany-core`'s real one and nothing connects them; the strong fix is a
+  dev-dependency that crosses this cut's deletion line. Cut 8 owns it.
+- **Informational for Cut 8:** the leaf pulls `redb` and `fs2` through
+  `cultcache-rs`, so Huginn gets an embedded database in its graph from this
+  leaf whatever else it chooses.
+
+**The test shape was the common cause.** S2 and S3 were both invisible because
+the three new kinds' tests asserted key strings and never parsed them back.
+`keys_read_back_as_ids_of_their_kind` is the pin that would have caught both,
+and it is now in the Keeps list for every kind added after this.
+
 ## Probes and source reads this pass
 
 No cargo build ran this pass. Every new mechanism claim below was settled by a
@@ -349,8 +447,9 @@ Unchanged from the landed Cut 3a except as noted: the value-wrapper pattern, the
 `value_types!` single field list, the bound aliases (`Short` 200, `Line` 1,000,
 `Para` 4,000 UTF-8 bytes), the format types (`Label`, `Slug`, `OrgRepo`, `Sha`,
 `FullSha`, `Sha256Hex`, `Date`), key derivation, and the ten kinds all survive
-verbatim. The epoch stays `epiphany.pipeline.epoch.v1`; every change here is
-additive, so Q2 keeps the epoch.
+verbatim. The epoch stays `epiphany.pipeline.epoch.v1`. Adding the three kinds
+widens the `PipelineKind` enum in the five schemas that embed it, which ruling
+8's 2026-09-16 amendment settles as additive.
 
 **Deleted from the set:** `PipelineWriterHolder` and its wrapper
 `EpiphanyPipelineWriterHolder` (`pipeline_documents.rs:334-349,492-497`). They
@@ -374,9 +473,19 @@ were the display record of the per-clone lease.
 | campaign | `<slug>` (unchanged) |
 | everything else | `<campaign>:<kind>:<local>` (unchanged) |
 
-`<Org_Repo>` is the `OrgRepo` with `/` replaced by `_`, because `/` is not a
-`Label` byte and the key must segment unambiguously. Admission recomputes it and
-refuses a mismatch with the existing `InvalidIdentity`.
+`<Org_Repo>` is the `OrgRepo` with both `_` and `/` escaped: `_` → `__`,
+`/` → `_-`. `/` is not a `Label` byte and the key must segment unambiguously.
+Every other byte passes through and is never `_`, so a reader going left to
+right takes each `_` with the byte after it and never has a choice: the encoding
+is reversible, therefore injective. Admission recomputes it and refuses a
+mismatch with the existing `InvalidIdentity`.
+
+**Corrected 2026-09-16, after Soul.** This read "`/` replaced by `_`", which is
+not injective: `GameCult_Epiphany/thing` and `GameCult/Epiphany_thing` are both
+well-formed `OrgRepo` and both keyed to `GameCult_Epiphany_thing`. An instance
+stewarding both would have silently lost one document. The doubling trick alone
+(`_`→`__`, `/`→`_`) does not fix it either — `a_/b` and `a/_b` both give
+`a___b`. Sample keys move accordingly: `…:stewardship:GameCult_-Epiphany`.
 
 **Resolution matrix additions.** `stewardship` resolves by
 `Superseded{by: stewardship}` or `Withdrawn`. `instance` and `hand_off` are not
@@ -850,15 +959,28 @@ surface at all, which is correct: its consumption is campaign two.
 
 - **Builds:** `cargo check -p epiphany-pipeline --lib --tests`, then
   `cargo check -p epiphany-core --lib --tests`.
-- **Tests:** `cargo test -p epiphany-pipeline --lib`. The seven moved tests plus
-  the derivation test, plus three new ones: `instance_stewardship_and_hand_off_round_trip`,
-  `stewardship_key_escapes_the_repo_slash`, `hand_off_names_both_instances`.
+- **Tests:** `cargo test -p epiphany-pipeline --lib`. The nine moved tests
+  (seven plus the derivation test plus `decode_refuses_an_envelope_of_a_foreign_type`,
+  which Cut 4's fix batch added after this was written), plus four new ones:
+  `instance_stewardship_and_hand_off_round_trip`,
+  `stewardship_key_escapes_the_repo_slash`, `hand_off_names_both_instances`, and
+  `keys_read_back_as_ids_of_their_kind`. Thirteen in total.
+- **Key⇄id round-tripping is the test shape this cut was missing.** The first
+  three key tests assert key strings and never parse them back, which is why
+  Soul found an unvalidated instance segment and a reader that refused the new
+  root kind. `keys_read_back_as_ids_of_their_kind` walks every sample, keys it
+  and parses it back. Resolution is the one kind whose key is not an id of
+  itself; the test states that rather than skipping it.
 - **The derivation test is the schema gate.** On mismatch it writes the derived
-  file to `std::env::temp_dir()/epiphany-pipeline-schemas/` and fails naming the
-  path. There is no bless flag. Thirteen schemas must now match.
-- **Mutations:** add a field to one value type without regenerating its schema —
-  the derivation test fails. Change `<Org_Repo>` escaping to keep the slash —
-  the key test fails.
+  file to a per-run directory under `std::env::temp_dir()` named by pid and
+  nanos, and fails naming the path. There is no bless flag, and no directory is
+  shared between runs. Thirteen schemas must now match.
+- **Mutations:** add a variant to one value type's enum without regenerating its
+  schema — the derivation test fails. Change `<Org_Repo>` escaping to keep the
+  slash — the key test fails. (A *field* cannot be added to those macro-built
+  value types without failing the whole target, which would prove nothing about
+  the derivation test in particular; the variant changes exactly one derived
+  schema.)
 - **Negative greps:**
   - `rg -n "serde_json::Value|Vec<u8>" epiphany-pipeline/src` empty
     (`serde_json` is a dev-dependency only).
