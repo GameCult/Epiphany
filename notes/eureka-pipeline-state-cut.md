@@ -51,7 +51,8 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
   grammar was redesigned rather than patched a fourth time. Soul's first pass
   on the grammar found no collision in 212,450 adversarial keys and four
   unpinned checks.
-- **Cut 6c specified** against `95ee551a`; waits on the 6b fix batch.
+- **Cut 6c landed** at `4d6af409`, `13570e84`, `dddf9ede`, after the third
+  6b fix batch at `9d57a460`, `7cd1a38b`. Soul in flight on both.
 - **Cut 7 landed and closed** on Huginn `eureka/memory-organ` at `1320fc4`,
   `f63c0f2`, `e20c786`, fix `4094e68`; Eve `main` `e777e4c`, fix `167a2d3`;
   EveConformance `main` `048ea2f`. Started in parallel on the operator's
@@ -608,10 +609,21 @@ is the harness under failure, not the grammar:
   writer refuses first. A comment at `:651` still says "the 64-byte bound".
 - Hands' line counts were +6/−1 and +73/−6, not +5/−1 and +68/−6.
 
-**The third fix batch is in Hands** (writes inside the `finally`, a
-sidecar holding the original bytes so a killed run is repaired at the next
-start, a harness-owned command timeout, the trailing-dot fixture with X1 and
-X11 as entries, the stale comment), followed in the same tree by Cut 6c.
+**The third fix batch landed** at `9d57a460` (harness: every target write
+inside the restoring `try`; M0's write-through in its own `try`/`finally`; a
+shared restore that is hash-first, attempts every target, and prints
+`RESTORE FAILED` with the original SHA-256 before rethrowing; a sidecar
+`<target>.eureka-mutation-original` written before any write and removed
+after a verified restore, from which a run that died mid-mutation is
+repaired at the next start with a message; `-TimeoutSeconds`, default 1800,
+killing the process tree inside the command runner's own `finally` with the
+verdict `TIMED OUT (no verdict)`) and `7cd1a38b` (the reader refuses
+`c.:target:x`, `c:target:x.`, `c:target:.x` and `c:target:a..b`; X1 and X11
+are entries). Hands reproduced every attack: locked targets on either side
+leave both unchanged; a tree killed mid-entry leaves the mutant and the
+sidecar, and the rerun repairs and says so; a one-second timeout kills the
+runner and leaves the target unchanged. Soul in flight on this batch
+together with Cut 6c.
 
 ## Probes and source reads this pass
 
@@ -1765,6 +1777,38 @@ pinned a rev.
 **If Hands finds a consumer of any of the five names outside
 `epiphany-pipeline/src/lib.rs` and the four schema files, this cut is wrong**:
 stop and report rather than retyping.
+
+**Landed 2026-09-16** at `4d6af409` (deletes; does not build by design, the
+outcome having no `Bounded` impl until the next commit), `13570e84` (the
+shapes; 26 tests, 0 warnings) and `dddf9ede` (entries M16-M22 in
+`tools/eureka-cut6c-mutations.psd1`). Hands re-anchored by content, since
+`lib.rs` had moved twice since `95ee551a`; the spec's "twenty tests" was
+twenty-one by then. `schemars` 1.2.2 accepted the `extend` attribute on the
+variant field, and `"maxItems": 8` appears exactly once, under
+`Superseded.by`. Six schema files regenerated (+193/−22); `index.json`
+byte-identical. All four suites green-and-killed afterwards, the nineteen
+6b entries included: keys did not move. Structural delta: source outside
+tests +45/−19, tests +163/−5, file 1,616 → 1,801 lines, no kind, dependency,
+target, format or epoch change.
+
+Corrections and scars from Hands:
+
+29. **M19 and M20 first came back "DID NOT BUILD."** The sample and the test
+    spelled the label and commit with the newtype constructors, so widening
+    the type made the tree fail to compile instead of admitting the forgery.
+    Fixed by constructing through `From<&str>`. A type-level mutation only
+    reads as a kill when the fixture is spelled so the widened tree compiles;
+    the spec implied that and did not say it.
+30. **`5f98228` is a legal seven-character sha**, so it was no forgery;
+    replaced by six characters.
+31. **The estimate test carries one assertion beyond the spec**: the sample
+    estimate equals the sample report's structural delta, which required
+    aligning the sample's `formats_added`. Soul is asked whether that moved
+    anything else.
+32. **The refusal `value` is the failing part, not the whole id**, so the
+    third-batch reader fixture asserts `field` only, as Cut 6b's did.
+
+Soul in flight.
 
 ## Cut 7. Retire Huginn's TypeScript body
 
