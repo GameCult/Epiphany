@@ -141,10 +141,29 @@ Further corrections to the sections above:
 6. **`register_pipeline_document_types` is now `#[cfg(test)]`**, which Cut 6
    must account for when it moves the module.
 7. **Test arithmetic is 170**, not 168.
-8. **Two `expect(dead_code)` markers remain** on `prepare` and
-   `validate_pipeline_write_envelope`. Both are test-only today but neither
-   became so in this cut, and the latter is a Keeps-list entry. Cut 6 rules on
-   them when it moves the module.
+8. **The pipeline write path is test-only, and now says so.** `186dbc62`
+   converted `prepare` and `validate_pipeline_write_envelope` from
+   `expect(dead_code)` waivers to `#[cfg(test)]`, after Soul proved both dead in
+   a non-test build. `decode` and the `CultCache` imports came with them: they
+   had looked live only because dead code mentioned them.
+   - **Cut 6 arithmetic:** it now relocates four `cfg(test)` items plus a gated
+     import, not two live ones. The Keeps list still holds, and
+     `validate_pipeline_write_envelope` still moves.
+   - **Cut 6 must refresh** its Keeps citation for
+     `validate_pipeline_write_envelope`; the line range no longer matches.
+   - **Refusal picture unchanged:** none of the four variants has a reachable
+     non-test raiser. The conversion made the existing state literal rather than
+     waiver-shaped. Cut 8 owns it.
+9. **The mutation suite is runnable and its anchors are exact** (`06100d8e`).
+   It documents the interpreter this host actually has, refuses an unsupported
+   one up front, and asserts each anchor matches exactly once, since a replace
+   hits every match. All ten mutations still die by their own test, including
+   the two that mutate code inside the newly gated functions.
+
+**Soul's second pass corrected Self's record.** Self had written that a
+mutation reported a verdict it never earned. The committed script already threw
+on a missing anchor, the affected mutation existed only in a working copy, and
+every committed verdict was real. The Eureka changelog carries the correction.
 
 ## Probes and source reads this pass
 
