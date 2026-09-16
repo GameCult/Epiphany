@@ -306,6 +306,28 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
   flight**, told to verify that claim rather than accept it, and to judge one
   flagged placement: the oversize refusal is the daemon's rule living in the
   mind's refusal type, because the response schema carries exactly one refusal.
+- **Operator rulings on the read side, 2026-09-17.** The generic selection
+  vocabulary does **not** land here: it fills the hole in CultNet, mapped at
+  `F:\Projects\CultLib\docs\cultnet-selection-cut.md`, and the organ becomes a
+  consumer. What stays with the organ is a smaller later cut: the row and
+  reference implementations, the roles, in-force, the summary, the snapshot
+  restriction, and the deletions below. Three rulings bind it.
+  - **Receipt ordinals: yes.** Each receipt records its admission ordinal, so
+    the order is exact and a cursor carries a snapshot position rather than a
+    guess. The stored type changes, the store format takes a new version, and
+    an existing store refuses to open rather than being silently misread. The
+    cost is zero today because the only store is ours, and it will not stay
+    zero.
+  - **`open_items` and `history` are deleted**, not kept as presets. Every
+    relation they hardcode maps onto one citation hop, and a preset would be a
+    second spelling of one answer. If a common question deserves a convenient
+    name, Cut 13 is where the name belongs.
+  - **The leaf gains titles**, reversing Self's recommendation. The operator's
+    words: bare leaves in the catalog is crazy. A catalog row that shows only
+    an identifier is not a catalog, so `question` and `ruling` gain a `Short`
+    title in `epiphany-pipeline`. This changes published schemas and the
+    documents already stored, so **it rides the same store version as the
+    receipt ordinal** rather than forcing a second migration.
 - **Self's ruling on the boundary Hands pinned, 2026-09-16.** A resolution id
   carrying no sequence part is well formed to the leaf and is not refused
   there. The leaf owns the grammar of ids; per-kind local shape belongs to
