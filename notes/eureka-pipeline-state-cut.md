@@ -3220,11 +3220,16 @@ operator may simply want recorded.
   The operator: "I actually was not planning for such handoffs but I can
   definitely see it being useful for when a campaign has cross-cutting
   concerns and the main steward for it must lease another steward's
-  authority over a repo to resolve it." A hand-off is therefore a lease:
-  authority over a repo moves to the campaign's steward for the campaign's
-  duration and returns. Stewardship keys by repo and assignment date; the
-  in-force stewardship is the latest not withdrawn; Cut 12 admits the
-  return as a second hand-off. Mapped as a leaf cut with Q17's.
+  authority over a repo to resolve it." Self first read that as "a hand-off
+  is a lease"; the operator corrected it the same day: "A hand-off is not
+  *always* a lease. We might start with, say, Odin as steward over a whole
+  swarm of infra tools, and spin off a new steward only when the workload
+  justifies it. Odin wouldn't be getting it back in that case." So a
+  hand-off is a transfer of stewardship, symmetric and final as a record; a
+  lease is two transfers and carries no field of its own. Stewardship keys
+  by repo and assignment date; the in-force stewardship is the latest not
+  withdrawn; a return, when there is one, is an ordinary second hand-off.
+  Mapped as a leaf cut with Q17's.
 
 ## Target contradictions for Self to reconcile
 
