@@ -1998,10 +1998,22 @@ close as specified.** Found:
   CultLib re-pin that rewords it silently demotes `MindAlreadyOwned` to
   `Unavailable`. FU-9.
 
-**Fix batch in Hands** (Opus): the epoch gate with two entries; a Huginn
-refusal for empty repos; Q17's default in the matrix; the docs; a pin for
-one CAS and for every strong read; one fixture and one entry per unpinned
-row, Soul's survivors as the entries.
+**The fix batch landed** (Opus) at `1cfa81d` (the epoch gate: exactly one
+record, keyed by the epoch string, equal to it, with `found` carrying the
+foreign value, the wrong key, or the record count, decided before any
+value is read; `MindRefusal::EmptyRepos` in place of the minted leaf
+refusal; docs without present-tense claims about unbuilt cuts), `acd32f3`
+(Self's Q17 default reverted on the operator's ruling; the matrix and its
+test byte-identical to `ca30d3e` plus a doc comment naming the ruling and
+the leaf cut it needs) and `30daff8` (a recording store pins one swap
+carrying documents and receipt together; every cited image document is a
+strong read; one fixture and one entry per unpinned row, Soul's survivors
+S8-S23 as entries H26-H39). 31 tests, 0 warnings; H1-H39 all killed
+through Epiphany's harness; +525/−26 over seven files, one refusal variant
+added. Hands named the gap the ruling leaves until the leaf cut lands: the
+matrix now admits a second resolution after a withdrawal and the key still
+refuses it as `AlreadyResolved`. **Cut 6d (resolution history, stewardship
+by repo and date) must land before Cut 9.** Soul in flight on the batch.
 
 **The Cut 10 prerequisite landed** at Epiphany `b4b17fc` (correction 34):
 `PipelineDocument` derives `Serialize`, `Deserialize` and `JsonSchema` with
