@@ -160,6 +160,36 @@ Further corrections to the sections above:
    hits every match. All ten mutations still die by their own test, including
    the two that mutate code inside the newly gated functions.
 
+**Cut 5 landed** at `1758ad50` (collapse) and `4c091f57` (mutation suite). Soul
+is verifying.
+
+- **Deleted:** `TypedCommitStore`, `MIND_COMMIT_STORE`, `validate_mind_writes`,
+  the parameter and all five call-site arguments, plus one orphan import. No
+  part of the profile shape survived. One commit owner and one receipt
+  construction site remain.
+- **Unchanged behaviour, proven against the base:** the pinned receipt digest
+  was checked by running the base test in a detached worktree at `cda36541`,
+  not by a value captured from the new code.
+- **Tests 171, 0 warnings.** Two profile tests retired because they tested the
+  profile through the profile; their rules were re-expressed as three new tests.
+- **Five mutations, all killed**, including both halves of S6: uniqueness
+  before validation, and validation before replay.
+
+Cut 5 corrections:
+
+10. **Ruling 20's second half had no named test.** The Keeps list named only
+    validation-before-replay, so the uniqueness-ordering half of S6 was
+    unpinned. Cut 5 added a test for it rather than leaving half the invariant
+    on trust.
+11. **The Deletes table's line anchors were stale by 26 lines**, written against
+    `5fb4eb22`. Matching was done by content. Later cuts should re-anchor before
+    trusting a line number in this map.
+12. **The subtraction estimate was −46/+8; the actual is +172/−122.** The
+    owner-side collapse matched; the overshoot is the test rewrite the ledger
+    never priced, because the Keeps list demanded three rules stay pinned while
+    the tests that pinned them died with the abstraction. Carrying cost still
+    falls: one struct, one const, one fn, one parameter and five arguments gone.
+
 **Soul's second pass corrected Self's record.** Self had written that a
 mutation reported a verdict it never earned. The committed script already threw
 on a missing anchor, the affected mutation existed only in a working copy, and
