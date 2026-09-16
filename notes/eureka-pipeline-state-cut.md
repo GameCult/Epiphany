@@ -1944,6 +1944,30 @@ Hands' discrepancies, all kept and recorded:
 40. **`Cargo.lock` was already LF**, so the whole-file rewrite Cut 7's Soul
     predicted did not happen; the lock gained 809 lines.
 
+**The Cut 10 prerequisite landed** at Epiphany `b4b17fc` (correction 34):
+`PipelineDocument` derives `Serialize`, `Deserialize` and `JsonSchema` with
+an adjacent tag whose string is exactly `PipelineKind::name()`, so a wire
+reader dispatches on the same string the key's kind segment carries and no
+second registry maps spellings to kinds; `PipelineRefusal` derives the same
+three with serde's default external tagging, which already puts every
+variant's named parts on the wire. One test round-trips every sample and
+every refusal through JSON and MessagePack and holds both schemas to
+exactly the thirteen kinds and the four variants; entries D1 (tag renaming
+removed) and D2 (a refusal field skipped) killed beside E1-E3. 28 tests, 0
+warnings; no kind, field, type id, epoch, schema file, lock or dependency
+moved. Huginn's `#[serde(remote)]` mirror comes out in Cut 10 when the pin
+moves to this commit.
+
+41. **Suspect, not accepted: `epiphany-core` recompiled once after the leaf
+    change.** Hands called it legitimate because "every dependent's
+    metadata is stale", but `epiphany-core` is not a dependent of the leaf
+    (Cut 6 proved no path in either direction, and Soul's pass on the
+    Epiphany half saw it finish in half a second untouched). Either a
+    shared target-dir fingerprint was evicted by another session's build,
+    or something depends on the leaf that this map says does not. The next
+    Soul in this tree checks `cargo tree -i epiphany-pipeline` and the
+    fingerprint reason with `CARGO_LOG=cargo::core::compiler::fingerprint=info`.
+
 ## Cut 7. Retire Huginn's TypeScript body
 
 - **Repo/branch:** Huginn `main` at `91b7fcf`, on a new branch
