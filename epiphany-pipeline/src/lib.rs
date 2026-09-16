@@ -264,6 +264,8 @@ unit_enums! {
     ClaimOutcome { Holds, Falsified, Unproven }
     FindingConfidence { Confirmed, Plausible }
     FindingSeverity { Blocker, High, Medium, Low }
+    RulingAuthority { Operator, Standing, Defaulted }
+    FindingOrigin { Introduced, PreExisting }
 }
 
 value_types! {
@@ -288,7 +290,9 @@ value_types! {
         negative: Vec<NegativeCheck>[64], operator: Vec<Line>[64],
     }
     pub struct ReportCommit { sha: Sha, subject: Line, builds: bool }
-    pub struct MutationRecord { rule: Line, failed_as_expected: bool }
+    /// One mutation a report ran: a key-safe label a verdict claim can name,
+    /// the exact edit, and the tree it was applied to.
+    pub struct MutationRecord { label: Label, rule: Line, location: CodeLocation, before: Line, after: Line, commit: Sha, failed_as_expected: bool }
     pub struct Deviation { what: Line, why: Line }
     // D1 tables no maximum for these lists, so they take the shared list
     // default of 64 rather than a number invented for this field alone.
@@ -300,7 +304,17 @@ value_types! {
     }
     /// A name the cut landed, and where it lives.
     pub struct LandedName { name: Short, path: Short }
-    pub struct VerdictClaim { claim: Line, outcome: ClaimOutcome, evidence: Vec<Evidence>[8], findings: Vec<Short>[16] }
+    /// A promise a report makes about what it landed. Not a document and not
+    /// resolvable: it is identified by its report's id and its label, as a
+    /// `TargetInvariant` is by its target's. Soul measures every one (ruling
+    /// A), and the rule that every one is measured is admission's.
+    pub struct Promise { label: Label, text: Line }
+    /// The promise this claim measured, and the report's mutations it ran. An
+    /// `Unproven` claim with a promise is one Soul could not reach.
+    pub struct VerdictClaim {
+        claim: Line, outcome: ClaimOutcome, evidence: Vec<Evidence>[8], findings: Vec<Short>[16],
+        promise: Option<Label>, mutations: Vec<Label>[8],
+    }
 
     pub struct PipelineCampaign { slug: Slug, title: Short, repos: Vec<OrgRepo>[8], working_branch: Short, target_doc: DocRef }
     pub struct PipelineTarget {
@@ -313,13 +327,13 @@ value_types! {
     }
     pub struct PipelineRuling {
         campaign: Slug, label: Label, answers: Option<Short>, choice: Option<Label>, ruling: Para,
-        operator_quote: Option<Para>, ruled_on: Date, precedents: Vec<ForeignRef>[8],
+        operator_quote: Option<Para>, ruled_on: Date, precedents: Vec<ForeignRef>[8], authority: RulingAuthority,
     }
     pub struct PipelineCutSpec {
         campaign: Slug, cut: Label, revision: u32, title: Short, repo: OrgRepo, branch: Short, base: Sha,
         depends_on: Vec<Short>[8], first: Vec<Line>[16], deletes: Vec<CutDelete>[64], keeps_moves: Vec<Line>[64],
         adds: Vec<Line>[64], file_changes: Vec<FileChange>[256], authority_map: Option<AuthorityMap>,
-        verification: CutVerification,
+        verification: CutVerification, estimate: StructuralDelta,
         rulings: Vec<Short>[32], questions: Vec<Short>[16],
     }
     pub struct PipelineCutReport {
@@ -327,12 +341,13 @@ value_types! {
         commits: Vec<ReportCommit>[128], range: CommitRange, verification: Vec<Evidence>[64],
         mutations: Vec<MutationRecord>[64], deviations: Vec<Deviation>[32], forks: Vec<Short>[8],
         structural_delta: StructuralDelta, landed_names: Vec<LandedName>[128], undone: Vec<Line>[32],
+        promises: Vec<Promise>[64],
     }
     pub struct PipelineVerdict { campaign: Slug, cut_report: Short, pass: u32, range: CommitRange, claims: Vec<VerdictClaim>[64] }
     pub struct PipelineFinding {
         campaign: Slug, verdict: Short, label: Label, range: CommitRange, confidence: FindingConfidence,
         severity: FindingSeverity, claim: Line, invariants: Vec<Label>[8], locations: Vec<CodeLocation>[16],
-        failure_scenario: Para, evidence: Vec<Evidence>[16], precedents: Vec<ForeignRef>[8],
+        failure_scenario: Para, evidence: Vec<Evidence>[16], precedents: Vec<ForeignRef>[8], origin: FindingOrigin,
     }
     pub struct PipelineFollowUp {
         campaign: Slug, label: Label, source: PipelineRef, repo: OrgRepo, locations: Vec<CodeLocation>[16],
@@ -370,14 +385,40 @@ impl Bounded for PipelineRef {
     }
 }
 
+/// How a subject was resolved. Every referent is a parsed `PipelineRef`, so a
+/// resolution names its records by ids of the kinds they declare, validated
+/// where every other referent is; a `Fixed` commit is a `Sha` whose referent
+/// is outside the document set (ruling B). Whether a named document exists,
+/// and how many may supersede one subject, are admission's rules.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum ResolutionOutcome {
-    Superseded { by: Short },
-    Answered { by: Short },
-    Fixed { by: Short },
-    Deferred { to: Short },
+    /// Overturned, in whole or in part, by later records. The list is bounded
+    /// here because the enum is outside `value_types!`, the only place a list
+    /// maximum is emitted automatically.
+    Superseded {
+        #[schemars(extend("maxItems" = 8))]
+        by: Vec<PipelineRef>,
+    },
+    Answered { by: PipelineRef },
+    Fixed { commit: Sha, by: Option<PipelineRef> },
+    Deferred { to: PipelineRef },
     Recorded { reason: Line },
     Withdrawn { reason: Line },
+}
+
+impl Bounded for ResolutionOutcome {
+    fn validate(&self, field: &str) -> Result<(), PipelineRefusal> {
+        match self {
+            Self::Superseded { by } => list(&format!("{field}.by"), by, 8),
+            Self::Answered { by } => by.validate(&format!("{field}.by")),
+            Self::Fixed { commit, by } => {
+                commit.validate(&format!("{field}.commit"))?;
+                by.validate(&format!("{field}.by"))
+            }
+            Self::Deferred { to } => to.validate(&format!("{field}.to")),
+            Self::Recorded { reason } | Self::Withdrawn { reason } => reason.validate(&format!("{field}.reason")),
+        }
+    }
 }
 
 macro_rules! pipeline_kinds {
@@ -797,6 +838,7 @@ mod tests {
                     repo: OrgRepo("GameCult/Aetheria".into()), commit: FullSha("a".repeat(40)), kind: PipelineKind::Ruling,
                     id: s("cultcache:ruling:R1"), payload_sha256: Sha256Hex("b".repeat(64)),
                 }],
+                authority: RulingAuthority::Operator,
             }), format!("{CAMPAIGN}:ruling:R8")),
             (D::CutSpec(PipelineCutSpec {
                 campaign: slug(CAMPAIGN), cut: l("3a"), revision: 1, title: s("Pipeline documents"), repo: repo(),
@@ -815,13 +857,25 @@ mod tests {
                     negative: vec![NegativeCheck { pattern: s("Vec<u8>"), scope: "documents".into() }],
                     operator: vec!["none".into()],
                 },
+                // Cut 3a's real numbers, and in this order: the tripwire test
+                // reads them back, so a transposition is a failure, not a typo.
+                estimate: StructuralDelta {
+                    lines_added: 900, lines_removed: 0,
+                    dependencies_added: vec![s("schemars")], dependencies_removed: vec![],
+                    formats_added: vec![s("epiphany.pipeline.*.v1")], formats_removed: vec![],
+                    targets_added: vec![], targets_removed: vec![],
+                },
                 rulings: vec![id("ruling", "R8")], questions: vec![id("question", "Q1")],
             }), format!("{CAMPAIGN}:cut_spec:cut-3a.r1")),
             (D::CutReport(PipelineCutReport {
                 campaign: slug(CAMPAIGN), cut_spec: id("cut_spec", "cut-3a.r1"), attempt: 1, repo: repo(), branch: branch(),
                 commits: vec![ReportCommit { sha: sha(), subject: "Add the pipeline documents".into(), builds: true }],
                 range: range(), verification: vec![evidence()],
-                mutations: vec![MutationRecord { rule: "key derivation".into(), failed_as_expected: true }],
+                mutations: vec![MutationRecord {
+                    label: l("M1"), rule: "key derivation".into(), location: location(),
+                    before: "parent_cut(field, spec, 'r')?".into(), after: "spec".into(), commit: sha(),
+                    failed_as_expected: true,
+                }],
                 deviations: vec![Deviation { what: "names".into(), why: "glob exports".into() }],
                 forks: vec![id("question", "Q1")],
                 structural_delta: StructuralDelta {
@@ -831,12 +885,14 @@ mod tests {
                 },
                 landed_names: vec![LandedName { name: s("PipelineDocument"), path: s("epiphany-pipeline/src/lib.rs") }],
                 undone: vec!["admission".into()],
+                promises: vec![Promise { label: l("P1"), text: "One derived key per document.".into() }],
             }), format!("{CAMPAIGN}:cut_report:cut-3a.h1")),
             (D::Verdict(PipelineVerdict {
                 campaign: slug(CAMPAIGN), cut_report: id("cut_report", "cut-3a.h1"), pass: 2, range: range(),
                 claims: vec![VerdictClaim {
                     claim: "A composed key has one source.".into(), outcome: ClaimOutcome::Falsified,
                     evidence: vec![evidence()], findings: vec![id("finding", "cut-3a.s2.F4")],
+                    promise: Some(l("P1")), mutations: vec![l("M1")],
                 }],
             }), format!("{CAMPAIGN}:verdict:cut-3a.s2")),
             (D::Finding(PipelineFinding {
@@ -844,7 +900,7 @@ mod tests {
                 confidence: FindingConfidence::Confirmed, severity: FindingSeverity::High,
                 claim: "A dotted label composes two keys.".into(), invariants: vec![l("mind-admits")],
                 locations: vec![location()], failure_scenario: "Two documents claim one key.".into(),
-                evidence: vec![evidence()], precedents: vec![],
+                evidence: vec![evidence()], precedents: vec![], origin: FindingOrigin::Introduced,
             }), format!("{CAMPAIGN}:finding:cut-3a.s2.F4")),
             (D::FollowUp(PipelineFollowUp {
                 campaign: slug(CAMPAIGN), label: l("FU-4"),
@@ -854,7 +910,7 @@ mod tests {
             }), format!("{CAMPAIGN}:follow_up:FU-4")),
             (D::Resolution(PipelineResolution {
                 subject: PipelineRef { kind: PipelineKind::Question, id: id("question", "Q1") },
-                outcome: ResolutionOutcome::Answered { by: id("ruling", "R8") },
+                outcome: ResolutionOutcome::Answered { by: PipelineRef { kind: PipelineKind::Ruling, id: id("ruling", "R8") } },
                 rationale: "Ruled A.".into(), resolved_on: date(),
             }), format!("{CAMPAIGN}:resolution:question.Q1")),
             // The mind's own three kinds. They are appended rather than
@@ -1535,6 +1591,145 @@ mod tests {
             Ok(("game.cult", "campaign.self")),
             "a resolution under a dotted root reads back"
         );
+    }
+
+    /// Cut 6c: a resolution's referent is a full id of the kind it declares,
+    /// validated through `PipelineRef` like every other referent, so a
+    /// well-formed id of the wrong kind is refused and the refusal names the
+    /// entry. The positive case is Ghostlight's own: a ruling partly
+    /// overturned by two later records, one of them a resolution named by the
+    /// key it has, which only the 6b grammar made nameable. An id no
+    /// resolution derives, `eureka-state:resolution:R8`, still validates:
+    /// whether a document with an id exists is admission's rule.
+    #[test]
+    fn resolution_outcome_referents_are_parsed_ids_of_their_kind() {
+        let resolved = |subject: PipelineRef, outcome: ResolutionOutcome| {
+            let mut resolution = resolution_sample();
+            resolution.subject = subject;
+            resolution.outcome = outcome;
+            PipelineDocument::Resolution(resolution).validate()
+        };
+        let refused = |field: &str, result: Result<(), PipelineRefusal>| {
+            assert!(
+                matches!(&result, Err(PipelineRefusal::InvalidFormat { field: at, .. }) if at == field),
+                "expected InvalidFormat at {field}, got {result:?}"
+            );
+        };
+        let ruling = |label: &str| PipelineRef { kind: PipelineKind::Ruling, id: id("ruling", label) };
+        let question = |label: &str| PipelineRef { kind: PipelineKind::Question, id: id("question", label) };
+        let inner = pipeline_key(&PipelineDocument::Resolution(resolution_sample())).expect("the sample keys");
+        let resolution = PipelineRef { kind: PipelineKind::Resolution, id: Short(inner.clone()) };
+
+        let superseded = |second: PipelineRef| ResolutionOutcome::Superseded { by: vec![ruling("R9"), second] };
+        assert_eq!(resolved(ruling("R8"), superseded(resolution)), Ok(()));
+        let forged = PipelineRef { kind: PipelineKind::Ruling, id: Short(inner) };
+        refused("resolution.outcome.by[1].id", resolved(ruling("R8"), superseded(forged)));
+        let underived = PipelineRef { kind: PipelineKind::Resolution, id: Short(format!("{CAMPAIGN}:resolution:R8")) };
+        assert_eq!(resolved(ruling("R8"), superseded(underived)), Ok(()), "well-formed grammar is not the shape's to refuse");
+
+        assert_eq!(resolved(question("Q1"), ResolutionOutcome::Answered { by: ruling("R8") }), Ok(()));
+        let forged = PipelineRef { kind: PipelineKind::Question, id: id("ruling", "R8") };
+        refused("resolution.outcome.by.id", resolved(question("Q1"), ResolutionOutcome::Answered { by: forged }));
+
+        assert_eq!(resolved(question("Q1"), ResolutionOutcome::Deferred { to: question("Q2") }), Ok(()));
+        let forged = PipelineRef { kind: PipelineKind::Ruling, id: id("question", "Q2") };
+        refused("resolution.outcome.to.id", resolved(question("Q1"), ResolutionOutcome::Deferred { to: forged }));
+
+        let finding = PipelineRef { kind: PipelineKind::Finding, id: id("finding", "cut-3a.s2.F4") };
+        let fixed = |by: Option<PipelineRef>| ResolutionOutcome::Fixed { commit: sha(), by };
+        assert_eq!(resolved(finding.clone(), fixed(None)), Ok(()));
+        assert_eq!(resolved(finding.clone(), fixed(Some(ruling("R8")))), Ok(()));
+        let forged = PipelineRef { kind: PipelineKind::Finding, id: id("ruling", "R8") };
+        refused("resolution.outcome.by.id", resolved(finding, fixed(Some(forged))));
+    }
+
+    /// Ruling B: a fix names the tree where the finding stopped being true,
+    /// as a `Sha`. Uppercase hex of a legal length is the forgery a length
+    /// check passes and `hex` refuses.
+    #[test]
+    fn fixed_resolution_requires_a_commit_sha() {
+        let fixed = |commit: &str| {
+            let mut resolution = resolution_sample();
+            resolution.subject = PipelineRef { kind: PipelineKind::Finding, id: id("finding", "cut-3a.s2.F4") };
+            resolution.outcome = ResolutionOutcome::Fixed { commit: Sha(commit.into()), by: None };
+            PipelineDocument::Resolution(resolution).validate()
+        };
+        assert_eq!(fixed("5f98228d9c"), Ok(()));
+        for forged in ["5F98228D9C", "5f9822", "dirty-worktree", ""] {
+            assert_eq!(
+                fixed(forged),
+                Err(PipelineRefusal::InvalidFormat { field: "resolution.outcome.commit".into(), value: forged.into() }),
+                "{forged:?} is not a commit"
+            );
+        }
+    }
+
+    /// A mutation record has a key-safe identity a verdict claim can name,
+    /// and is pinned to a tree: its label is a `Label` and its commit a
+    /// `Sha`, so a dotted label and free text where a sha belongs are refused.
+    #[test]
+    fn mutation_records_carry_a_dot_free_label_and_a_commit() {
+        let recorded = |label: &str, commit: &str| {
+            let mut report = report_sample();
+            report.mutations[0].label = Label(label.into());
+            report.mutations[0].commit = Sha(commit.into());
+            PipelineDocument::CutReport(report).validate()
+        };
+        assert_eq!(recorded("M1", "5f98228d"), Ok(()));
+        assert_eq!(
+            recorded("M1.a", "5f98228d"),
+            Err(PipelineRefusal::InvalidFormat { field: "cut_report.mutations[0].label".into(), value: "M1.a".into() })
+        );
+        assert_eq!(
+            recorded("M1", "dirty-worktree"),
+            Err(PipelineRefusal::InvalidFormat {
+                field: "cut_report.mutations[0].commit".into(),
+                value: "dirty-worktree".into(),
+            })
+        );
+    }
+
+    /// Ruling A's shape half: a claim names the promise it measured and the
+    /// mutations it ran, both as `Label`s, and names at most eight mutations.
+    #[test]
+    fn a_verdict_claim_names_the_promise_and_the_mutation_it_measured() {
+        let sample = verdict_sample();
+        assert_eq!(sample.claims[0].promise, Some(l("P1")));
+        assert_eq!(sample.claims[0].mutations, vec![l("M1")]);
+        assert_eq!(PipelineDocument::Verdict(sample).validate(), Ok(()));
+
+        let claimed = |promise: Option<Label>, mutations: Vec<Label>| {
+            let mut verdict = verdict_sample();
+            verdict.claims[0].promise = promise;
+            verdict.claims[0].mutations = mutations;
+            PipelineDocument::Verdict(verdict).validate()
+        };
+        assert_eq!(claimed(None, vec![]), Ok(()), "a claim need not measure a promise");
+        assert_eq!(
+            claimed(Some(l("P1.a")), vec![]),
+            Err(PipelineRefusal::InvalidFormat { field: "verdict.claims[0].promise".into(), value: "P1.a".into() })
+        );
+        assert_eq!(
+            claimed(None, vec![l("M1.a")]),
+            Err(PipelineRefusal::InvalidFormat { field: "verdict.claims[0].mutations[0]".into(), value: "M1.a".into() })
+        );
+        let labels = |count: usize| (1..=count).map(|n| l(&format!("M{n}"))).collect::<Vec<_>>();
+        assert_eq!(claimed(None, labels(8)), Ok(()));
+        assert_eq!(
+            claimed(None, labels(9)),
+            Err(PipelineRefusal::FieldBound { field: "verdict.claims[0].mutations".into(), limit: 8, actual: 9 })
+        );
+    }
+
+    /// A tripwire on the one hazard of retyping the estimate: the delta's two
+    /// `u32` fields are not interchangeable. The sample spec is Cut 3a's, a
+    /// net addition of 900 lines, and the order is asserted.
+    #[test]
+    fn the_sample_cut_spec_estimates_a_net_addition() {
+        let PipelineDocument::CutSpec(spec) = samples().remove(4).0 else { unreachable!() };
+        assert_eq!(spec.estimate.lines_added, 900);
+        assert_eq!(spec.estimate.lines_removed, 0);
+        assert_eq!(spec.estimate, report_sample().structural_delta, "the estimate and the actual are one shape");
     }
 
     /// Defect 2: a resolution's key carries its subject's kind as a literal

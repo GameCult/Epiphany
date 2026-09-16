@@ -71,6 +71,14 @@
       ],
       "type": "string"
     },
+    "RulingAuthority": {
+      "enum": [
+        "Operator",
+        "Standing",
+        "Defaulted"
+      ],
+      "type": "string"
+    },
     "Sha256Hex": {
       "description": "A SHA-256 digest: exactly 64 lowercase hex characters.",
       "maxLength": 64,
@@ -99,6 +107,9 @@
           "type": "null"
         }
       ]
+    },
+    "authority": {
+      "$ref": "#/$defs/RulingAuthority"
     },
     "campaign": {
       "$ref": "#/$defs/Slug"
@@ -145,7 +156,8 @@
     "label",
     "ruling",
     "ruled_on",
-    "precedents"
+    "precedents",
+    "authority"
   ],
   "title": "PipelineRuling",
   "type": "object"

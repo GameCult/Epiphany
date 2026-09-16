@@ -200,9 +200,30 @@
       "maxLength": 64,
       "type": "string"
     },
-    "SubtractionEstimate": {
+    "StructuralDelta": {
       "properties": {
-        "added": {
+        "dependencies_added": {
+          "items": {
+            "$ref": "#/$defs/Short"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
+        "dependencies_removed": {
+          "items": {
+            "$ref": "#/$defs/Short"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
+        "formats_added": {
+          "items": {
+            "$ref": "#/$defs/Short"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
+        "formats_removed": {
           "items": {
             "$ref": "#/$defs/Short"
           },
@@ -219,7 +240,14 @@
           "minimum": 0,
           "type": "integer"
         },
-        "removed": {
+        "targets_added": {
+          "items": {
+            "$ref": "#/$defs/Short"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
+        "targets_removed": {
           "items": {
             "$ref": "#/$defs/Short"
           },
@@ -228,10 +256,14 @@
         }
       },
       "required": [
-        "lines_removed",
         "lines_added",
-        "removed",
-        "added"
+        "lines_removed",
+        "dependencies_added",
+        "dependencies_removed",
+        "formats_added",
+        "formats_removed",
+        "targets_added",
+        "targets_removed"
       ],
       "type": "object"
     },
@@ -297,6 +329,9 @@
       "maxItems": 8,
       "type": "array"
     },
+    "estimate": {
+      "$ref": "#/$defs/StructuralDelta"
+    },
     "file_changes": {
       "items": {
         "$ref": "#/$defs/FileChange"
@@ -340,9 +375,6 @@
       "maxItems": 32,
       "type": "array"
     },
-    "subtraction_estimate": {
-      "$ref": "#/$defs/SubtractionEstimate"
-    },
     "title": {
       "$ref": "#/$defs/Short"
     },
@@ -365,7 +397,7 @@
     "adds",
     "file_changes",
     "verification",
-    "subtraction_estimate",
+    "estimate",
     "rulings",
     "questions"
   ],

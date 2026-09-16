@@ -50,14 +50,20 @@
       "type": "object"
     },
     "ResolutionOutcome": {
+      "description": "How a subject was resolved. Every referent is a parsed `PipelineRef`, so a\nresolution names its records by ids of the kinds they declare, validated\nwhere every other referent is; a `Fixed` commit is a `Sha` whose referent\nis outside the document set (ruling B). Whether a named document exists,\nand how many may supersede one subject, are admission's rules.",
       "oneOf": [
         {
           "additionalProperties": false,
+          "description": "Overturned, in whole or in part, by later records. The list is bounded\nhere because the enum is outside `value_types!`, the only place a list\nmaximum is emitted automatically.",
           "properties": {
             "Superseded": {
               "properties": {
                 "by": {
-                  "$ref": "#/$defs/Short"
+                  "items": {
+                    "$ref": "#/$defs/PipelineRef"
+                  },
+                  "maxItems": 8,
+                  "type": "array"
                 }
               },
               "required": [
@@ -77,7 +83,7 @@
             "Answered": {
               "properties": {
                 "by": {
-                  "$ref": "#/$defs/Short"
+                  "$ref": "#/$defs/PipelineRef"
                 }
               },
               "required": [
@@ -97,11 +103,21 @@
             "Fixed": {
               "properties": {
                 "by": {
-                  "$ref": "#/$defs/Short"
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/PipelineRef"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "commit": {
+                  "$ref": "#/$defs/Sha"
                 }
               },
               "required": [
-                "by"
+                "commit"
               ],
               "type": "object"
             }
@@ -117,7 +133,7 @@
             "Deferred": {
               "properties": {
                 "to": {
-                  "$ref": "#/$defs/Short"
+                  "$ref": "#/$defs/PipelineRef"
                 }
               },
               "required": [
@@ -172,6 +188,11 @@
           "type": "object"
         }
       ]
+    },
+    "Sha": {
+      "description": "A git commit id: 7-40 lowercase hex characters.",
+      "maxLength": 40,
+      "type": "string"
     },
     "Short": {
       "description": "Text of at most 200 UTF-8 bytes.",

@@ -1,5 +1,30 @@
 {
   "$defs": {
+    "CodeLocation": {
+      "properties": {
+        "end_line": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "line": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "path": {
+          "$ref": "#/$defs/Short"
+        }
+      },
+      "required": [
+        "path",
+        "line"
+      ],
+      "type": "object"
+    },
     "CommitRange": {
       "properties": {
         "base": {
@@ -60,6 +85,11 @@
       ],
       "type": "string"
     },
+    "Label": {
+      "description": "A key label: `[A-Za-z0-9_-]{1,64}`.",
+      "maxLength": 64,
+      "type": "string"
+    },
     "LandedName": {
       "description": "A name the cut landed, and where it lives.",
       "properties": {
@@ -82,20 +112,37 @@
       "type": "string"
     },
     "MutationRecord": {
+      "description": "One mutation a report ran: a key-safe label a verdict claim can name,\nthe exact edit, and the tree it was applied to.",
       "properties": {
+        "after": {
+          "$ref": "#/$defs/Line"
+        },
+        "before": {
+          "$ref": "#/$defs/Line"
+        },
+        "commit": {
+          "$ref": "#/$defs/Sha"
+        },
         "failed_as_expected": {
           "type": "boolean"
         },
-        "mutation": {
-          "$ref": "#/$defs/Line"
+        "label": {
+          "$ref": "#/$defs/Label"
+        },
+        "location": {
+          "$ref": "#/$defs/CodeLocation"
         },
         "rule": {
           "$ref": "#/$defs/Line"
         }
       },
       "required": [
+        "label",
         "rule",
-        "mutation",
+        "location",
+        "before",
+        "after",
+        "commit",
         "failed_as_expected"
       ],
       "type": "object"
@@ -104,6 +151,22 @@
       "description": "A GitHub repository as `Org/Repo`.",
       "maxLength": 200,
       "type": "string"
+    },
+    "Promise": {
+      "description": "A promise a report makes about what it landed. Not a document and not\nresolvable: it is identified by its report's id and its label, as a\n`TargetInvariant` is by its target's. Soul measures every one (ruling\nA), and the rule that every one is measured is admission's.",
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/Label"
+        },
+        "text": {
+          "$ref": "#/$defs/Line"
+        }
+      },
+      "required": [
+        "label",
+        "text"
+      ],
+      "type": "object"
     },
     "ReportCommit": {
       "properties": {
@@ -259,6 +322,13 @@
       "maxItems": 64,
       "type": "array"
     },
+    "promises": {
+      "items": {
+        "$ref": "#/$defs/Promise"
+      },
+      "maxItems": 64,
+      "type": "array"
+    },
     "range": {
       "$ref": "#/$defs/CommitRange"
     },
@@ -297,7 +367,8 @@
     "forks",
     "structural_delta",
     "landed_names",
-    "undone"
+    "undone",
+    "promises"
   ],
   "title": "PipelineCutReport",
   "type": "object"

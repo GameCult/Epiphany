@@ -77,6 +77,13 @@
       ],
       "type": "string"
     },
+    "FindingOrigin": {
+      "enum": [
+        "Introduced",
+        "PreExisting"
+      ],
+      "type": "string"
+    },
     "FindingSeverity": {
       "enum": [
         "Blocker",
@@ -217,6 +224,9 @@
       "maxItems": 16,
       "type": "array"
     },
+    "origin": {
+      "$ref": "#/$defs/FindingOrigin"
+    },
     "precedents": {
       "items": {
         "$ref": "#/$defs/ForeignRef"
@@ -246,7 +256,8 @@
     "locations",
     "failure_scenario",
     "evidence",
-    "precedents"
+    "precedents",
+    "origin"
   ],
   "title": "PipelineFinding",
   "type": "object"

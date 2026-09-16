@@ -53,6 +53,11 @@
       ],
       "type": "string"
     },
+    "Label": {
+      "description": "A key label: `[A-Za-z0-9_-]{1,64}`.",
+      "maxLength": 64,
+      "type": "string"
+    },
     "Line": {
       "description": "Text of at most 1,000 UTF-8 bytes.",
       "maxLength": 1000,
@@ -74,6 +79,7 @@
       "type": "string"
     },
     "VerdictClaim": {
+      "description": "The promise this claim measured, and the report's mutations it ran. An\n`Unproven` claim with a promise is one Soul could not reach.",
       "properties": {
         "claim": {
           "$ref": "#/$defs/Line"
@@ -92,15 +98,33 @@
           "maxItems": 16,
           "type": "array"
         },
+        "mutations": {
+          "items": {
+            "$ref": "#/$defs/Label"
+          },
+          "maxItems": 8,
+          "type": "array"
+        },
         "outcome": {
           "$ref": "#/$defs/ClaimOutcome"
+        },
+        "promise": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Label"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
         "claim",
         "outcome",
         "evidence",
-        "findings"
+        "findings",
+        "mutations"
       ],
       "type": "object"
     }
