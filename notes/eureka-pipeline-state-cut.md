@@ -71,7 +71,12 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
   emits them, and admission treats them as missing referents; neither
   refuses nor canonicalises. Tests delta was +181, not +173. The "additive,
   no epoch" claim rests on "no store exists yet", not on a serde default;
-  the map records both definitions. **Must land before Cut 9.**
+  the map records both definitions. The two tests landed at `d5a36c2a`, the
+  new pin. **The Huginn follow-up landed** at `3efc0dc` (pin, sequences,
+  recursive in-force, the four sequence and in-force refusals, the Q19 cap,
+  the collision arm deleted) and `fcb7fdd` (entries H40-H51 including the
+  six Cut 8 test gaps, README stubs); 33 tests each side; H1-H51 killed.
+  Soul in flight on both. Cut 9 is mapped after it closes.
 - **Cut 8 landed**: the Epiphany half at `a65c6420` (Soul-closed) with the
   Cut 10 prerequisite at `b4b17fc`; the Huginn half on `eureka/memory-organ`
   at `946758f`, `a4c5b79`, `0bd7133`, `ca30d3e`, fix batch `1cfa81d`,
@@ -2973,10 +2978,19 @@ Dependencies (`Cargo.toml`): `anyhow`, `chrono = "0.4.44"`, `cultcache-rs` (git 
 | A7 | References: every `PipelineRef` and every full-id `Short` field names a document present in image ∪ batch under `(kind.type_id(), id)`. Fields: `question.raised_in`, `ruling.answers`, `cut_spec.rulings`, `cut_spec.questions`, `cut_report.cut_spec`, `cut_report.forks`, `verdict.cut_report`, `verdict.claims[].findings`, `finding.verdict`, `follow_up.source`, `resolution.subject`, `resolution.outcome.{by,to}`, `hand_off.documents`. `Fixed.commit` and `ForeignRef` are syntax only (ruling B, D6). | `MissingReference { kind, id }` |
 | A8 | Per-kind rules, table below, including derivations. Derived writes are appended to the batch and pass A3-A8 themselves. | per row |
 | A9 | Replay: compute `receipt_id` over `(instance, strong_reads, writes)`; if a receipt with that id exists, its writes (minus `committed_at`) must equal ours, and the outcome is `AlreadyAdmitted { receipt_id }`. **Validation before replay (ruling 20):** a replayed batch the current rules refuse is refused at A3-A8, never answered from the store. | — |
-| A10 | Collision: any write whose `(type, key)` exists in the image | `IdentityCollision { kind, id }`; for a `resolution` key, `AlreadyResolved { subject }` (the same collision, named for what it means: a subject resolves at most once because its resolution key is outcome-invariant) |
+| A10 | Collision: any write whose `(type, key)` exists in the image | `IdentityCollision { kind, id }`. *(As first written this row also named `AlreadyResolved` for a resolution key, "a subject resolves at most once because its resolution key is outcome-invariant". Cut 6d gave resolutions and stewardships a per-subject sequence, so a key collision is only ever a collision; `AlreadyResolved` and `AlreadyStewarded` are A8's in-force rules now. Corrected 2026-09-16.)* |
 | A11 | Commit through `receipt::commit`: `strong_reads` = the exact image envelopes of every document A7 resolved in the image (cited bytes pinned into the receipt); `writes` = the batch plus derived writes; the receipt envelope appended; one `compare_and_swap_batch(expected = strong_reads, replacements = writes + receipt)`. `true` → re-pull the image, `Committed`. `false` → re-pull, diff, `Conflict { identities }`. | `Unavailable` on a store error |
 
-Per-kind rules (A8). "In force" means no resolution names it in image ∪ batch.
+Per-kind rules (A8). "In force" means no resolution that is itself in
+force names it in image ∪ batch: the derivation is recursive, so a
+withdrawn resolution stops counting (Q17 B, landed in the Cut 6d
+follow-up). For the two sequenced kinds, resolution and stewardship, A8
+checks sequence then in-force: `sequence` must equal the latest for the
+subject (or the `(instance, repo)`) plus one, else `ResolutionOutOfSequence`
+/ `StewardshipOutOfSequence`; and no resolution (stewardship) may be in
+force for that subject (repo), else `AlreadyResolved` / `AlreadyStewarded`.
+A withdrawal cannot itself be withdrawn (Q19 A): a resolution whose subject
+is a resolution with outcome `Withdrawn` is refused after the matrix.
 
 | Kind | Rule | Refusal |
 |---|---|---|
@@ -2989,10 +3003,10 @@ Per-kind rules (A8). "In force" means no resolution names it in image ∪ batch.
 | verdict | cites its report (A7); each `Falsified` claim cites ≥ 1 `Confirmed` finding in image ∪ batch; an `Unproven` claim cites no `Confirmed` finding; **every promise of the cited report is named by exactly one claim's `promise`** (ruling A); every `claims[].mutations` label exists in the report's `mutations[].label` | `FalsifiedClaimWithoutConfirmedFinding`, `UnprovenClaimWithConfirmedFinding`, `PromiseWithoutVerdict { promise }` (zero or two claims), `UnknownMutationLabel` |
 | finding | `range` present (type fact; the refusal exists for the import path's raw envelopes), `evidence` ≥ 1, `locations` ≥ 1; every `invariants[]` label exists in the in-force target of the campaign | `FindingWithoutRange`, `FindingWithoutEvidence`, `UnknownInvariant` |
 | follow_up | source exists (A7) | — |
-| resolution | subject exists (A7) and is not already resolved (A10); outcome fits the matrix below; every `by`/`to` referent exists (A7, named `UnknownSupersessor` when the outcome is `Superseded`) and is in force; `Superseded.by` non-empty; up to 8 supersessors, each named (Q10) | `IncompatibleResolution`, `EmptySupersession`, `UnknownSupersessor`, `CitesResolvedDocument` |
+| resolution | subject exists (A7); `sequence` is the subject's latest plus one; no resolution of the subject is in force; outcome fits the matrix below; every `by`/`to` referent exists (A7, named `UnknownSupersessor` when the outcome is `Superseded`) and is in force; `Superseded.by` non-empty; up to 8 supersessors, each named (Q10); the subject is not a withdrawal (Q19 A) | `ResolutionOutOfSequence`, `AlreadyResolved`, `IncompatibleResolution`, `EmptySupersession`, `UnknownSupersessor`, `CitesResolvedDocument` |
 | instance | only on an empty mind (A6); `instance == mind` (A5) | — |
-| stewardship | `instance == mind` (A5); no in-force stewardship of the same repo (the key collides, A10) | — |
-| hand_off | one side is this mind (A5). **Source side** (`from == mind`): an in-force `stewardship(mind, repo)` exists, every `documents[]` id exists here (A7), and admission **derives** `resolution { subject: that stewardship, outcome: Withdrawn { reason: <hand_off key> } }`. **Receiving side** (`to == mind`): admission **derives** `stewardship { instance: mind, repo, assigned_on: handed_on, note: <hand_off key> }`. Cut 12 admits the same `hand_off` into both minds atomically and imports the named documents. | `NotStewarded { repo }` |
+| stewardship | `instance == mind` (A5); `sequence` is the `(mind, repo)` latest plus one; no stewardship of the repo is in force on this mind | `StewardshipOutOfSequence`, `AlreadyStewarded` |
+| hand_off | one side is this mind (A5). **Source side** (`from == mind`): an in-force `stewardship(mind, repo)` exists, every `documents[]` id exists here (A7), and admission **derives** `resolution { subject: that stewardship, sequence: latest + 1, outcome: Withdrawn { reason: <hand_off key> } }`. **Receiving side** (`to == mind`): admission **derives** `stewardship { instance: mind, repo, sequence: latest + 1, assigned_on: handed_on, note: <hand_off key> }`. A hand-off is a transfer (Q18); a return is a second hand-off, and its derived stewardship takes the next sequence rather than colliding. Cut 12 admits the same `hand_off` into both minds atomically and imports the named documents. | `NotStewarded { repo }` |
 
 Resolution matrix (admission's, this crate; the leaf never refuses a row of it):
 
@@ -3190,6 +3204,18 @@ Epiphany `ca7e230c` (lib.rs at `dddf9ede`), Huginn `4094e68`, CultLib `main` `4a
 new statement is that **status is derived at read time, never stored**, so no
 admission writes an `in_force` field and no client computes one.
 
+**Carried in from the Q17 ruling and the Cut 6d follow-up (2026-09-16),
+before this cut is refreshed:** the in-force derivation is the recursive one
+admission already uses (a withdrawn resolution stops counting; the naming
+resolution must itself be in force), and a test that pins the
+non-recursive form pins the defect. A subject's resolution history is a
+first-class view, not only its in-force state: the `…<kind>.<local>.n`
+prefix lists every resolution a subject ever had, withdrawn ones included
+with their reasons, because that is the precedent an agent rehydrates from
+(ruling 2). The same for a repo's stewardship history on a mind. The
+`stored_at` stamp CultCache writes on every envelope is the store's, not
+the organ's, and no derivation here may read it.
+
 **Verification.**
 
 | Test | Pins |
@@ -3336,9 +3362,15 @@ collection.
 - **Deletes first:** none.
 - **Adds:** `crates/huginn-mind/src/handoff.rs`.
   - `hand_off(&mut Mind from, &mut Mind to, HandOffRequest)` admits the
-    `hand_off` document **into both minds** in one logical operation, with the
-    superseding `stewardship` on the source side and the new `stewardship` on
-    the target side.
+    `hand_off` document **into both minds** in one logical operation; Cut 8's
+    derivations do the rest: a `Withdrawn` resolution of the source side's
+    stewardship and a new `stewardship` at the next sequence on the target
+    side. *(First written as "the superseding `stewardship` on the source
+    side"; Cut 8 landed a withdrawal, and Cut 6d gave stewardships a
+    sequence so a return is an ordinary second hand-off. A hand-off is a
+    transfer, not a lease (Q18); this cut models no return and gains one
+    test, `a_repo_handed_back_takes_the_next_sequence`, that two hand-offs
+    A→B→A leave A stewarding at n2 and B withdrawn.)*
   - `import(&mut Mind, foreign: &Path, HandOffRef)` replays the named
     documents' exact envelopes through `admit` against the target mind. Envelope
     bytes are carried, not reserialised, so additive fields written by a newer
