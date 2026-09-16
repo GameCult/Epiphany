@@ -8,8 +8,17 @@
 #
 # M1-M6 are the cut's own rules. S2, S4 and S5 are the mutations Soul's pass
 # found surviving; each is kept exactly as Soul wrote it, against the test the
-# fix batch extended to kill it. The file holds an `é` literal in
+# fix batch extended to kill it. N3, N6, N7, N8, N9 and N10 are Soul's second
+# pass: N7 and N8 re-anchor Cut 6's M12 and M13 on `key_segment`, N3 is the
+# analogue of Cut 6's M5 on `local`, N6 of Cut 6's M15 on the reader, and N9
+# and N10 are the dotted-root mutations that survived until
+# `dotted_roots_key_and_read_back`. The file holds an `é` literal in
 # `bounds_refuse_in_utf8_bytes`, which is why the harness I/O is byte-exact.
+#
+# Soul's N4 moved the bound in `local` and both 64s in the depth test to 60
+# together and survived: the test restated the literal. `LOCAL_MAX` now names
+# the bound, `local` and the depth test both read it, and the mutation is no
+# longer expressible as a single-site edit, so it has no entry here.
 @{
     Mutations = @(
         @{
@@ -38,7 +47,7 @@
             Rule = 'A composed local is bounded whole, not only per part.'
             Test = 'tests::a_composed_local_is_bounded_whole'
             Old  = @'
-    if joined.len() > 64 {
+    if joined.len() > LOCAL_MAX {
         return Err(format_error(field, &joined));
     }
 '@
@@ -97,8 +106,69 @@
             Id   = 'S5'
             Rule = 'The whole-local bound is 64 exactly: 65 refuses.'
             Test = 'tests::a_composed_local_is_bounded_whole'
-            Old  = '    if joined.len() > 64 {'
-            New  = '    if joined.len() > 65 {'
+            Old  = '    if joined.len() > LOCAL_MAX {'
+            New  = '    if joined.len() > LOCAL_MAX + 1 {'
+        },
+        # Soul N3, the analogue of Cut 6's M5 ("a finding label carries no
+        # dot") on the composer: the join bound stays and the last part skips
+        # `label_text`. A finding's label is the last part of its local.
+        @{
+            Id   = 'N3'
+            Rule = 'Every local part is a label, the last included (Cut 6 M5 on the composer).'
+            Test = 'tests::no_local_part_carries_the_separator'
+            Old  = @'
+    for part in parts {
+        label_text(field, part)?;
+    }
+'@
+            New  = @'
+    for part in &parts[..parts.len() - 1] {
+        label_text(field, part)?;
+    }
+'@
+        },
+        # Soul N6, the analogue of Cut 6's M15 on the reader: the kind check
+        # excuses the Instance kind. A campaign key read as an instance kills it.
+        @{
+            Id   = 'N6'
+            Rule = 'The reader checks the kind segment for a root kind as for every other (Cut 6 M15).'
+            Test = 'tests::keys_read_back_as_ids_of_their_kind'
+            Old  = '    if name != kind.name() {'
+            New  = '    if name != kind.name() && kind != PipelineKind::Instance {'
+        },
+        # Soul N7, Cut 6's M12 re-anchored on `key_segment`: the escape is
+        # the identity, so a repo's slash reaches the local and is refused.
+        @{
+            Id   = 'N7'
+            Rule = 'A repo inside a key is escaped (Cut 6 M12).'
+            Test = 'tests::stewardship_key_escapes_the_repo_slash'
+            Old  = '    value.replace(''_'', "__").replace(''/'', "_-").replace(''.'', "_d")'
+            New  = '    value.to_string()'
+        },
+        # Soul N8, Cut 6's M13 re-anchored on `key_segment`: `/` becomes a
+        # bare `_` and `_` is not escaped, so two repos claim one key.
+        @{
+            Id   = 'N8'
+            Rule = 'The repo escape is injective (Cut 6 M13).'
+            Test = 'tests::stewardship_key_escapes_the_repo_slash'
+            Old  = '    value.replace(''_'', "__").replace(''/'', "_-").replace(''.'', "_d")'
+            New  = '    value.replace(''/'', "_").replace(''.'', "_d")'
+        },
+        # Soul N9 and N10: the root is a `Slug`, on the writer and the reader.
+        # Both survived while no test keyed or read back a dotted root.
+        @{
+            Id   = 'N9'
+            Rule = 'The composer''s root check is a slug check: a dotted root keys.'
+            Test = 'tests::dotted_roots_key_and_read_back'
+            Old  = '    dotted_text(root_field, root)?;'
+            New  = '    label_text(root_field, root)?;'
+        },
+        @{
+            Id   = 'N10'
+            Rule = 'The reader''s root check is a slug check: a dotted root reads back.'
+            Test = 'tests::dotted_roots_key_and_read_back'
+            Old  = '    dotted_text(field, root)?;'
+            New  = '    label_text(field, root)?;'
         }
     )
 }

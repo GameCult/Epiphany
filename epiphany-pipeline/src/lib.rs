@@ -612,6 +612,11 @@ fn key_segment(value: &str) -> String {
 /// root segment, so its local carries none; a reader never consults it.
 const ROOT_LOCAL: &str = "self";
 
+/// The bound on a composed local, whole, in UTF-8 bytes. It is the only depth
+/// limit on a chain of resolutions, and the depth test derives its expectation
+/// from this name rather than restating the number.
+const LOCAL_MAX: usize = 64;
+
 /// Composes and validates a local: every part is a `Label`, and the join is
 /// bounded whole. Both rules live here because this is the only way a local is
 /// built; `pipeline_key` has no other path to a key string. Parts are a slice,
@@ -621,7 +626,7 @@ fn local(field: &str, parts: &[&str]) -> Result<String, PipelineRefusal> {
         label_text(field, part)?;
     }
     let joined = parts.join(".");
-    if joined.len() > 64 {
+    if joined.len() > LOCAL_MAX {
         return Err(format_error(field, &joined));
     }
     Ok(joined)
@@ -1268,7 +1273,9 @@ mod tests {
     /// because the key tests assert strings and never read one back: an
     /// instance keys to its slug and then fails to parse as an instance id, so
     /// no `PipelineRef` and no resolution could ever name one. Every kind now
-    /// reads back with no kind excused, a resolution included.
+    /// reads back with no kind excused, a resolution included, and a root kind
+    /// read as the other root kind is refused: the reader checks the kind
+    /// segment for the roots exactly as for every other kind.
     #[test]
     fn keys_read_back_as_ids_of_their_kind() -> Result<()> {
         for (document, expected) in samples() {
@@ -1281,6 +1288,24 @@ mod tests {
                 "{kind:?} key {key} does not read back as an id of its kind"
             );
         }
+
+        let campaign_key = pipeline_key(&campaign_sample())?;
+        let instance_key = pipeline_key(&PipelineDocument::Instance(instance_sample()))?;
+        assert_eq!(
+            pipeline_id("read_back", &instance_key, PipelineKind::Instance),
+            Ok((INSTANCE, ROOT_LOCAL)),
+            "an instance key reads back as an instance"
+        );
+        assert_eq!(
+            pipeline_id("read_back", &instance_key, PipelineKind::Campaign),
+            Err(format_error("read_back", &instance_key)),
+            "an instance key is not a campaign id"
+        );
+        assert_eq!(
+            pipeline_id("read_back", &campaign_key, PipelineKind::Instance),
+            Err(format_error("read_back", &campaign_key)),
+            "a campaign key is not an instance id"
+        );
 
         // The instance root's own key segment is validated, not merely bounded.
         // Nothing else stands between a `Slug` and a key: a space would compose
@@ -1472,6 +1497,52 @@ mod tests {
         assert_ne!(campaign, instance, "a campaign and an instance of one slug are two documents");
     }
 
+    /// The root is a `Slug`, so a dotted root keys and reads back whole on
+    /// both sides: the writer's root check and the reader's root check are
+    /// each `dotted_text`, not `label_text`. A campaign `game.cult` and an
+    /// instance `ygg.drasil` key, a document under the dotted campaign keys,
+    /// and each reads back through `pipeline_id` recovering the root exactly.
+    #[test]
+    fn dotted_roots_key_and_read_back() {
+        let PipelineDocument::Campaign(mut campaign) = campaign_sample() else { unreachable!() };
+        campaign.slug = slug("game.cult");
+        let campaign_key = pipeline_key(&PipelineDocument::Campaign(campaign)).expect("a dotted campaign keys");
+        assert_eq!(campaign_key, "game.cult:campaign:self");
+        assert_eq!(
+            pipeline_id("read_back", &campaign_key, PipelineKind::Campaign),
+            Ok(("game.cult", ROOT_LOCAL)),
+            "the dotted campaign root reads back whole"
+        );
+
+        let mut instance = instance_sample();
+        instance.instance = slug("ygg.drasil");
+        let instance_key = pipeline_key(&PipelineDocument::Instance(instance)).expect("a dotted instance keys");
+        assert_eq!(instance_key, "ygg.drasil:instance:self");
+        assert_eq!(
+            pipeline_id("read_back", &instance_key, PipelineKind::Instance),
+            Ok(("ygg.drasil", ROOT_LOCAL)),
+            "the dotted instance root reads back whole"
+        );
+
+        let PipelineDocument::Target(mut target) = samples().remove(1).0 else { unreachable!() };
+        target.campaign = slug("game.cult");
+        let target_key = pipeline_key(&PipelineDocument::Target(target)).expect("a target under a dotted campaign keys");
+        assert_eq!(target_key, "game.cult:target:r2");
+        assert_eq!(
+            pipeline_id("read_back", &target_key, PipelineKind::Target),
+            Ok(("game.cult", "r2")),
+            "the dotted root and the local both read back"
+        );
+
+        let resolution = resolution_of(PipelineKind::Campaign, &campaign_key).expect("a resolution of a dotted campaign keys");
+        assert_eq!(resolution, "game.cult:resolution:campaign.self");
+        assert_eq!(
+            pipeline_id("read_back", &resolution, PipelineKind::Resolution),
+            Ok(("game.cult", "campaign.self")),
+            "a resolution under a dotted root reads back"
+        );
+    }
+
     /// Defect 2: a resolution's key carries its subject's kind as a literal
     /// part of the local, so nothing infers it and two subjects of one local
     /// and different kinds resolve to two keys. Each reads back through the
@@ -1503,9 +1574,10 @@ mod tests {
     /// subject like any other, and the key reads back to the inner key. Depth
     /// is bounded by the local alone: each nesting prepends `resolution.`, 11
     /// bytes, so a chain `n` deep over a depth-one local of `L` bytes composes
-    /// `11 * (n - 1) + L` bytes against 64. The deepest chain that keys is
-    /// therefore `(64 - L) / 11 + 1`, and it depends on the subject: `ruling.A`
-    /// (8 bytes) keys six deep, `question.Q1` (11 bytes) five.
+    /// `11 * (n - 1) + L` bytes against `LOCAL_MAX`. The deepest chain that
+    /// keys is therefore `(LOCAL_MAX - L) / 11 + 1`, and it depends on the
+    /// subject: at 64, `ruling.A` (8 bytes) keys six deep, `question.Q1` (11
+    /// bytes) five.
     #[test]
     fn a_resolution_of_a_resolution_reads_back() {
         let inner = resolution_of(PipelineKind::Question, &id("question", "Q1").0).expect("the inner keys");
@@ -1524,13 +1596,13 @@ mod tests {
         for (subject_kind, subject_id) in [(PipelineKind::Ruling, id("ruling", "A")), (PipelineKind::Question, id("question", "Q1"))] {
             let mut key = resolution_of(subject_kind, &subject_id.0).expect("the depth-one resolution keys");
             let depth_one = key.len() - prefix;
-            let deepest = (64 - depth_one) / nesting + 1;
+            let deepest = (LOCAL_MAX - depth_one) / nesting + 1;
             for depth in 2..=deepest {
                 key = resolution_of(PipelineKind::Resolution, &key)
                     .unwrap_or_else(|error| panic!("{subject_id:?} depth {depth}: {error}"));
                 assert_eq!(key.len() - prefix, nesting * (depth - 1) + depth_one, "{key}: depth {depth} local length");
             }
-            assert!(key.len() - prefix <= 64, "{key}: the deepest chain fits the local");
+            assert!(key.len() - prefix <= LOCAL_MAX, "{key}: the deepest chain fits the local");
             assert!(
                 matches!(
                     resolution_of(PipelineKind::Resolution, &key),

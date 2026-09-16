@@ -15,17 +15,23 @@
 # each note below names where the rule is pinned now.
 #
 # - M5, "a finding label carries no dot": the finding arm no longer validates
-#   the label itself; the label goes through `local`, which refuses a dotted
-#   part as `finding.key`. Cut 6b's F5 accepted that refusal; the rule is
-#   pinned by `composed_keys_cannot_collide` and Cut 6b's M6.
+#   the label itself; the label goes through `local` as its last part, which
+#   refuses a dotted part as `finding.key`. Cut 6b's F5 accepted that
+#   refusal; the rule is pinned on the composer by Cut 6b's N3 (the last part
+#   skips the label check) and M6 (the head does), and through the documents
+#   by `composed_keys_cannot_collide`.
 # - M12, "a repo inside a key is escaped", and M13, "the repo escape is
-#   injective": `key_segment` replaced `repo_segment`; the escape and its
-#   injectivity are pinned by Cut 6b's M6 and the S2 receiver pair.
+#   injective": `key_segment` replaced `repo_segment`; each is re-anchored on
+#   it as Cut 6b's N7 (the escape is the identity) and N8 (`/` to a bare `_`,
+#   `_` unescaped), both killed by `stewardship_key_escapes_the_repo_slash`.
 # - M14, "an instance's slug is validated where its key is composed": the
 #   instance arm composes through the shared root check; pinned by Cut 6b's
 #   M5 and M1.
 # - M15, "the id reader knows the same roots the key writer does": every kind
-#   reads back with no root excused; pinned by Cut 6b's M1.
+#   reads back with no root excused; pinned by Cut 6b's N6 (the reader's kind
+#   check excuses the Instance kind), killed by
+#   `keys_read_back_as_ids_of_their_kind` reading a campaign key as an
+#   instance, and by Cut 6b's M1.
 @{
     Mutations = @(
         @{
