@@ -641,8 +641,10 @@ pub fn pipeline_key(document: &PipelineDocument) -> Result<String, PipelineRefus
         // A resolution is keyed inside its subject's root, with the subject's
         // kind and local as its own local. A resolution's own key is an
         // ordinary id, so it composes as a subject like any other; each nesting
-        // costs `resolution.` against the local bound, which is the only depth
-        // limit and needs no guard.
+        // prepends `resolution.` (11 bytes), so a chain `n` deep over a
+        // depth-one local of `L` bytes composes `11 * (n - 1) + L` bytes
+        // against the 64-byte bound in `local`, which is the only depth limit
+        // and needs no guard.
         D::Resolution(value) => {
             let field = "resolution.subject.id";
             let (subject_root, subject_local) = pipeline_id(field, &value.subject.id.0, value.subject.kind)?;
@@ -1379,6 +1381,17 @@ mod tests {
             Ok(format!("{INSTANCE}:hand_off:thought-cage_dGameCult.GameCult_-Epiphany.2026-09-15"))
         );
 
+        // The escape's `_` half is not only for repos: a receiver `a_db` and a
+        // receiver `a.b` would both key to `a_db` if the slug's own `_` passed
+        // through raw, so the slug is escaped as `a__db` and the two differ.
+        let mut underscored_receiver = hand_off_sample();
+        underscored_receiver.to_instance = slug("a_db");
+        let mut dotted_twin = hand_off_sample();
+        dotted_twin.to_instance = slug("a.b");
+        let underscored_receiver = key(underscored_receiver).expect("an underscored receiver keys");
+        assert!(underscored_receiver.contains("a__db"), "{underscored_receiver}: the slug's underscore is escaped");
+        assert_ne!(key(dotted_twin), Ok(underscored_receiver), "`a_db` and `a.b` are two receivers");
+
         // Both instance slugs are validated as key segments, not merely bounded.
         let mut bad_receiver = hand_off_sample();
         bad_receiver.to_instance = Slug("thought cage".into());
@@ -1428,13 +1441,21 @@ mod tests {
             }
         }
 
-        let PipelineDocument::Target(mut target) = samples().remove(1).0 else { unreachable!() };
-        target.campaign = Slug("a:b".into());
-        assert_eq!(
-            pipeline_key(&PipelineDocument::Target(target)),
-            Err(PipelineRefusal::InvalidFormat { field: "target.campaign".into(), value: "a:b".into() }),
-            "a root carrying a colon does not compose a key"
-        );
+        // A root that would add a segment, one that would empty a part, and one
+        // wider than a segment are all refused before a key is formatted. The
+        // refusal names the part that failed, so an empty part reports `""`.
+        let trailing_dot = format!("{CAMPAIGN}.");
+        let leading_dot = format!(".{CAMPAIGN}");
+        let over = "a".repeat(65);
+        for root in ["a:b", trailing_dot.as_str(), leading_dot.as_str(), "a..b", over.as_str()] {
+            let PipelineDocument::Target(mut target) = samples().remove(1).0 else { unreachable!() };
+            target.campaign = Slug(root.into());
+            let key = pipeline_key(&PipelineDocument::Target(target));
+            assert!(
+                matches!(&key, Err(PipelineRefusal::InvalidFormat { field, .. }) if field == "target.campaign"),
+                "root {root:?} does not compose a key, got {key:?}"
+            );
+        }
     }
 
     /// Defect 1: the two roots are in distinct namespaces because the kind
@@ -1480,8 +1501,11 @@ mod tests {
 
     /// Defect 3: a resolution's own key is an ordinary id, so it composes as a
     /// subject like any other, and the key reads back to the inner key. Depth
-    /// is bounded by the local alone: each nesting costs `resolution.` against
-    /// 64 bytes, so five nestings key and six refuse on the local.
+    /// is bounded by the local alone: each nesting prepends `resolution.`, 11
+    /// bytes, so a chain `n` deep over a depth-one local of `L` bytes composes
+    /// `11 * (n - 1) + L` bytes against 64. The deepest chain that keys is
+    /// therefore `(64 - L) / 11 + 1`, and it depends on the subject: `ruling.A`
+    /// (8 bytes) keys six deep, `question.Q1` (11 bytes) five.
     #[test]
     fn a_resolution_of_a_resolution_reads_back() {
         let inner = resolution_of(PipelineKind::Question, &id("question", "Q1").0).expect("the inner keys");
@@ -1495,18 +1519,27 @@ mod tests {
         let (subject_kind, subject_local) = local.split_once('.').expect("the local names a subject");
         assert_eq!(format!("{root}:{subject_kind}:{subject_local}"), inner, "the recovered subject is the inner key");
 
-        let mut key = inner;
-        for depth in 2..=5 {
-            key = resolution_of(PipelineKind::Resolution, &key).unwrap_or_else(|error| panic!("depth {depth}: {error}"));
+        let prefix = format!("{CAMPAIGN}:resolution:").len();
+        let nesting = "resolution.".len();
+        for (subject_kind, subject_id) in [(PipelineKind::Ruling, id("ruling", "A")), (PipelineKind::Question, id("question", "Q1"))] {
+            let mut key = resolution_of(subject_kind, &subject_id.0).expect("the depth-one resolution keys");
+            let depth_one = key.len() - prefix;
+            let deepest = (64 - depth_one) / nesting + 1;
+            for depth in 2..=deepest {
+                key = resolution_of(PipelineKind::Resolution, &key)
+                    .unwrap_or_else(|error| panic!("{subject_id:?} depth {depth}: {error}"));
+                assert_eq!(key.len() - prefix, nesting * (depth - 1) + depth_one, "{key}: depth {depth} local length");
+            }
+            assert!(key.len() - prefix <= 64, "{key}: the deepest chain fits the local");
+            assert!(
+                matches!(
+                    resolution_of(PipelineKind::Resolution, &key),
+                    Err(PipelineRefusal::InvalidFormat { field, .. }) if field == "resolution.key"
+                ),
+                "{key}: nesting {} is refused on the local bound",
+                deepest + 1
+            );
         }
-        assert_eq!(key.len() - format!("{CAMPAIGN}:resolution:").len(), 55, "{key}: five nestings fill 55 of 64 bytes");
-        assert!(
-            matches!(
-                resolution_of(PipelineKind::Resolution, &key),
-                Err(PipelineRefusal::InvalidFormat { field, .. }) if field == "resolution.key"
-            ),
-            "the sixth nesting is refused on the local bound"
-        );
     }
 
     /// The total bound, in the one place it lives: parts that are each a legal
@@ -1526,6 +1559,34 @@ mod tests {
             matches!(&key, Err(PipelineRefusal::InvalidFormat { field, value }) if field == "hand_off.key" && value.len() > 64),
             "a local of legal parts is still bounded whole, got {key:?}"
         );
+
+        // The bound is 64 exactly, on both sides, whether the part that fills
+        // it is a plain label or an escaped repo. A hand-off local is
+        // `<receiver>.<repo>.<date>`, the repo `GameCult_-Epiphany` and the
+        // date ten bytes, so the receiver fills the rest; a stewardship local is
+        // the escaped repo alone, `GameCult_-` and the name.
+        let hand_off_rest = "GameCult_-Epiphany".len() + ".".len() + date().0.len() + ".".len();
+        let received = |receiver: usize| {
+            let mut hand_off = hand_off_sample();
+            hand_off.to_instance = Slug("a".repeat(receiver));
+            pipeline_key(&PipelineDocument::HandOff(hand_off))
+        };
+        let stewarded = |name: usize| {
+            let mut stewardship = stewardship_sample();
+            stewardship.repo = OrgRepo(format!("GameCult/{}", "a".repeat(name)));
+            pipeline_key(&PipelineDocument::Stewardship(stewardship))
+        };
+        for (label, at_64, at_65) in [
+            ("plain label", received(64 - hand_off_rest), received(65 - hand_off_rest)),
+            ("escaped repo", stewarded(64 - "GameCult_-".len()), stewarded(65 - "GameCult_-".len())),
+        ] {
+            let keyed = at_64.unwrap_or_else(|error| panic!("{label}: a 64-byte local keys: {error}"));
+            assert_eq!(keyed.split(':').nth(2).map(str::len), Some(64), "{label}: {keyed} fills the local exactly");
+            assert!(
+                matches!(&at_65, Err(PipelineRefusal::InvalidFormat { value, .. }) if value.len() == 65),
+                "{label}: a 65-byte local is refused, got {at_65:?}"
+            );
+        }
     }
 
     /// R2, on the composer every kind goes through: no local part carries the
