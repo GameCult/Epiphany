@@ -872,8 +872,12 @@ mod tests {
                 commits: vec![ReportCommit { sha: sha(), subject: "Add the pipeline documents".into(), builds: true }],
                 range: range(), verification: vec![evidence()],
                 mutations: vec![MutationRecord {
-                    label: l("M1"), rule: "key derivation".into(), location: location(),
-                    before: "parent_cut(field, spec, 'r')?".into(), after: "spec".into(), commit: sha(),
+                    // `.into()` on both, not `l()` and `sha()`: the type-level
+                    // mutations (M19, M20) widen these fields to `Short`, and
+                    // a sample spelled with the narrow constructors would stop
+                    // compiling instead of letting the forgery through.
+                    label: "M1".into(), rule: "key derivation".into(), location: location(),
+                    before: "parent_cut(field, spec, 'r')?".into(), after: "spec".into(), commit: "5f98228d".into(),
                     failed_as_expected: true,
                 }],
                 deviations: vec![Deviation { what: "names".into(), why: "glob exports".into() }],
@@ -1671,8 +1675,11 @@ mod tests {
     fn mutation_records_carry_a_dot_free_label_and_a_commit() {
         let recorded = |label: &str, commit: &str| {
             let mut report = report_sample();
-            report.mutations[0].label = Label(label.into());
-            report.mutations[0].commit = Sha(commit.into());
+            // Through `From<&str>`, which every text type has, so the
+            // widened types under M19 and M20 still compile and the
+            // forgeries reach validation.
+            report.mutations[0].label = label.into();
+            report.mutations[0].commit = commit.into();
             PipelineDocument::CutReport(report).validate()
         };
         assert_eq!(recorded("M1", "5f98228d"), Ok(()));
