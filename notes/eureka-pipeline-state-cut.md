@@ -176,6 +176,46 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
   door, a subject's kind is a function of its id on both sides, so comparing
   the whole subject and comparing only its id cannot differ. Cut 9's spec
   text still calls V10L failable and is stale there.
+- **Cut 10 landed** on Huginn at `f7170fa` (the instance check gets one owner
+  and the dead serde mirror goes), `c4b2a0f` (the wire vocabulary and its two
+  published schemas), `6b619d6` (the CultNet surface itself), `a235304`
+  (documentation of the daemon that exists rather than the stub that did not)
+  and `f0fee0b` (31 entries over 16 rules). 60 mind tests and 10 daemon tests,
+  zero warnings, one each of the three GameCult crates in the dependency tree,
+  no Epiphany file touched and the leaf pin unmoved. M0 green on all seven
+  targets and every entry killed; cut8 and cut9 rerun clean against the final
+  spelling. No fork. **Soul in flight.**
+
+  Nine spec discrepancies, all of them the map's fault rather than the Body's:
+  the connection id constant the spec named does not exist in CultLib at
+  `a0813c6`, so the entry uses a literal; the daemon must name the owned store
+  type after all, taken as a re-export through `huginn-mind` rather than a
+  second `cultcache-rs` dependency, so one crate still pins one revision;
+  `serde_json` was specified as a daemon dependency and is not one, and was
+  removed rather than kept unused; one refusal code is unreachable through the
+  door the spec routed it to and is pinned in the envelope tests instead;
+  `Options`, `parse_options` and `startup` live in `serve.rs` because a
+  binary's tests are unreachable, leaving `main.rs` at thirty-three lines that
+  call them; the mutant the spec stated for the bind-order rule could not fail,
+  because a hub bound before the refusal is dropped by `?` and releases the
+  port, so the test now holds the mind lock and the port at once; `std::env`
+  appears once, for process arguments, with no deployment variable read;
+  `Mind::status` had to travel with `wire.rs` rather than the first commit.
+  **Several loosening mutations the brief required could not fail and were
+  replaced with failable ones of the same rules** — that replacement is the
+  first thing Soul was told to attack, since a loosening swapped for an easier
+  target is a hole wearing a green tick. Two rules carry a single mutation with
+  the file saying why: a served connection id is one argument, so "serves more
+  ids" has no expressible shape, and the bind-order rule is an order between
+  two statements whose only weakening short of correctness is already an entry.
+
+  Left for Soul: **the reliable-window limit is asserted nowhere**, so a
+  response larger than the transport carries may fail by truncation or silence
+  rather than by a typed refusal; the termination signal path is pinned only by
+  reading. Build budget missed: +1,743 paths and +1.02 GiB against an estimate
+  of +100 to +300 paths, because the probe's rlibs were cold and this pass
+  built library, binary and tests rather than one library. Lockfile 93 → 139
+  packages.
 - **Self's ruling on the boundary Hands pinned, 2026-09-16.** A resolution id
   carrying no sequence part is well formed to the leaf and is not refused
   there. The leaf owns the grammar of ids; per-kind local shape belongs to
