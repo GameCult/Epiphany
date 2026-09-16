@@ -1231,6 +1231,11 @@ mod tests {
         let published = Path::new(env!("CARGO_MANIFEST_DIR")).join("../schemas/cultnet");
         let index: serde_json::Value = serde_json::from_slice(&std::fs::read(published.join("index.json"))?)?;
         let derived_dir = std::env::temp_dir().join("epiphany-pipeline-schemas");
+        // Emptied first, so what is left in it is what this run derived. A
+        // previous run's leftovers -- a mutation run's especially -- are not
+        // this derivation, and copying one of those into `schemas/cultnet`
+        // publishes a schema no Rust type produces.
+        std::fs::remove_dir_all(&derived_dir).ok();
         let mut stale = Vec::new();
         for kind in PipelineKind::ALL {
             let file = format!("{}.schema.json", kind.type_id());
