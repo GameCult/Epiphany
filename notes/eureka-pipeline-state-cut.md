@@ -3194,6 +3194,15 @@ operator may simply want recorded.
 
   **Recommended: A**, applied as Self's default in the Cut 8 fix batch so
   Hands is not blocked; reversible if the operator wants B.
+
+  **Ruled B, 2026-09-16.** The operator asked what a resolution is (the
+  record of how a subject was closed and by what; a question's is
+  `Answered { by: ruling }`, not the answer text) and then: "we definitely
+  want to keep a log of withdrawn ones, attached to the subject itself."
+  So a resolution's key gains a per-subject sequence, withdrawn resolutions
+  stay as records under their subject, and the in-force resolution is the
+  latest not withdrawn. Self's default was withdrawn from the Cut 8 fix
+  batch before it landed. The key change is a leaf cut, mapped with Q18's.
 - **Q18. Can a stewardship be regained after a hand-off?** Depends on: Cut
   12. The derived stewardship keys `<instance>:stewardship:<repo>`, so a
   repo handed away and handed back collides with the withdrawn record.
@@ -3206,6 +3215,16 @@ operator may simply want recorded.
     over time.
 
   **Recommended: A**, landed as a small leaf cut before Cut 12, not now.
+
+  **Ruled A, 2026-09-16**, with a framing that changes Cut 12's meaning.
+  The operator: "I actually was not planning for such handoffs but I can
+  definitely see it being useful for when a campaign has cross-cutting
+  concerns and the main steward for it must lease another steward's
+  authority over a repo to resolve it." A hand-off is therefore a lease:
+  authority over a repo moves to the campaign's steward for the campaign's
+  duration and returns. Stewardship keys by repo and assignment date; the
+  in-force stewardship is the latest not withdrawn; Cut 12 admits the
+  return as a second hand-off. Mapped as a leaf cut with Q17's.
 
 ## Target contradictions for Self to reconcile
 
