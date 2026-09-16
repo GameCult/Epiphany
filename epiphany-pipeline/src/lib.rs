@@ -1890,6 +1890,96 @@ mod tests {
         }
     }
 
+    /// Each level of a nesting carries its own sequence, and only its own: the
+    /// part appended is this resolution's `sequence` field, never a copy of the
+    /// sequence the subject already ends in. The fixtures elsewhere all sit at
+    /// `1` at every level, where the two are indistinguishable, so the chain
+    /// here differs at every level and reads back level by level.
+    ///
+    /// On spelling, so silence is not read as coverage: the leaf emits `n<N>`
+    /// with `N` as `u32::to_string` writes it, so `n0` and `n12` are emitted
+    /// and `n01` is not. A hand-built id ending `n01`, `n1x`, or no `n<N>` at
+    /// all is still a well-formed reference -- those are legal labels, and a
+    /// grammar that reads keys may not refuse them on spelling. Nothing in the
+    /// leaf canonicalises them either: such an id simply names a document the
+    /// leaf would never key, which admission's A7 sees as a missing referent.
+    #[test]
+    fn every_level_of_a_nesting_keeps_its_own_sequence() {
+        let resolved = |kind: PipelineKind, subject: &str, sequence: u32| {
+            let mut resolution = resolution_sample();
+            resolution.subject = PipelineRef { kind, id: Short(subject.into()) };
+            resolution.sequence = sequence;
+            pipeline_key(&PipelineDocument::Resolution(resolution)).expect("a sequenced resolution keys")
+        };
+        let first = resolved(PipelineKind::Question, &id("question", "Q1").0, 9);
+        let second = resolved(PipelineKind::Resolution, &first, 10);
+        let third = resolved(PipelineKind::Resolution, &second, 0);
+        let fourth = resolved(PipelineKind::Resolution, &third, 12);
+        assert_eq!(first, format!("{CAMPAIGN}:resolution:question.Q1.n9"));
+        assert_eq!(second, format!("{CAMPAIGN}:resolution:resolution.question.Q1.n9.n10"));
+        assert_eq!(third, format!("{CAMPAIGN}:resolution:resolution.resolution.question.Q1.n9.n10.n0"));
+        assert_eq!(
+            fourth,
+            format!("{CAMPAIGN}:resolution:resolution.resolution.resolution.question.Q1.n9.n10.n0.n12")
+        );
+        for (outer, inner, sequence) in [(&fourth, &third, 12), (&third, &second, 0), (&second, &first, 10)] {
+            let (root, local) = pipeline_id("read_back", outer, PipelineKind::Resolution).expect("reads back");
+            let (subject_kind, rest) = local.split_once('.').expect("the local names a subject");
+            let (subject_local, last) = rest.rsplit_once('.').expect("the local ends in this resolution's sequence");
+            assert_eq!(subject_kind, "resolution", "{outer}: the subject of a nesting is a resolution");
+            assert_eq!(format!("{root}:{subject_kind}:{subject_local}"), *inner, "{outer}: the subject is the inner key");
+            assert_eq!(last, format!("n{sequence}"), "{outer}: this level's own sequence, not the subject's");
+        }
+    }
+
+    /// A stewardship is the other sequenced kind, and it composes as a subject
+    /// like any other: the subject's whole local, escaped repo and sequence
+    /// both, is the resolution's local, with the resolution's own sequence
+    /// last. So the two assignments of one repo have two resolutions, and a
+    /// resolution of either is itself resolvable.
+    #[test]
+    fn a_resolution_of_a_stewardship_reads_back() {
+        let stewarded = |sequence: u32| {
+            let mut stewardship = stewardship_sample();
+            stewardship.sequence = sequence;
+            pipeline_key(&PipelineDocument::Stewardship(stewardship)).expect("a sequenced stewardship keys")
+        };
+        let first = stewarded(1);
+        let second = stewarded(2);
+        assert_eq!(first, format!("{INSTANCE}:stewardship:GameCult_-Epiphany.n1"));
+        assert_eq!(second, format!("{INSTANCE}:stewardship:GameCult_-Epiphany.n2"));
+
+        let resolved = resolution_of(PipelineKind::Stewardship, &first).expect("a resolution of a stewardship keys");
+        let resolved_second = resolution_of(PipelineKind::Stewardship, &second).expect("the second assignment resolves");
+        assert_eq!(resolved, format!("{INSTANCE}:resolution:stewardship.GameCult_-Epiphany.n1.n1"));
+        assert_eq!(resolved_second, format!("{INSTANCE}:resolution:stewardship.GameCult_-Epiphany.n2.n1"));
+        assert_ne!(resolved, resolved_second, "each assignment keeps its own resolution");
+
+        for (key, subject) in [(&resolved, &first), (&resolved_second, &second)] {
+            let (root, local) = pipeline_id("read_back", key, PipelineKind::Resolution).expect("reads back");
+            assert_eq!(root, INSTANCE, "{key}: a stewardship's resolution lives in the mind's root");
+            let (subject_kind, rest) = local.split_once('.').expect("the local names a subject");
+            let (subject_local, last) = rest.rsplit_once('.').expect("the local ends in this resolution's sequence");
+            assert_eq!(subject_kind, PipelineKind::Stewardship.name(), "{key} names its subject's kind");
+            assert_eq!(
+                format!("{root}:{subject_kind}:{subject_local}"),
+                *subject,
+                "{key}: the subject's own sequence is part of the recovered key"
+            );
+            assert_eq!(last, "n1", "{key}: this resolution's own sequence");
+
+            // A withdrawal of that resolution nests one out, as it does under
+            // any other subject, and reads back to the resolution it withdraws.
+            let withdrawal = resolution_of(PipelineKind::Resolution, key).expect("a withdrawal keys");
+            let subject_local = key.split(':').nth(2).expect("three segments");
+            assert_eq!(withdrawal, format!("{INSTANCE}:resolution:resolution.{subject_local}.n1"));
+            let (root, local) = pipeline_id("read_back", &withdrawal, PipelineKind::Resolution).expect("reads back");
+            let (subject_kind, rest) = local.split_once('.').expect("the local names a subject");
+            let (subject_local, _) = rest.rsplit_once('.').expect("the local ends in its own sequence");
+            assert_eq!(format!("{root}:{subject_kind}:{subject_local}"), **key, "{withdrawal}: the withdrawn resolution");
+        }
+    }
+
     /// The total bound, in the one place it lives: parts that are each a legal
     /// label compose a local wider than 64 bytes and are refused as a whole.
     #[test]
