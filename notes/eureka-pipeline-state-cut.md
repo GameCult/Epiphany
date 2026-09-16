@@ -508,12 +508,51 @@ rule requires. Target dir: Hands' growth to 9,279 was one debug profile;
 Soul left 8,991 because cargo rotated out one of Hands' incremental sessions,
 which cannot be recreated and is not a deletion.
 
-**The fix batch is in Hands:** pin F2, F3 and F4 with Soul's S2, S4 and S5 as
-the mutations; state the depth arithmetic in the arm comment and the test; and
-factor the mutation harness into one `tools/eureka-mutations.ps1` with a
-built-in M0 and per-cut entries files, deleting the stale Cut 6 entries with a
-note naming the 6b mutation that now pins each rule. Cuts 5, 6, 6b and 6c
-would otherwise carry four copies of the same scaffold.
+**The first fix batch landed** at `4b85dd2d` (F1-F4 pinned; Soul's S2, S4 and
+S5 now die; the depth test computes its expectation from the formula) and
+`d03a32df` (one harness, `tools/eureka-mutations.ps1`, with per-cut entries
+files `eureka-cut5-`, `-cut6-`, `-cut6b-mutations.psd1`; the three old scripts
+deleted; `tools/` net −24 lines). The harness runs each entry with
+`--exact <test>` and reports `TEST NOT RUN` for a name that runs nothing,
+where the old scripts would have said SURVIVED. Cut 6's stale entries M5 and
+M12-M15 were deleted with notes, on Self's instruction, which was a mistake;
+see F3 below.
+
+**Soul's second pass** (Fable; scripts `soul-cut6b-fix-*.ps1` in the session
+scratchpad) attacked the harness directly and reran every entry with the
+whole suite: no verdict was borrowed from a collateral kill. Held: S2/S4/S5
+die, the four pins are as promised, all three suites report the same verdicts
+through the new harness, refusal `value` is the failing part and asserting
+`field` alone cannot hide a wrong-reason refusal. Found:
+
+- **F1 (medium): the control could damage what it protects.** M0 wrote the
+  target before comparing, having read it as text, so on a broken harness or
+  a BOM-bearing target it reported "harness broken" and left the file
+  changed with no restore source but the checkout the rules forbid.
+- **F2 (low): "exactly once" counted non-overlapping matches**, so a
+  self-overlapping anchor like `}\n}\n` in a run of three braces passed as
+  one.
+- **F3 (low-medium): the deletion notes for Cut 6's M12/M13 named the wrong
+  pinning entry.** `key_segment` still exists and nothing in the committed
+  suite removes its escape or breaks its injectivity; the tests do pin the
+  rule (Soul's N7/N8 die), the suite claimed coverage it lacked. Self's brief
+  ordered "delete, do not re-anchor"; the coherent fix was to re-anchor.
+- **F4 (medium): dotted roots were unpinned on writer and reader.** No test
+  used a campaign or instance slug with a dot, so `label_text` on the root in
+  either `pipeline_key` or `pipeline_id` survived the whole suite.
+- **F5 (low): the reader's kind check was unpinned for root kinds.** A mutant
+  excusing `Instance` from the kind-segment comparison survived: exactly the
+  "reader excuses a root" shape Cut 6b existed to kill.
+- **F6 (low): the depth test restated the literal 64** rather than
+  referencing the bound, so moving both to 60 passed it; the bound itself is
+  pinned by F4's fixtures.
+- **F7 (recorded): `-Test` splits on whitespace**, so a path with spaces
+  cannot be expressed. Not reachable on this host.
+
+**The second fix batch is in Hands:** the harness reads and restores bytes and
+compares before writing; overlapping anchor counts; N3/N6/N7/N8/N9/N10 added as
+entries with their pins (a dotted-roots test, a root-kind read-back test, a
+shared `LOCAL_MAX` constant); the Cut 6 notes corrected.
 
 ## Probes and source reads this pass
 
