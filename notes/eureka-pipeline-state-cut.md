@@ -336,6 +336,17 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
     is 1023 packets rather than 1024 until the acceptance is acknowledged,
     which would make a naive boundary test flaky.
   - **Second fix batch in Hands.**
+- **Operator ruling on the oversize document, 2026-09-17: the body plane.**
+  A body too large for the control plane travels CultMesh's content and body
+  transfer, which exists for exactly this class of content, with the control
+  plane carrying the summary and a reference to it. Rejected: raising the
+  window, which moves a number we would then keep revising until it met the
+  same wall; and bounding documents smaller, which argues with what a cut spec
+  honestly is. **The typed refusal stays** as the backstop, because a caller
+  must still be told by name when an answer cannot be delivered, rather than
+  discovering it as silence. This is a cut of its own, to be mapped: it spans
+  the organ and CultMesh, and nothing about it is in Cut 10 beyond the refusal
+  that made the problem visible.
 - **Operator rulings on the read side, 2026-09-17.** The generic selection
   vocabulary does **not** land here: it fills the hole in CultNet, mapped at
   `F:\Projects\CultLib\docs\cultnet-selection-cut.md`, and the organ becomes a
