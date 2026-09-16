@@ -12,6 +12,12 @@
 //! schema describes. Keys are semantic: `pipeline_key` derives them from the
 //! value, and the write validator refuses any envelope whose key differs.
 //!
+//! Every key is `<root>:<kind>:<local>`, three segments for every kind with
+//! none excused: the root is a `Slug`, the kind is the literal kind name, and
+//! the local is `Label`s joined by `.`, so no local part carries a dot and a
+//! reader recovers the parts by splitting. A root's local is the constant
+//! `self`; a resolution's local is its subject's kind and local.
+//!
 //! **Validation follows the type.** `value_types!` is the single field list: it
 //! emits the struct and its `Bounded` impl from the same tokens, so a field
 //! cannot be declared without being validated. Format rules live in the field's
@@ -114,7 +120,7 @@ fn hex(field: &str, value: &str, lengths: std::ops::RangeInclusive<usize>) -> Re
 }
 
 /// A key label: `[A-Za-z0-9_-]{1,64}`. Dots are excluded so that a composed key
-/// segments unambiguously; see `parent_cut` and `KeyParts::key`.
+/// segments unambiguously; see `local`.
 fn label_text(field: &str, value: &str) -> Result<(), PipelineRefusal> {
     let valid = value
         .bytes()
@@ -523,18 +529,20 @@ pipeline_kinds! {
         "epiphany.pipeline.hand_off.v1", "EpiphanyPipelineHandOffDocument";
 }
 
-/// Parses a full document id. A key and an id are the same string, so this
-/// accepts exactly what `pipeline_key` derives: `<root>:<kind>:<local>` for
-/// every kind but the roots and a resolution. The segment count is exact, the
-/// kind segment must match `kind`, and both the root and the local segment are
-/// validated, so `..`, an empty part, spaces and trailing junk are all refused.
+/// Parses a full document id: the grammar read backwards. A key and an id are
+/// the same string, so this accepts exactly what `pipeline_key` derives:
+/// `<root>:<kind>:<local>`, three segments for every kind. The kind segment
+/// must equal `kind`'s name, the root is a `Slug`, and the local is `Label`s
+/// joined by `.` and bounded whole, so `..`, an empty part, spaces and trailing
+/// junk are all refused. Returns the root and the local; nothing is inferred
+/// from either, and no kind is read any other way.
 fn pipeline_id<'a>(
     field: &str,
     id: &'a str,
     kind: PipelineKind,
 ) -> Result<(&'a str, &'a str), PipelineRefusal> {
     let mut segments = id.split(':');
-    let (Some(campaign), Some(name), Some(local), None) = (
+    let (Some(root), Some(name), Some(local), None) = (
         segments.next(),
         segments.next(),
         segments.next(),
@@ -545,9 +553,9 @@ fn pipeline_id<'a>(
     if name != kind.name() {
         return Err(format_error(field, id));
     }
-    dotted_text(field, campaign)?;
+    dotted_text(field, root)?;
     dotted_text(field, local)?;
-    Ok((campaign, local))
+    Ok((root, local))
 }
 
 /// The local segment of a parent id in `campaign`, of the expected kind.
@@ -564,15 +572,15 @@ fn parent_local<'a>(
     Ok(local)
 }
 
-/// The cut label inside a parent local `cut-<label>.<marker><N>`. The label
-/// carries no dot and `<N>` is a non-empty run of digits, so the composed key
-/// segments one way only.
+/// The cut label inside a parent local `cut-<label>.<marker><N>`: exactly two
+/// parts, the label a `Label` and `<N>` a non-empty run of digits.
 fn parent_cut<'a>(field: &str, local: &'a str, marker: char) -> Result<&'a str, PipelineRefusal> {
     let invalid = || format_error(field, local);
-    let (cut, suffix) = local
-        .strip_prefix("cut-")
-        .and_then(|rest| rest.rsplit_once('.'))
-        .ok_or_else(invalid)?;
+    let mut parts = local.split('.');
+    let (Some(head), Some(suffix), None) = (parts.next(), parts.next(), parts.next()) else {
+        return Err(invalid());
+    };
+    let cut = head.strip_prefix("cut-").ok_or_else(invalid)?;
     label_text(field, cut)?;
     let digits = suffix.strip_prefix(marker).ok_or_else(invalid)?;
     if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
@@ -581,74 +589,118 @@ fn parent_cut<'a>(field: &str, local: &'a str, marker: char) -> Result<&'a str, 
     Ok(cut)
 }
 
-/// A repo as one key segment. `/` is not a `Label` byte, so it cannot survive
-/// into a key, and neither may `.`: a repo is a tail part of a composed local
-/// (`KeyParts::key`), and a dot there would give the boundary before it two
-/// readings. `OrgRepo` imposes no byte class, and a dotted repo name is
-/// ordinary, so both bytes are escaped rather than refused. The escape has to
-/// be injective or two repos claim one key: replacing `/` with `_` alone is
-/// not, since `GameCult_Epiphany/thing` and `GameCult/Epiphany_thing` both give
+/// A `Slug` or an `OrgRepo` entering a local, escaped to one label. `/` is not
+/// a `Label` byte, so it cannot survive into a key, and neither may `.`: no
+/// local part carries the separator, or the boundary before it would have two
+/// readings. A dotted slug and a dotted repo name are both ordinary, so both
+/// bytes are escaped rather than refused. The escape has to be injective or two
+/// values claim one key: replacing `/` with `_` alone is not, since
+/// `GameCult_Epiphany/thing` and `GameCult/Epiphany_thing` both give
 /// `GameCult_Epiphany_thing`. So `_` is escaped as well, and every code is two
 /// bytes starting with `_`: `_` becomes `__`, `/` becomes `_-`, and `.` becomes
 /// `_d`. Every other byte is passed through and is never `_`, so a reader going
 /// left to right takes each `_` together with the byte after it and never has a
-/// choice to make; the encoding is therefore reversible, and distinct repos give
-/// distinct segments. The caller checks the result against the key's segment
-/// rules, which is where an over-long repo name is refused.
-fn repo_segment(field: &str, repo: &OrgRepo) -> Result<String, PipelineRefusal> {
-    org_repo_text(field, &repo.0)?;
-    Ok(repo.0.replace('_', "__").replace('/', "_-").replace('.', "_d"))
+/// choice to make; the encoding is therefore reversible, and distinct values
+/// give distinct segments. The caller validates the value as its own type first
+/// and checks the result against the local's rules, which is where an over-long
+/// or otherwise unlabelled value is refused.
+fn key_segment(value: &str) -> String {
+    value.replace('_', "__").replace('/', "_-").replace('.', "_d")
+}
+
+/// The local of a root. A campaign's or an instance's identity is entirely its
+/// root segment, so its local carries none; a reader never consults it.
+const ROOT_LOCAL: &str = "self";
+
+/// Composes and validates a local: every part is a `Label`, and the join is
+/// bounded whole. Both rules live here because this is the only way a local is
+/// built; `pipeline_key` has no other path to a key string. Parts are a slice,
+/// not a builder, so an arm's arity is written at its call site.
+fn local(field: &str, parts: &[&str]) -> Result<String, PipelineRefusal> {
+    for part in parts {
+        label_text(field, part)?;
+    }
+    let joined = parts.join(".");
+    if joined.len() > 64 {
+        return Err(format_error(field, &joined));
+    }
+    Ok(joined)
 }
 
 /// Derives a document's identity key (D1, "Keys: identity, not convenience").
+/// Thirteen arms, one exit: every arm names its root and composes its local
+/// through `local`, and the key is formatted here and nowhere else.
 pub fn pipeline_key(document: &PipelineDocument) -> Result<String, PipelineRefusal> {
     use PipelineDocument as D;
     let kind = document.kind().name();
-    let parts = match document {
-        // Stewardship and hand-off hang off an instance rather than a campaign.
-        // The root is the whole difference; the key shape is the same, so they
-        // compose through `KeyParts` like every other kind.
-        D::Stewardship(value) => KeyParts {
-            root: ("stewardship.instance".into(), &value.instance.0),
-            head: ("stewardship.key".into(), repo_segment("stewardship.repo", &value.repo)?),
-            tail: Vec::new(),
-        },
-        D::HandOff(value) => {
-            value.handed_on.validate("hand_off.handed_on")?;
-            KeyParts {
-                root: ("hand_off.from_instance".into(), &value.from_instance.0),
-                head: ("hand_off.to_instance".into(), value.to_instance.0.clone()),
-                tail: Vec::new(),
-            }
-            .then("hand_off.repo", repo_segment("hand_off.repo", &value.repo)?)
-            .then("hand_off.handed_on", value.handed_on.0.clone())
+    let key_field = format!("{kind}.key");
+    let campaign_field = format!("{kind}.campaign");
+    let (root_field, root, composed) = match document {
+        D::Campaign(value) => ("campaign.slug", value.slug.0.as_str(), local(&key_field, &[ROOT_LOCAL])?),
+        D::Instance(value) => ("instance.instance", value.instance.0.as_str(), local(&key_field, &[ROOT_LOCAL])?),
+        // A resolution is keyed inside its subject's root, with the subject's
+        // kind and local as its own local. A resolution's own key is an
+        // ordinary id, so it composes as a subject like any other; each nesting
+        // costs `resolution.` against the local bound, which is the only depth
+        // limit and needs no guard.
+        D::Resolution(value) => {
+            let field = "resolution.subject.id";
+            let (subject_root, subject_local) = pipeline_id(field, &value.subject.id.0, value.subject.kind)?;
+            let parts = std::iter::once(value.subject.kind.name()).chain(subject_local.split('.')).collect::<Vec<_>>();
+            (field, subject_root, local(&key_field, &parts)?)
         }
-        D::Target(value) => KeyParts::campaign(kind, &value.campaign, format!("r{}", value.revision)),
-        D::Question(value) => KeyParts::campaign(kind, &value.campaign, value.label.0.clone()),
-        D::Ruling(value) => KeyParts::campaign(kind, &value.campaign, value.label.0.clone()),
-        D::FollowUp(value) => KeyParts::campaign(kind, &value.campaign, value.label.0.clone()),
-        D::CutSpec(value) => KeyParts::campaign(kind, &value.campaign, format!("cut-{}", value.cut.0))
-            .then("cut_spec.key", format!("r{}", value.revision)),
+        // Stewardship and hand-off hang off an instance rather than a campaign.
+        // The root is the whole difference; the key shape is the same.
+        D::Stewardship(value) => {
+            org_repo_text("stewardship.repo", &value.repo.0)?;
+            ("stewardship.instance", value.instance.0.as_str(), local(&key_field, &[&key_segment(&value.repo.0)])?)
+        }
+        D::HandOff(value) => {
+            dotted_text("hand_off.to_instance", &value.to_instance.0)?;
+            org_repo_text("hand_off.repo", &value.repo.0)?;
+            value.handed_on.validate("hand_off.handed_on")?;
+            (
+                "hand_off.from_instance",
+                value.from_instance.0.as_str(),
+                local(&key_field, &[&key_segment(&value.to_instance.0), &key_segment(&value.repo.0), &value.handed_on.0])?,
+            )
+        }
+        D::Target(value) => (campaign_field.as_str(), value.campaign.0.as_str(), local(&key_field, &[&format!("r{}", value.revision)])?),
+        D::Question(value) => (campaign_field.as_str(), value.campaign.0.as_str(), local(&key_field, &[&value.label.0])?),
+        D::Ruling(value) => (campaign_field.as_str(), value.campaign.0.as_str(), local(&key_field, &[&value.label.0])?),
+        D::FollowUp(value) => (campaign_field.as_str(), value.campaign.0.as_str(), local(&key_field, &[&value.label.0])?),
+        D::CutSpec(value) => (
+            campaign_field.as_str(),
+            value.campaign.0.as_str(),
+            local(&key_field, &[&format!("cut-{}", value.cut.0), &format!("r{}", value.revision)])?,
+        ),
         D::CutReport(value) => {
             let spec = parent_local("cut_report.cut_spec", &value.cut_spec.0, &value.campaign.0, PipelineKind::CutSpec)?;
             let cut = parent_cut("cut_report.cut_spec", spec, 'r')?;
-            KeyParts::campaign(kind, &value.campaign, format!("cut-{cut}"))
-                .then("cut_report.key", format!("h{}", value.attempt))
+            (
+                campaign_field.as_str(),
+                value.campaign.0.as_str(),
+                local(&key_field, &[&format!("cut-{cut}"), &format!("h{}", value.attempt)])?,
+            )
         }
         D::Verdict(value) => {
             let report = parent_local("verdict.cut_report", &value.cut_report.0, &value.campaign.0, PipelineKind::CutReport)?;
             let cut = parent_cut("verdict.cut_report", report, 'h')?;
-            KeyParts::campaign(kind, &value.campaign, format!("cut-{cut}"))
-                .then("verdict.key", format!("s{}", value.pass))
+            (
+                campaign_field.as_str(),
+                value.campaign.0.as_str(),
+                local(&key_field, &[&format!("cut-{cut}"), &format!("s{}", value.pass)])?,
+            )
         }
         D::Finding(value) => {
             let verdict = parent_local("finding.verdict", &value.verdict.0, &value.campaign.0, PipelineKind::Verdict)?;
             parent_cut("finding.verdict", verdict, 's')?;
-            KeyParts::campaign(kind, &value.campaign, verdict.to_string())
-                .then("finding.label", value.label.0.clone())
+            let parts = verdict.split('.').chain(std::iter::once(value.label.0.as_str())).collect::<Vec<_>>();
+            (campaign_field.as_str(), value.campaign.0.as_str(), local(&key_field, &parts)?)
         }
     };
-    parts.key(kind)
+    dotted_text(root_field, root)?;
+    Ok(format!("{root}:{kind}:{composed}"))
 }
 
 /// Bounds, formats, then key recomputation, for one envelope. Per-kind
@@ -729,7 +781,7 @@ mod tests {
             (D::Campaign(PipelineCampaign {
                 slug: slug(CAMPAIGN), title: s("Eureka pipeline state"), repos: vec![repo()],
                 working_branch: branch(), target_doc: doc_ref(),
-            }), CAMPAIGN.into()),
+            }), format!("{CAMPAIGN}:campaign:self")),
             (D::Target(PipelineTarget {
                 campaign: slug(CAMPAIGN), revision: 2,
                 invariants: vec![TargetInvariant { label: l("mind-admits"), statement: "Only admission writes.".into() }],
@@ -815,13 +867,13 @@ mod tests {
                 subject: PipelineRef { kind: PipelineKind::Question, id: id("question", "Q1") },
                 outcome: ResolutionOutcome::Answered { by: id("ruling", "R8") },
                 rationale: "Ruled A.".into(), resolved_on: date(),
-            }), format!("resolution:{CAMPAIGN}:question:Q1")),
+            }), format!("{CAMPAIGN}:resolution:question.Q1")),
             // The mind's own three kinds. They are appended rather than
             // inserted because the helpers below index this list by position.
             (D::Instance(PipelineInstance {
                 instance: slug(INSTANCE), display_name: s("Yggdrasil mind"), created_at: date(),
                 host: s("yggdrasil"),
-            }), INSTANCE.into()),
+            }), format!("{INSTANCE}:instance:self")),
             (D::Stewardship(PipelineStewardship {
                 instance: slug(INSTANCE), repo: repo(), assigned_on: date(),
                 note: "The Eureka campaign repo.".into(),
@@ -986,35 +1038,16 @@ mod tests {
     }
 
     /// F2, and Soul's second pass: a composed local segments one way only. The
-    /// rule is pinned on the composer every kind goes through -- only the head
-    /// may carry the separator -- so it covers whatever kind is added next
-    /// rather than the kinds someone remembered to list. The pairs below are the
-    /// ones Soul measured, and each is a pair only because the rule holds.
+    /// rule -- no local part carries the separator -- is pinned on the composer
+    /// in `no_local_part_carries_the_separator`; the pairs below are the ones
+    /// Soul measured through the documents, and each is a pair only because the
+    /// rule holds.
     #[test]
     fn composed_keys_cannot_collide() {
         let key = |document: PipelineDocument| pipeline_key(&document);
 
-        // The rule itself: `a.b.c` has two readings, and only one of them is a
-        // local a document can compose, because a dot in a tail part is refused
-        // where the local is built.
-        let compose = |head: &str, tail: &str| {
-            KeyParts {
-                root: ("probe.root".into(), "probe"),
-                head: ("probe.head".into(), head.into()),
-                tail: Vec::new(),
-            }
-            .then("probe.tail", tail.into())
-            .key("probe")
-        };
-        assert_eq!(compose("a.b", "c"), Ok("probe:probe:a.b.c".into()));
-        assert_eq!(
-            compose("a", "b.c"),
-            Err(PipelineRefusal::InvalidFormat { field: "probe.tail".into(), value: "b.c".into() }),
-            "a tail part carrying the separator is refused, so the other reading is not a document"
-        );
-
-        // Soul's hand-off pair. The dot is admitted on the receiver side, which
-        // is what a `Slug` is for, so it must not survive on the repo side: left
+        // Soul's hand-off pair. A dotted slug is ordinary on the receiver side
+        // and a dotted repo name on the repo side, so both are escaped: left
         // unescaped these two both key to
         // `yggdrasil:hand_off:thought-cage.GameCult.Epiphany_-thing.2026-09-15`.
         let handed = |to: &str, repo: &str| {
@@ -1027,7 +1060,7 @@ mod tests {
         let dotted_repo = handed("thought-cage", "GameCult.Epiphany/thing");
         assert_eq!(
             dotted_receiver,
-            Ok(format!("{INSTANCE}:hand_off:thought-cage.GameCult.Epiphany_-thing.2026-09-15"))
+            Ok(format!("{INSTANCE}:hand_off:thought-cage_dGameCult.Epiphany_-thing.2026-09-15"))
         );
         assert_eq!(
             dotted_repo,
@@ -1142,17 +1175,17 @@ mod tests {
         valid.subject = PipelineRef { kind: PipelineKind::Ruling, id: id("ruling", "R8") };
         assert_eq!(
             pipeline_key(&PipelineDocument::Resolution(valid)),
-            Ok(format!("resolution:{CAMPAIGN}:ruling:R8"))
+            Ok(format!("{CAMPAIGN}:resolution:ruling.R8"))
         );
     }
 
-    /// Soul G2: a resolution's key is its subject's id behind a `resolution:`
-    /// prefix, so that -- and only that -- is the id a resolution has. The
-    /// reader demanded `<campaign>:resolution:<local>` instead, which is
-    /// disjoint from it in both directions: the id it accepted names a document
-    /// that cannot exist, and the id every resolution does have was refused, so
-    /// nothing could reference one. `PipelineRef` takes any kind, so this is
-    /// reachable; a follow-up sourced from a resolution is the live path.
+    /// Soul G2: a resolution is named by the key it has, and a `PipelineRef`
+    /// of kind `Resolution` accepts exactly that id. `PipelineRef` takes any
+    /// kind, so this is reachable; a follow-up sourced from a resolution is the
+    /// live path. The grammar admits `<campaign>:resolution:R8` too: it is
+    /// well-formed, and no resolution derives it, but whether a document with an
+    /// id exists is admission's rule, not the grammar's, so the reader does not
+    /// refuse it and this test does not ask it to.
     #[test]
     fn a_resolution_is_named_by_the_key_it_has() {
         let sourced = |id: &str| {
@@ -1161,19 +1194,20 @@ mod tests {
             PipelineDocument::FollowUp(follow_up).validate()
         };
         let key = pipeline_key(&PipelineDocument::Resolution(resolution_sample())).expect("the sample keys");
-        assert_eq!(key, format!("resolution:{CAMPAIGN}:question:Q1"));
+        assert_eq!(key, format!("{CAMPAIGN}:resolution:question.Q1"));
         assert_eq!(sourced(&key), Ok(()), "a resolution is named by the key it has");
+        assert_eq!(sourced(&format!("{CAMPAIGN}:resolution:R8")), Ok(()), "well-formed grammar is not the reader's to refuse");
 
         for refused in [
-            // The shape the reader used to demand. No resolution carries it.
-            format!("{CAMPAIGN}:resolution:R8"),
+            // The prefix shape the writer used to emit. No resolution carries it.
+            format!("resolution:{CAMPAIGN}:question:Q1"),
             format!("{CAMPAIGN}:resolution:{CAMPAIGN}:question:Q1"),
-            // The prefix and no subject, a subject of no kind, a subject whose
-            // kind segment is not the one its own id declares, and trailing junk.
-            "resolution:".into(),
-            format!("resolution:{CAMPAIGN}:nonsense:Q1"),
-            format!("resolution:{CAMPAIGN}:question:Q1:junk"),
-            format!("resolution:{CAMPAIGN}:question:.."),
+            // No local, a subject local with an empty part, trailing junk, and a
+            // kind segment that is not `resolution`.
+            format!("{CAMPAIGN}:resolution:"),
+            format!("{CAMPAIGN}:resolution:question..Q1"),
+            format!("{CAMPAIGN}:resolution:question.Q1:junk"),
+            format!("{CAMPAIGN}:question:Q1"),
         ] {
             assert!(
                 matches!(sourced(&refused), Err(PipelineRefusal::InvalidFormat { .. })),
@@ -1181,12 +1215,12 @@ mod tests {
             );
         }
 
-        // A root subject reads back too: a resolution of a campaign is keyed by
-        // that campaign's own id, which carries no kind segment.
+        // A root subject reads back too: a resolution of a campaign carries the
+        // campaign's kind and its `self` local.
         let mut of_campaign = resolution_sample();
-        of_campaign.subject = PipelineRef { kind: PipelineKind::Campaign, id: s(CAMPAIGN) };
+        of_campaign.subject = PipelineRef { kind: PipelineKind::Campaign, id: Short(format!("{CAMPAIGN}:campaign:self")) };
         let root_key = pipeline_key(&PipelineDocument::Resolution(of_campaign)).expect("a root subject keys");
-        assert_eq!(root_key, format!("resolution:{CAMPAIGN}"));
+        assert_eq!(root_key, format!("{CAMPAIGN}:resolution:campaign.self"));
         assert_eq!(sourced(&root_key), Ok(()));
     }
 
@@ -1198,7 +1232,7 @@ mod tests {
     fn instance_stewardship_and_hand_off_round_trip() -> Result<()> {
         let cache = schema_cache()?;
         let instance = PipelineDocument::Instance(instance_sample());
-        assert_eq!(pipeline_key(&instance), Ok(INSTANCE.to_string()));
+        assert_eq!(pipeline_key(&instance), Ok(format!("{INSTANCE}:instance:self")));
         for document in [
             instance,
             PipelineDocument::Stewardship(stewardship_sample()),
@@ -1336,6 +1370,15 @@ mod tests {
         later.handed_on = Date("2026-09-16".into());
         assert_ne!(key(later), Ok(base), "the date is in the key");
 
+        // A dotted receiver is a `Slug` entering a local, so it is escaped to
+        // one label rather than widening the local by a part.
+        let mut dotted_receiver = hand_off_sample();
+        dotted_receiver.to_instance = slug("thought-cage.GameCult");
+        assert_eq!(
+            key(dotted_receiver),
+            Ok(format!("{INSTANCE}:hand_off:thought-cage_dGameCult.GameCult_-Epiphany.2026-09-15"))
+        );
+
         // Both instance slugs are validated as key segments, not merely bounded.
         let mut bad_receiver = hand_off_sample();
         bad_receiver.to_instance = Slug("thought cage".into());
@@ -1352,6 +1395,162 @@ mod tests {
             matches!(key(bad_date), Err(PipelineRefusal::InvalidFormat { field, .. }) if field == "hand_off.handed_on"),
             "a malformed date does not compose a key"
         );
+    }
+
+    /// A resolution whose subject is the given document, keyed.
+    fn resolution_of(kind: PipelineKind, id: &str) -> Result<String, PipelineRefusal> {
+        let mut resolution = resolution_sample();
+        resolution.subject = PipelineRef { kind, id: Short(id.into()) };
+        pipeline_key(&PipelineDocument::Resolution(resolution))
+    }
+
+    /// R1, the grammar's own test: every key is `<root>:<kind>:<local>`, three
+    /// segments with no kind excused, the root a `Slug`, the kind the literal
+    /// name, and every local part a `Label`. A root that would add a segment is
+    /// refused where the key is composed: `pipeline_key` is `pub` and does not
+    /// validate the document first, so this is reachable without one.
+    #[test]
+    fn every_key_has_exactly_three_segments() {
+        let nested = resolution_of(PipelineKind::Resolution, &format!("{CAMPAIGN}:resolution:question.Q1"))
+            .expect("a resolution of a resolution keys");
+        let keys = samples()
+            .into_iter()
+            .map(|(document, _)| (document.kind(), pipeline_key(&document).expect("every sample keys")))
+            .chain([(PipelineKind::Resolution, nested)]);
+        for (kind, key) in keys {
+            let segments = key.split(':').collect::<Vec<_>>();
+            assert_eq!(segments.len(), 3, "{kind:?} key {key} has three segments");
+            assert_eq!(dotted_text("root", segments[0]), Ok(()), "{key}: the root is a slug");
+            assert_eq!(segments[1], kind.name(), "{key}: the kind segment is the literal kind");
+            assert!(PipelineKind::ALL.iter().any(|known| known.name() == segments[1]));
+            for part in segments[2].split('.') {
+                assert_eq!(label_text("local", part), Ok(()), "{key}: local part {part:?} is a label");
+            }
+        }
+
+        let PipelineDocument::Target(mut target) = samples().remove(1).0 else { unreachable!() };
+        target.campaign = Slug("a:b".into());
+        assert_eq!(
+            pipeline_key(&PipelineDocument::Target(target)),
+            Err(PipelineRefusal::InvalidFormat { field: "target.campaign".into(), value: "a:b".into() }),
+            "a root carrying a colon does not compose a key"
+        );
+    }
+
+    /// Defect 1: the two roots are in distinct namespaces because the kind
+    /// segment distinguishes them, the same mechanism that separates every
+    /// other pair of kinds. Both key; only the pair sees a shared namespace.
+    #[test]
+    fn roots_of_different_kinds_do_not_share_a_key() {
+        let PipelineDocument::Campaign(mut campaign) = campaign_sample() else { unreachable!() };
+        campaign.slug = slug(INSTANCE);
+        let campaign = pipeline_key(&PipelineDocument::Campaign(campaign));
+        let instance = pipeline_key(&PipelineDocument::Instance(instance_sample()));
+        assert_eq!(campaign, Ok(format!("{INSTANCE}:campaign:self")));
+        assert_eq!(instance, Ok(format!("{INSTANCE}:instance:self")));
+        assert_ne!(campaign, instance, "a campaign and an instance of one slug are two documents");
+    }
+
+    /// Defect 2: a resolution's key carries its subject's kind as a literal
+    /// part of the local, so nothing infers it and two subjects of one local
+    /// and different kinds resolve to two keys. Each reads back through the
+    /// reader with the subject kind it was built from.
+    #[test]
+    fn a_resolution_names_its_subjects_kind() {
+        let pairs = [
+            (PipelineKind::Question, id("question", "Q1").0, PipelineKind::Ruling, id("ruling", "Q1").0),
+            (
+                PipelineKind::Campaign,
+                format!("{CAMPAIGN}:campaign:self"),
+                PipelineKind::Instance,
+                format!("{CAMPAIGN}:instance:self"),
+            ),
+        ];
+        for (left_kind, left_id, right_kind, right_id) in pairs {
+            let left = resolution_of(left_kind, &left_id).expect("the left subject keys");
+            let right = resolution_of(right_kind, &right_id).expect("the right subject keys");
+            assert_ne!(left, right, "resolutions of {left_id} and {right_id} are two documents");
+            for (kind, key) in [(left_kind, &left), (right_kind, &right)] {
+                let (root, local) = pipeline_id("read_back", key, PipelineKind::Resolution).expect("reads back");
+                assert_eq!(root, CAMPAIGN);
+                assert_eq!(local.split('.').next(), Some(kind.name()), "{key} names its subject's kind");
+            }
+        }
+    }
+
+    /// Defect 3: a resolution's own key is an ordinary id, so it composes as a
+    /// subject like any other, and the key reads back to the inner key. Depth
+    /// is bounded by the local alone: each nesting costs `resolution.` against
+    /// 64 bytes, so five nestings key and six refuse on the local.
+    #[test]
+    fn a_resolution_of_a_resolution_reads_back() {
+        let inner = resolution_of(PipelineKind::Question, &id("question", "Q1").0).expect("the inner keys");
+        let mut outer = resolution_sample();
+        outer.subject = PipelineRef { kind: PipelineKind::Resolution, id: Short(inner.clone()) };
+        let outer = PipelineDocument::Resolution(outer);
+        assert_eq!(outer.validate(), Ok(()));
+        let key = pipeline_key(&outer).expect("a resolution of a resolution keys");
+        assert_eq!(key, format!("{CAMPAIGN}:resolution:resolution.question.Q1"));
+        let (root, local) = pipeline_id("read_back", &key, PipelineKind::Resolution).expect("reads back");
+        let (subject_kind, subject_local) = local.split_once('.').expect("the local names a subject");
+        assert_eq!(format!("{root}:{subject_kind}:{subject_local}"), inner, "the recovered subject is the inner key");
+
+        let mut key = inner;
+        for depth in 2..=5 {
+            key = resolution_of(PipelineKind::Resolution, &key).unwrap_or_else(|error| panic!("depth {depth}: {error}"));
+        }
+        assert_eq!(key.len() - format!("{CAMPAIGN}:resolution:").len(), 55, "{key}: five nestings fill 55 of 64 bytes");
+        assert!(
+            matches!(
+                resolution_of(PipelineKind::Resolution, &key),
+                Err(PipelineRefusal::InvalidFormat { field, .. }) if field == "resolution.key"
+            ),
+            "the sixth nesting is refused on the local bound"
+        );
+    }
+
+    /// The total bound, in the one place it lives: parts that are each a legal
+    /// label compose a local wider than 64 bytes and are refused as a whole.
+    #[test]
+    fn a_composed_local_is_bounded_whole() {
+        let mut wide = hand_off_sample();
+        wide.to_instance = Slug("a".repeat(60));
+        assert_eq!(wide.to_instance.validate("hand_off.to_instance"), Ok(()), "the receiver alone is legal");
+        assert_eq!(
+            label_text("part", &key_segment(&wide.repo.0)),
+            Ok(()),
+            "the repo alone is legal"
+        );
+        let key = pipeline_key(&PipelineDocument::HandOff(wide));
+        assert!(
+            matches!(&key, Err(PipelineRefusal::InvalidFormat { field, value }) if field == "hand_off.key" && value.len() > 64),
+            "a local of legal parts is still bounded whole, got {key:?}"
+        );
+    }
+
+    /// R2, on the composer every kind goes through: no local part carries the
+    /// separator, the head included. The live case is a hand-off with a dotted
+    /// receiver, which keys to an escaped label rather than a wider local.
+    #[test]
+    fn no_local_part_carries_the_separator() {
+        assert_eq!(
+            local("probe", &["a.b"]),
+            Err(PipelineRefusal::InvalidFormat { field: "probe".into(), value: "a.b".into() }),
+            "the head may not carry the separator"
+        );
+        assert_eq!(
+            local("probe", &["a", "b.c"]),
+            Err(PipelineRefusal::InvalidFormat { field: "probe".into(), value: "b.c".into() }),
+            "a tail part may not carry the separator"
+        );
+        assert_eq!(local("probe", &["a", "b", "c"]), Ok("a.b.c".into()));
+
+        let mut dotted = hand_off_sample();
+        dotted.to_instance = slug("thought-cage.GameCult");
+        let key = pipeline_key(&PipelineDocument::HandOff(dotted)).expect("a dotted receiver keys");
+        let local = key.split(':').nth(2).expect("three segments");
+        assert_eq!(local.split('.').count(), 3, "{key}: the receiver is one part, not two");
+        assert_eq!(local.split('.').next(), Some("thought-cage_dGameCult"));
     }
 
     #[test]
