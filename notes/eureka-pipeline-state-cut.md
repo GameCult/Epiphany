@@ -1842,8 +1842,26 @@ only. Self-deferral passes the shape and is admission's. The 9,165 versus
 9,807 target-dir discrepancy was files versus paths; paths is the
 convention.
 
-**Fix batch in Hands**, followed in the same tree by the Epiphany half of
-Cut 8.
+**The fix batch landed** at `fcfbda3f` (the three fixtures, entries S2, S14,
+S10 killed; 26 tests) and `3f7d58d1` (harness: every sidecar under the repo
+root is repaired at startup, not only the current targets; a `-Repo`
+parameter, which is Q14's option A; bytes that differ from a sidecar are
+saved to `<file>.eureka-mutation-overwritten` with their SHA-256 printed
+before the restore; equal bytes say "sidecar matched; nothing to restore";
+a locked target prints the harness's own words and keeps the sidecar).
+Soul's XA-XD reproduced with those outcomes.
+
+**The Epiphany half of Cut 8 landed** at `a65c6420`: the leaf's `prepare`,
+`decode`, `register_pipeline_document_types` and
+`validate_pipeline_write_envelope` are live and public, the validator
+returns `Result<(), PipelineRefusal>`, the live registrar registers exactly
+the thirteen kinds and the test cache registers the stand-in,
+`PIPELINE_SCHEMA_EPOCH` exists in code again, `anyhow` and `rmp-serde` are
+normal dependencies with the lock unchanged, and
+`every_kind_is_at_the_epochs_version` pins the epoch's version against every
+type id and the registrar's count. 27 tests, 0 warnings; `epiphany-core`
+recompiled nothing; entries E1-E3 killed. Source outside tests net −3. Soul
+in flight; Huginn pins `a65c6420` once it closes.
 
 ## Cut 7. Retire Huginn's TypeScript body
 
