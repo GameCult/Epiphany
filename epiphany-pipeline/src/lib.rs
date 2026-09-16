@@ -523,20 +523,6 @@ pipeline_kinds! {
         "epiphany.pipeline.hand_off.v1", "EpiphanyPipelineHandOffDocument";
 }
 
-/// The kind an id names itself as: the kind segment of `<root>:<kind>:<local>`,
-/// or `Campaign` for a bare slug, since the two roots share one id rule. A
-/// resolution's id is its subject's, and this is how that subject is read back.
-fn declared_kind(id: &str) -> Option<PipelineKind> {
-    let mut segments = id.split(':');
-    match (segments.next(), segments.next(), segments.next(), segments.next()) {
-        (Some(_), None, ..) => Some(PipelineKind::Campaign),
-        (Some(_), Some(name), Some(_), None) => {
-            PipelineKind::ALL.iter().copied().find(|kind| kind.name() == name)
-        }
-        _ => None,
-    }
-}
-
 /// Parses a full document id. A key and an id are the same string, so this
 /// accepts exactly what `pipeline_key` derives: `<root>:<kind>:<local>` for
 /// every kind but the roots and a resolution. The segment count is exact, the
@@ -547,27 +533,6 @@ fn pipeline_id<'a>(
     id: &'a str,
     kind: PipelineKind,
 ) -> Result<(&'a str, &'a str), PipelineRefusal> {
-    match kind {
-        // The two roots are keyed by their slug alone, and so read back the
-        // same way.
-        PipelineKind::Campaign | PipelineKind::Instance => {
-            dotted_text(field, id)?;
-            return Ok((id, id));
-        }
-        // A resolution is keyed by its subject, so its id is its subject's id
-        // behind a `resolution:` prefix. That is the only id a resolution ever
-        // has: `<campaign>:resolution:<local>` is an id no resolution can
-        // carry, and accepting it would name a document that cannot exist.
-        // `PipelineRef` takes any kind, so a resolution is reachable as a
-        // question's `raised_in`, a follow-up's `source` and a resolution's own
-        // `subject`.
-        PipelineKind::Resolution => {
-            let subject = id.strip_prefix("resolution:").ok_or_else(|| format_error(field, id))?;
-            let subject_kind = declared_kind(subject).ok_or_else(|| format_error(field, id))?;
-            return pipeline_id(field, subject, subject_kind);
-        }
-        _ => {}
-    }
     let mut segments = id.split(':');
     let (Some(campaign), Some(name), Some(local), None) = (
         segments.next(),
@@ -635,76 +600,11 @@ fn repo_segment(field: &str, repo: &OrgRepo) -> Result<String, PipelineRefusal> 
     Ok(repo.0.replace('_', "__").replace('/', "_-").replace('.', "_d"))
 }
 
-/// The parts of a `<root>:<kind>:<local>` key, each with the field it came from
-/// so that a refusal names it. A root is an instance or a campaign; `head` and
-/// the tail parts are the local's parts.
-struct KeyParts<'a> {
-    root: (String, &'a str),
-    head: (String, String),
-    tail: Vec<(String, String)>,
-}
-
-impl<'a> KeyParts<'a> {
-    /// A document inside a campaign, with a local of one part so far.
-    fn campaign(kind: &str, campaign: &'a Slug, head: String) -> Self {
-        Self {
-            root: (format!("{kind}.campaign"), &campaign.0),
-            head: (format!("{kind}.key"), head),
-            tail: Vec::new(),
-        }
-    }
-
-    /// One more local part. A tail part is a `Label`, never a `Slug`.
-    fn then(mut self, field: &str, part: String) -> Self {
-        self.tail.push((field.into(), part));
-        self
-    }
-
-    /// Validates the root and composes the key. The local's parts are joined by
-    /// `.`, and only the head may carry that separator: every tail part is a
-    /// `Label`, and a kind's tail length is fixed by the arm that built it, so a
-    /// reader recovers the parts by splitting from the right once per tail part
-    /// and the local segments one way only. A tail part admitting a dot would
-    /// give the boundary before it two readings, and two documents could compose
-    /// one key. Every key but a root's and a resolution's is composed here, so
-    /// the rule holds for whatever kind is added next.
-    fn key(self, kind: &str) -> Result<String, PipelineRefusal> {
-        let (field, root) = self.root;
-        dotted_text(&field, root)?;
-        let (field, mut local) = self.head;
-        dotted_text(&field, &local)?;
-        for (field, part) in &self.tail {
-            label_text(field, part)?;
-            local.push('.');
-            local.push_str(part);
-        }
-        dotted_text(&format!("{kind}.key"), &local)?;
-        Ok(format!("{root}:{kind}:{local}"))
-    }
-}
-
 /// Derives a document's identity key (D1, "Keys: identity, not convenience").
 pub fn pipeline_key(document: &PipelineDocument) -> Result<String, PipelineRefusal> {
     use PipelineDocument as D;
     let kind = document.kind().name();
     let parts = match document {
-        // An instance is keyed by its own slug, as a campaign is: it is a root,
-        // not a document inside one.
-        D::Instance(value) => {
-            dotted_text("instance.instance", &value.instance.0)?;
-            return Ok(value.instance.0.clone());
-        }
-        D::Campaign(value) => {
-            dotted_text("campaign.slug", &value.slug.0)?;
-            return Ok(value.slug.0.clone());
-        }
-        // A resolution is keyed by its subject, so it composes no local of its
-        // own: the subject's id is the key behind a `resolution:` prefix.
-        D::Resolution(value) => {
-            let field = "resolution.subject.id";
-            pipeline_id(field, &value.subject.id.0, value.subject.kind)?;
-            return Ok(format!("resolution:{}", value.subject.id.0));
-        }
         // Stewardship and hand-off hang off an instance rather than a campaign.
         // The root is the whole difference; the key shape is the same, so they
         // compose through `KeyParts` like every other kind.
