@@ -216,6 +216,63 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
   of +100 to +300 paths, because the probe's rlibs were cold and this pass
   built library, binary and tests rather than one library. Lockfile 93 → 139
   packages.
+
+  **Soul's pass, 2026-09-16 (Fable; probe crate and two client binaries in the
+  session scratchpad, a detached worktree, a real daemon over a real mind).
+  Cut 10 does not close.** Held, and these are the promises the cut exists
+  for: the daemon holds no rule of its own; every typed refusal crossed the
+  wire as itself, including a foreign instance, a batch bound, a missing
+  identity, a field bound, a malformed reference and a semantic
+  unavailability; the instance check cannot be bypassed by a second daemon, a
+  second bind, a copied store or an unwritable root, each exiting before it
+  serves; the published schemas equal derivation byte for byte, live over the
+  wire as well as on disk; a client that vanished mid-request did not disturb
+  a fresh one; two hostile datagrams were served past; the single-writer
+  attribution names CultCache's owned store and not redb. All 31 entries
+  rerun and killed, M0 green on all seven targets. Findings:
+
+  - **F1, confirmed, High: a real-sized read is lost in silence.** The hub
+    window is 1024 packets of 1200 bytes and the send error is logged and
+    served past. Measured: a query returning 833 KB was delivered; every
+    larger one produced no reply at all. The spec's "documents of about 1200
+    bytes" is not the leaf's bound, since one cut spec may carry 256 file
+    changes and the open-items and history queries are uncapped by design, so
+    no limit on document count can guarantee a response fits. Cut 13's tool
+    would ask for open items on a real campaign and hang to a timeout with
+    nothing to act on. The cut's own rule, that a refusal is typed and never a
+    transport failure, does not hold at size.
+  - **F2, confirmed, medium: two reads pipelined on one session lose the
+    second.** Three large queries sent without waiting yielded one reply and
+    two full-queue errors.
+  - **F3, confirmed, medium: the instance check was pinned by luck.** Mutants
+    comparing only the lengths of two names, only their first bytes, or
+    running the gate only when the declared name is longer all survived both
+    suites, because no fixture pair had ever shared a length. This is the
+    replaced loosening the brief predicted, and the rule had no defence while
+    the suite claimed two mutants for it.
+  - **F4, confirmed, medium: read refusals are not pinned as crossing
+    unchanged.** Mutants rewrapping a view refusal as unavailable, swallowing
+    one into an empty answer, and rewrapping a query refusal all survived. The
+    code is honest today and nothing forbids it flattening tomorrow.
+  - **F5, confirmed, low: the operation comparison is pinned by fixture
+    luck**, since the mismatch fixture compares two words that differ under
+    any comparison and both happen to be five letters.
+  - **F6-F9, deferred to stated limits**: an idle session times out at thirty
+    seconds on the daemon side with no disconnect while the client still
+    believes it is connected; an envelope failing the transport's own
+    validation is dropped rather than answered, because its id cannot be
+    echoed; a stop neither drains nor disconnects; one daemon-authored failure
+    code is unreachable in practice.
+
+  **Self's ruling on F1, 2026-09-16.** The daemon compares the encoded
+  response against the window before attempting a send it can already see will
+  fail, and answers a typed refusal carrying the size and the limit, so the
+  caller narrows and retries. The window also rises to the leaf's worst case
+  for a single document, with the bound stated where a client author reads it.
+  Raising the window is not a substitute for the refusal; it only stops
+  ordinary reads from meeting it. No silent truncation, no pagination behind
+  the caller's back, and Cut 13 caps its default limit. F6-F9 land in the
+  module's stated limits rather than blocking. **Fix batch in Hands.**
 - **Self's ruling on the boundary Hands pinned, 2026-09-16.** A resolution id
   carrying no sequence part is well formed to the leaf and is not refused
   there. The leaf owns the grammar of ids; per-kind local shape belongs to
