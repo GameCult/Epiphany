@@ -165,8 +165,9 @@ is verifying.
 
 - **Deleted:** `TypedCommitStore`, `MIND_COMMIT_STORE`, `validate_mind_writes`,
   the parameter and all five call-site arguments, plus one orphan import. No
-  part of the profile shape survived. One commit owner and one receipt
-  construction site remain.
+  part of the profile shape survived. One commit owner remains, and two receipt
+  construction sites: the owner's, and a test that plants one on purpose to pin
+  the replay rule.
 - **Unchanged behaviour, proven against the base:** the pinned receipt digest
   was checked by running the base test in a detached worktree at `cda36541`,
   not by a value captured from the new code.
@@ -211,6 +212,21 @@ It found four gaps, which a Hands batch is closing:
   work.
 - **S10 (cosmetic).** Profile vocabulary survives in a renamed test's fixture
   data.
+
+**Cut 5's findings are closed** at `617c397d`. Tests 172, 0 warnings; seven
+mutations, every one killed by its own test.
+
+- **S7:** a `RuntimeSpineBackingStore` carries only its path, so a same-path
+  re-derivation is invisible to any assertion about files, contents or
+  receipts. The test now counts resolutions through a `#[cfg(test)]` log and
+  requires exactly one per commit, with a comment saying why the file
+  assertions below it cannot see this. MS1 dies with `left: 2, right: 1`.
+- **S8:** a new test commits two writes with distinct identities, the second
+  refused, and requires the store byte-identical, so the valid first write
+  lands nowhere. MS2 dies. M2's rule string was corrected: it pins that the
+  batch is validated at all, and MS2 owns "every write".
+- **S9:** corrected above. Two construction sites, one deliberate.
+- **S10:** fixture data renamed; the pinned digest does not depend on it.
 
 **Soul's second pass corrected Self's record.** Self had written that a
 mutation reported a verdict it never earned. The committed script already threw
@@ -738,8 +754,10 @@ Guardrails: preserve the claim in the smallest owning surface.
 
 **Authority map.**
 
-- **Owner:** `commit_authorized_mind_mutation`, still the only code that builds
-  receipts, replays, and runs batch CAS — now concretely, for Mind only.
+- **Owner:** `commit_authorized_mind_mutation`, still the only *production* code
+  that builds receipts, replays, and runs batch CAS — now concretely, for Mind
+  only. One test plants a receipt on purpose, which is how the replay rule is
+  pinned; that is the second construction site and it is deliberate.
 - **Inputs:** authority, invariant owner, strong reads, writes, companions, time.
 - **Outputs:** `EpiphanyMindCommitOutcome`.
 - **Derived state:** `store_id` inside the receipt's document versions, now the
