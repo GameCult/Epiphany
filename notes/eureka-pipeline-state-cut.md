@@ -34,9 +34,13 @@ pause saying exactly why it stopped there.
   `b6f6e802`, `80db5db6`, `3ee78e05`, second fix batch at `9b68d83c`,
   `4cccb45c`, `4a654351`. `epiphany-pipeline` is a leaf library Huginn can
   depend on without `epiphany-core`.
-- **Cut 6b in Hands** against `4a654351`. The second fix batch's Soul pass found
-  the same invariant open one level up for the third time, so the key grammar
-  is redesigned rather than patched a fourth time.
+- **Cut 6b landed** at `602ffd9f` (deletes), `1bddd2ac` (grammar), `95ee551a`
+  (mutation suite); fix batch in Hands. The second fix batch's Soul pass had
+  found the same invariant open one level up for the third time, so the key
+  grammar was redesigned rather than patched a fourth time. Soul's first pass
+  on the grammar found no collision in 212,450 adversarial keys and four
+  unpinned checks.
+- **Cut 6c specified** against `95ee551a`; waits on the 6b fix batch.
 - **Target rewritten** at `5fb4eb22`.
 
 **Cut 6c is the last cut inside Epiphany.** Cuts 7-16 build Huginn's Rust
@@ -447,6 +451,69 @@ in this repo and in Ghostlight:
 
 Cut 6b's suite is the first with a control (M0) and the rule is now in the
 Eureka skill.
+
+**Cut 6b landed** at `602ffd9f` (the three key-shape exceptions deleted;
+does not build, by design), `1bddd2ac` (one grammar for every kind; 20 tests,
+0 warnings) and `95ee551a` (`tools/eureka-cut6b-mutations.ps1`, the first
+suite with a no-op control). Source outside tests 774 → 726, tests 734 → 881,
+no schema, dependency, kind, field or epoch moved. Hands' spec discrepancies,
+all kept: `local` takes `&[&str]` rather than a fixed array because the
+Resolution and Finding arms carry a parent's parts; the whole-local bound
+refuses `InvalidFormat` to match the reader; `key_segment` is a pure escape
+and each caller validates its own field first; two "unchanged" tests carried
+literal keys that moved; and `{CAMPAIGN}:resolution:R8` is now asserted
+*accepted* with the Q11 rationale in its doc comment, so a future runtime
+guard is visible.
+
+**Soul's first pass on the grammar** (Fable, script
+`soul-cut6b-mutations.ps1` in the session scratchpad, M0 green twice) built a
+whole-key injectivity probe: 212,450 distinct keys across all thirteen kinds
+with adversarial slugs, repos, labels and dates and resolutions nested to
+depth four, **zero collisions**, every key three segments, every key reading
+back to its own kind and identity, 157,010 resolution keys recovering exactly
+their subject. `self` collides with nothing as a slug, a label or a campaign.
+Hands' M1-M6 all killed on rerun; Soul's own S1, S6, S7, S8, S9 killed; S3
+(`splitn(3, ':')`) survived as an equivalent mutant because `label_text`
+refuses a colon in the third segment anyway. Three survived for real:
+
+- **F2 (medium): the escape's `_`→`__` half is pinned only through an
+  `OrgRepo`.** A mutant escaping only `.` when the value has no `/` survives,
+  and hand-offs to `a_db` and to `a.b` then share a key. That is the pass-2
+  collision class, one edit from reopening.
+- **F3 (medium-low): the composer's root check is pinned for one byte.** Under
+  `trim_end_matches('.')`, campaign slug `eureka-state.` composes a key the
+  reader refuses, and the write validator recomputes and compares without
+  reading back, so a document is admitted under an id no `PipelineRef` can
+  name.
+- **F4 (medium-low): the 64-byte boundary is unpinned on both sides.**
+  Fixtures sit at 55 and 66+, so a `> 65` mutant survives and the writer
+  admits a 65-byte local the reader refuses. The code is right; the pin was
+  missing.
+
+And four findings that are not code defects: **F1**, the "depth at most five"
+claim is false (corrected above); **F5**, a dotted finding label now refuses as
+`finding.key` rather than `finding.label`, consistent with every other kind
+and accepted as the behaviour; **F6**, the authority map overstated the escape
+rule for `Date` (corrected above); **F7**, Hands' "twelve fixed call sites" is
+eleven literal slices plus two computed vectors, the Finding one fixed in
+practice by `parent_cut` pinning the verdict local to two parts. **F8**,
+pre-existing and informational: a cut-report key drops the spec revision
+(a standing ruling) and a verdict key drops the report attempt (implied, not
+stated). `pipeline_id` accepting `c:campaign:notself` and the like is grammar
+versus reachability, admission's job, as the spec says.
+
+The stale Cut 6 script entries M5 and M12-M15 match zero anchors at HEAD and
+the script throws at its line 234 rather than reporting a kill. Loud, as the
+rule requires. Target dir: Hands' growth to 9,279 was one debug profile;
+Soul left 8,991 because cargo rotated out one of Hands' incremental sessions,
+which cannot be recreated and is not a deletion.
+
+**The fix batch is in Hands:** pin F2, F3 and F4 with Soul's S2, S4 and S5 as
+the mutations; state the depth arithmetic in the arm comment and the test; and
+factor the mutation harness into one `tools/eureka-mutations.ps1` with a
+built-in M0 and per-cut entries files, deleting the stale Cut 6 entries with a
+note naming the 6b mutation that now pins each rule. Cuts 5, 6, 6b and 6c
+would otherwise carry four copies of the same scaffold.
 
 ## Probes and source reads this pass
 
@@ -1174,8 +1241,11 @@ successor because there is nothing left to guess.
 Roots take the reserved constant `self` as local; a reader recovers a root's
 identity from segment 1 and never consults it. A resolution is keyed inside its
 subject's root with the subject's kind and local as its own local. Nesting is
-bounded by construction: each level costs eleven bytes of `resolution.` against
-the 64-byte local, so depth is at most five, and `pipeline_id` does not recurse.
+bounded by construction, not by a guard: a nested local is
+`11 * (depth - 1) + len(subject local)` bytes against the 64-byte bound, so a
+one-byte subject local nests six deep and `question.Q1` five, and
+`pipeline_id` does not recurse. *(Corrected after Soul F1: this first said
+"at most five"; the bound is the local, and the depth follows from the subject.)*
 
 **The one escape, generalised.** `repo_segment` (`:619-636`, `_`→`__`,
 `/`→`_-`, `.`→`_d`, injectivity verified by Soul) becomes `key_segment` and
@@ -1258,8 +1328,10 @@ stays.
 - **Derived state:** the key is derived, never stored. `pipeline_id` is the key
   read backwards and holds no state. `declared_kind`'s inference is deleted.
 - **Forbidden writers:** no arm of `pipeline_key` may `return` a key; no local
-  part may be a raw `Slug`, `Short`, `OrgRepo` or `Date`; nothing may infer a
-  kind from an id's shape; reachability ("does this document exist", "may this
+  part may be a raw `Slug`, `Short` or `OrgRepo` (a validated `Date` is
+  `[0-9-]{10}`, already a label, and passes raw; Soul F6 corrected the first
+  wording, which claimed every non-label value was escaped); nothing may infer
+  a kind from an id's shape; reachability ("does this document exist", "may this
   kind be resolved") stays with admission in `huginn-mind` per the resolution
   matrix above. Cross-field rules stay out of `Bounded`.
 - **Shared paths:** `pipeline_key`, `pipeline_id`, `PipelineRef::validate`
@@ -1340,16 +1412,261 @@ stored-document re-key.
 
 ## Cut 6c. The Ghostlight shapes
 
-Specified 2026-09-16 (zero new kinds: two unit enums, one new value type, one
-deleted, five fields, three retypings; six of thirteen schemas regenerate; no
-kind widens, so the epoch holds; about −17 source, +115 including 75 test
-lines). Rulings taken: Soul measures every promise and `Unproven` carries the
-ones it could not reach; `Fixed { commit: Sha }` is admitted with its referent
-outside the document set; multi-supersession closes as `Vec<PipelineRef>[8]`,
-cardinality being an admission rule and not a shape, with Q10 asked against
-Cut 8. **The full spec is reissued by Imagination after Cut 6b lands** and is
-folded in here then; until it is, the operative text is
-`scratchpad/cut-6b-spec.md` under that earlier name.
+- **Repo/branch:** Epiphany `codex/eureka-pipeline-state`. Depends on Cut 6b
+  (landed at `1bddd2ac`, mutation suite at `95ee551a`) and its fix batch.
+  Blocks Cut 8. Lands before Cut 8 (ruling C) and is the last cut inside
+  Epiphany before the pause.
+- **Anchors.** Every `file:line` below is against `epiphany-pipeline/src/lib.rs`
+  at `95ee551a`, 1,608 lines, twenty tests, re-found by content after the key
+  grammar shifted everything from the old `:526` down. The 6b fix batch lands
+  on `lib.rs` before Hands starts, so **re-anchor by content again**: every
+  anchor is a `struct`, `impl`, `fn` or sample opener that greps cleanly.
+- **Reissued** 2026-09-16 by Imagination against the landed grammar. Three
+  edits from the first issue: anchors re-found; the Keeps claim about keys
+  rewritten; one fixture added that only the new grammar makes available, a
+  `Superseded` entry naming a resolution by the key it has. Deletes, adds,
+  `Promise`, the two unit enums, `StructuralDelta`, M17/M19/M20/M21, the
+  authority map and the subtraction estimate carry over; M16 and M18 keep
+  their rule and gain sharper forgeries; M22 is new.
+
+**Why this cut exists, and why now.** Ghostlight's independently run campaign
+(D9) named six pains. Four were already built: finding identity, the ledger
+derivation, cut status and the direction of the supersession relation are
+covered by keys, joins and `PipelineResolution` as they stand. What is left is
+one genuine hole (promises), two fields wearing one shape (ruling authority,
+finding origin), and four retypings that are breaking, not additive. Under
+ruling 8 a retyping costs an epoch bump the moment a pinned reader exists.
+Nothing reads these schemas today: a grep for `SubtractionEstimate`,
+`MutationRecord`, `ResolutionOutcome`, `VerdictClaim`, `StructuralDelta` and
+`subtraction_estimate` over Epiphany finds `lib.rs`, the four schema files
+that embed them, and one prose mention in this map; over `F:\Projects\Huginn`
+and the Eureka skill checkout it finds nothing (source read). A whole-drive
+search timed out, so any other tree is unchecked. Cut 8 pins a git rev and
+closes the window. **The four retypings cost nothing today and an epoch
+tomorrow.**
+
+**Rulings carried in:** A, Soul measures every promise and `Unproven` carries
+the ones it could not reach; B, `Fixed { commit: Sha }` is admitted with its
+referent outside the document set; C, this lands before Cut 8.
+Multi-supersession is `Vec<PipelineRef>[8]`, cardinality being admission's
+(Q10 asked against Cut 8). Q11 A: nesting stays. Q12: `OrgRepo` untouched; the
+tightening is its own commit and is not folded in. No kind widens, so
+`epiphany.pipeline.epoch.v1` holds. **Zero new kinds.**
+
+### Deletes first
+
+| Path | Lines | What dies |
+|---|---:|---|
+| `lib.rs:290-294` | 5 | `SubtractionEstimate` and the two-line comment on its list default. Its consumer becomes `StructuralDelta`. |
+| `lib.rs:388-396` | 9 | `impl Bounded for ResolutionOutcome`. Replaced whole, not patched: every arm changes referent type, and a patched impl is how a length-only check survives. |
+| `lib.rs:826-828` | 3 | The cut-spec sample's `SubtractionEstimate { … }` literal. |
+| `lib.rs:296` | 1 | `MutationRecord`'s `mutation: Line` field, rewritten in place as `location`/`before`/`after`. |
+
+The comment at `:298-299` names the dead type and is reworded to stand alone.
+No file or schema file dies; `index.json` is untouched because no kind is
+added and no type id renamed. Deletes go before any field is added: if
+`SubtractionEstimate` and `estimate: StructuralDelta` coexist at any commit,
+the cut has two estimate shapes.
+
+### Keeps
+
+- **All thirteen kinds, `pipeline_key`, `pipeline_id`, `local`, `key_segment`
+  and the epoch.** Keys moved in Cut 6b and are settled; this cut moves none
+  further, because it adds, retypes or removes no field a key is derived from.
+  The check is mechanical: `git diff --stat <base> -- schemas/cultnet/` at the
+  end names exactly the six regenerated schema files. `index.json` carries no
+  hashes (its entries are id, kind, wire contracts, version, type, title and
+  path, and the derivation test asserts that shape), so it is byte-identical.
+- **`PipelineRef` and its `Bounded` impl (`:363-376`).** It becomes
+  load-bearing for four more referents. It already parses the id against its
+  declared kind through `pipeline_id`, whose kind-segment check (`:553-555`)
+  refuses a mismatch; that is why retyping 1 is cheap and what the new fixture
+  rides on.
+- **The whole key suite**, `keys_read_back_as_ids_of_their_kind` included. All
+  twenty tests stay unchanged in name and assertion. They are blind to this
+  cut, which is why it carries its own tests.
+- **`Short`** stays the type for full-id fields already parsed at key
+  derivation (`cut_report.cut_spec`, `verdict.cut_report`, `finding.verdict`,
+  `cut_spec.rulings`, `ruling.answers`). Retyping those is a larger cut.
+- **The outcome-invariance assertion** in `keys_are_derived_and_mismatch_refuses`
+  (`:1029-1037`): a subject has one resolution key whatever the outcome.
+
+### Adds
+
+Two `unit_enums!` entries and one `value_types!` entry. No kind, module,
+dependency or target.
+
+```
+RulingAuthority { Operator, Standing, Defaulted }
+FindingOrigin   { Introduced, PreExisting }
+pub struct Promise { label: Label, text: Line }
+```
+
+`Promise` is not a document and has no key; it is identified by its report's
+id plus its label, as `TargetInvariant` is by its target's (`:276`). It is not
+resolvable and does not enter the resolution matrix.
+
+### Per-file changes, `epiphany-pipeline/src/lib.rs`
+
+| Line | Change |
+|---|---|
+| `:262-267` | Add `RulingAuthority` and `FindingOrigin` to the `unit_enums!` block. |
+| `:290-294` | Delete `SubtractionEstimate` and its comment. |
+| `:296` | `pub struct MutationRecord { label: Label, rule: Line, location: CodeLocation, before: Line, after: Line, commit: Sha, failed_as_expected: bool }` |
+| `:298-299` | Reword the comment so it no longer names `SubtractionEstimate`. |
+| after `:307` | `pub struct Promise { label: Label, text: Line }` beside `LandedName`. |
+| `:308` | `VerdictClaim` gains `promise: Option<Label>` and `mutations: Vec<Label>[8]`. |
+| `:319-322` | `PipelineRuling` gains `authority: RulingAuthority`. |
+| `:327` | `subtraction_estimate: SubtractionEstimate` → `estimate: StructuralDelta`. |
+| `:330-335` | `PipelineCutReport` gains `promises: Vec<Promise>[64]`. |
+| `:337-341` | `PipelineFinding` gains `origin: FindingOrigin`. |
+| `:378-386` | `ResolutionOutcome`: `Superseded { by: Vec<PipelineRef> }` with `#[schemars(extend("maxItems" = 8))]` on `by`, because the enum is outside `value_types!`, the only place `[max]` is emitted automatically (`:236`); `Answered { by: PipelineRef }`; `Fixed { commit: Sha, by: Option<PipelineRef> }`; `Deferred { to: PipelineRef }`. `Recorded`/`Withdrawn` unchanged. |
+| `:388-396` | Replace `impl Bounded for ResolutionOutcome` whole: `Superseded` → `list(&format!("{field}.by"), by, 8)`; `Answered` → `by.validate("{field}.by")`; `Fixed` → validate `commit` as `{field}.commit` then `by` as `{field}.by`; `Deferred` → `to.validate("{field}.to")`; `Recorded`/`Withdrawn` → `reason.validate("{field}.reason")`. `Option<PipelineRef>` validates through the blanket impl (`:68-72`); `list` (`:99-105`) checks the maximum and validates every item. |
+| `:800-808` | Ruling sample gains `authority: RulingAuthority::Operator`. |
+| `:826-828` | Cut-spec sample: `estimate: StructuralDelta { … }` on its own lines opening with `estimate: StructuralDelta {`, carrying Cut 3a's real numbers `lines_added: 900, lines_removed: 0`, not transposed (M21). |
+| `:835` | Report sample's `MutationRecord` literal gains `label`, `location`, `before`, `after`, `commit`. |
+| `:831-845` | Report sample gains `promises: vec![Promise { label: l("P1"), text: "One derived key per document.".into() }]`. |
+| `:846-852` | Verdict sample: the claim gains `promise: Some(l("P1"))` and `mutations: vec![l("M1")]`. |
+| `:853-859` | Finding sample gains `origin: FindingOrigin::Introduced`. |
+| `:866-870` | Resolution sample: `Answered { by: PipelineRef { kind: Ruling, id: id("ruling", "R8") } }`. Its key stays `eureka-state:resolution:question.Q1`. |
+| `tests`, after `:1510` | Five new tests, named under Verification. No sample is added, so every `samples().remove(N)` index (`:889-926`) is unchanged. |
+
+`schemas/cultnet/`: six of thirteen files regenerate: `ruling`, `cut_spec`,
+`cut_report`, `verdict`, `finding`, `resolution`. Derived, never hand-written:
+`pipeline_published_schemas_match_derivation` writes the derivation to a
+per-run temp directory and names it in the failure; copy from there. The other
+seven, `index.json`, `README.md` and the two non-pipeline schemas are
+byte-identical.
+
+### The fixture the grammar made available
+
+Before 6b a resolution's key was `resolution:<subject id>`, which `pipeline_id`
+could not read back as an id of kind `Resolution`, so no `PipelineRef` could
+name one. After 6b it is an ordinary `<root>:resolution:<subject kind>.<subject
+local>` and reads back. This cut is the first to put such a reference inside
+another document's outcome, pinned in
+`resolution_outcome_referents_are_parsed_ids_of_their_kind`:
+
+- **Positive.** A resolution of `eureka-state:ruling:R8` with outcome
+  `Superseded { by: [Ref{Ruling, ruling:R9}, Ref{Resolution, <the sample resolution's key>}] }`
+  validates. The resolution id is derived from `pipeline_key(&resolution_sample())`,
+  not spelled. That is Ghostlight's own case: a ruling partly overturned by two
+  later records.
+- **Forgery.** The same list with the resolution entry's kind changed to
+  `Ruling` is refused `InvalidFormat` with `field == "resolution.outcome.by[1].id"`.
+  Well-formed, right length, right root, wrong kind. This is M16's killer; a
+  length-only check passes it.
+
+Stated limit: a `Superseded` entry naming `eureka-state:resolution:R8` also
+validates. That id is well-formed grammar no resolution derives; whether a
+document with an id exists is admission's rule. Hands must not make the
+library refuse it.
+
+### Authority map
+
+- **Owner, inputs, outputs, derived state:** unchanged. `epiphany-pipeline`
+  owns shape, bounds, formats and keys. No status, ledger row or cut state is
+  stored by this cut, and none may be added by it.
+- **Moved:** a resolution's referent stops being an unparsed string and becomes
+  a parsed `PipelineRef` (or a `Sha`). Before, `ResolutionOutcome`'s referents
+  were length-bounded only, alone among referents in the library. After, they
+  are validated where every other referent is, `PipelineRef::validate`, one of
+  the four grammar paths 6b named.
+- **Forbidden writers:** cross-field and cross-document rules stay out of
+  `Bounded`. Hands must not implement any of these in this package:
+  `operator_quote` only with `authority: Operator`; every promise in a cited
+  report named by exactly one claim (ruling A); a `mutations` label existing in
+  the cited report; a `Superseded` list being non-empty; a `Superseded`
+  referent existing. They are admission and belong to `huginn-mind`
+  (`:97-98`, `:706-708`).
+- **Shared paths:** none new. Nothing consumes these types yet.
+- **Deletion line:** the deletes table, before any field is added.
+
+**Cut 8 inherits five named refusals** and its verification table grows by
+five rows: `QuoteWithoutOperator`, `PromiseWithoutVerdict`,
+`UnknownMutationLabel`, `EmptySupersession`, `UnknownSupersessor`.
+
+### The multi-supersessor hole
+
+D9 found that one resolution per subject cannot hold Ghostlight's two partial
+supersessors, and the key permits exactly one resolution per subject. The
+shape half closes here: `Superseded` takes `Vec<PipelineRef>[8]`. Cardinality
+is an admission rule, not a shape, so a permissive list in the schema plus a
+restrictive rule in Cut 8 costs nothing whichever way Q10 is ruled; the
+reverse ordering costs an epoch.
+
+### Verification
+
+**Builds:** `cargo check -p epiphany-pipeline --lib --tests`, then
+`cargo check -p epiphany-core --lib --tests`. `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex`,
+one package, the workstation as host and target; this library has no
+platform-specific code.
+
+**Tests:** `cargo test -p epiphany-pipeline --lib`. The existing tests plus
+five, all existing unchanged in name and assertion.
+
+| Test | Rule it pins |
+|---|---|
+| `resolution_outcome_referents_are_parsed_ids_of_their_kind` | A resolution's referent is a full id of the kind it declares. Covers `Superseded` (positive and forgery), `Answered`, `Deferred`, and `Fixed`'s optional `by`, each with a wrong-kind forgery asserting the refusal's `field`. |
+| `fixed_resolution_requires_a_commit_sha` | Ruling B: a fix names the tree where the finding stopped being true. Forgery: uppercase hex of legal length. |
+| `mutation_records_carry_a_dot_free_label_and_a_commit` | A mutation has a key-safe identity and is pinned to a tree. Forgeries: `label: "M1.a"`, `commit: "dirty-worktree"`. |
+| `a_verdict_claim_names_the_promise_and_the_mutation_it_measured` | Ruling A's shape half: `promise` and `mutations` exist, are `Label`-typed, and `mutations` is bounded at 8 (nine refused `FieldBound { field: "verdict.claims[0].mutations", limit: 8, actual: 9 }`). |
+| `the_sample_cut_spec_estimates_a_net_addition` | The estimate's two `u32` fields are not interchangeable: `lines_added == 900`, `lines_removed == 0`. A tripwire with stated limits (M21). |
+
+**Negative greps over `epiphany-pipeline/src`:**
+`rg -n "SubtractionEstimate|subtraction_estimate"` empty;
+`rg -n "Superseded \{ by: Short|Answered \{ by: Short|Fixed \{ by: Short|Deferred \{ to: Short"`
+empty; `rg -n "operator_quote|promise|mutations"` shows no `if`, `match` or
+`?`-chained condition on another field; `git diff --stat <base> -- schemas/cultnet/`
+names exactly six `.schema.json` files; `rg -n '"maxItems": 8' schemas/cultnet/epiphany.pipeline.resolution.v1.schema.json`
+matches once under `Superseded.by`. **If `schemars` 1 rejects `extend` on a
+variant field, stop and report; do not drop the bound from the schema.**
+
+**Operator:** none blocking.
+
+### Mutations, M16-M22
+
+Entries file `tools/eureka-cut6c-mutations.psd1`, run through the shared
+`tools/eureka-mutations.ps1` harness from the 6b fix batch (built-in M0,
+byte-exact I/O, anchors matching exactly once, hash-checked restore).
+
+A retyping is the mutation-hostile case: the compiler catches the type change,
+so the tempting test is "construct a valid value, assert `Ok(())`", which stays
+green under every mutation below. The key suite is structurally blind here
+because a resolution's key is outcome-invariant. Where the cut's content is
+types, the mutation is a type-level mutation (M19, M20, M22).
+
+| # | Mutation, exactly | Killed by | The careless test it survives |
+|---|---|---|---|
+| **M16** | `Superseded` arm: `list(&format!("{field}.by"), by, 8)` → `bound(&format!("{field}.by"), 8, by.len())`, length only. | the referents test, via the wrong-kind forgery in a two-entry list | any test superseding with a good id |
+| **M17** | The whole `match self { … }` body → `let _ = field; Ok(())`. | the same test's `Answered` and `Deferred` forgeries | every existing test |
+| **M18** | `commit.validate(&format!("{field}.commit"))?;` → `let _ = commit;` | `fixed_resolution_requires_a_commit_sha` via `Sha("5F98228D9C")`; `hex` requires lowercase (`:114-120`) | a test using `Sha("notacommit")`, which a length check also rejects |
+| **M19** | `MutationRecord { label: Label,` → `label: Short,` | `mutation_records_carry_a_dot_free_label_and_a_commit` via `label: "M1.a"` | a test asserting `label: "M1"` validates |
+| **M20** | `commit: Sha, failed_as_expected: bool }` → `commit: Short, …` | the same test via `commit: "dirty-worktree"` | any test supplying a real sha |
+| **M21** | Two-line anchor `estimate: StructuralDelta {` + `lines_added: 900, lines_removed: 0,` → numbers transposed. The anchor must include the opener; the numbers alone also match the report sample (`:839`). | `the_sample_cut_spec_estimates_a_net_addition` | every round-trip, bounds and schema test |
+| **M22** | `VerdictClaim`: `mutations: Vec<Label>[8]` → `[16]` | the verdict-claim test via nine labels | any test supplying one label |
+
+Stated limits: M21 is a fixture assertion and the only test-visible hazard in
+retyping 4; once both estimate and delta are `StructuralDelta`, six-axis
+comparability is a type fact. `Promise` and `promises: Vec<Promise>[64]` have
+no mutation: a promise is two bounded strings, and the rule that matters
+(every promise measured) is Cut 8's.
+
+### Subtraction estimate
+
+Removed: 17 source lines (one value type with its comment, one hand-written
+`Bounded` impl, one sample literal, one field rewritten in place) and one
+unvalidated-referent class. Added: about +125 source, about 85 of them the five
+tests; about +23 outside tests. Derived JSON: six files regenerate, about +130
+/ −45. Value types net zero. Kinds, dependencies, targets, formats, epoch: all
+zero. Liability retired: the one field class whose referent was never parsed,
+and a pair of estimate/actual types that could not be compared on four of six
+axes, both of which would have been paid for at an epoch bump the moment Cut 8
+pinned a rev.
+
+**If Hands finds a consumer of any of the five names outside
+`epiphany-pipeline/src/lib.rs` and the four schema files, this cut is wrong**:
+stop and report rather than retyping.
 
 ## Cut 7. Retire Huginn's TypeScript body
 
@@ -2127,8 +2444,9 @@ operator may simply want recorded.
   is an admission rule; the library carries the shape.
 - **Q11. Does a resolution of a resolution stay expressible?** Depends on: Cut
   6b, and the resolution matrix.
-  - **A. Nesting stays.** The grammar reads it back bounded at depth five; no
-    arm, no guard, no check.
+  - **A. Nesting stays.** The grammar reads it back, bounded by the 64-byte
+    local (five or six deep depending on the subject); no arm, no guard, no
+    check.
   - **B. A `SubjectKind` type** with twelve variants, so the case stops
     compiling. About +25 lines and one schema file moves.
   - **C. Runtime refusal** in `pipeline_key`, +3 lines.
