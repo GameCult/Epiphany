@@ -61,7 +61,9 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
 - **Cut 8 landed**: the Epiphany half at `a65c6420` (Soul-closed) with the
   Cut 10 prerequisite at `b4b17fc`; the Huginn half on `eureka/memory-organ`
   at `946758f`, `a4c5b79`, `0bd7133`, `ca30d3e`, fix batch `1cfa81d`,
-  `acd32f3`, `30daff8`. Soul in flight on the fix batch.
+  `acd32f3`, `30daff8`. **Closed as ruled today**; Cut 6d's Huginn
+  follow-up owns the key sequence, in-force ignoring withdrawals, the Q19
+  cap and six test gaps.
 - **Cut 7 landed and closed** on Huginn `eureka/memory-organ` at `1320fc4`,
   `f63c0f2`, `e20c786`, fix `4094e68`; Eve `main` `e777e4c`, fix `167a2d3`;
   EveConformance `main` `048ea2f`. Started in parallel on the operator's
@@ -2022,7 +2024,37 @@ through Epiphany's harness; +525/−26 over seven files, one refusal variant
 added. Hands named the gap the ruling leaves until the leaf cut lands: the
 matrix now admits a second resolution after a withdrawal and the key still
 refuses it as `AlreadyResolved`. **Cut 6d (resolution history, stewardship
-by repo and date) must land before Cut 9.** Soul in flight on the batch.
+by sequence) must land before Cut 9.**
+
+**Soul on the fix batch** (Fable; `soul-cut8f-*` and `soul_probe2.rs` in the
+session scratchpad) held every promise: the epoch gate's count-then-key-
+then-value order under four non-revert forms; `EmptyRepos` in place of the
+minted refusal; the matrix and its test byte-identical to `ca30d3e` after
+the revert; one swap and every strong read pinned, with the second-CAS
+and emptied-expectation forms dead by the store's own contract; H1-H39
+killed; docs on `mind.redb` and the live crate. **Cut 8 closes on the
+admission rules as ruled today.** Two findings sharpen what the Cut 6d
+Huginn follow-up must do, and it now owns them:
+
+- **Q19 A is not enforced**: a withdrawal of a withdrawal committed, chain
+  unbounded, the rejected Q19 B shape as a standing record. The follow-up
+  caps the chain at depth two.
+- **The Q17 gap has two owners, not one**: after a withdrawal, a re-
+  resolution is refused by the key (A10) and also by admission's in-force
+  derivation (A8), which still counts the withdrawn resolution. The key
+  sequence alone would not reopen a subject; in-force must ignore withdrawn
+  resolutions too, as the 6d spec already says.
+
+Test gaps, the real code correct by probe and the suite blind to a
+regression, all folded into the follow-up: the in-force half of
+`stewardship_of`; a document cited twice pinned zero times; derived writes
+skipping A7; the in-force target decided from the image only; `Answered`
+coherence only when the ruling is in the batch; branch compared
+case-insensitively. Stated limits: the epoch pair's "both orders" pin lives
+only in the helper call, because every store returns rows in key order;
+a case-insensitive epoch key is equivalent since only the organ writes it.
+One doc residue: README still names the two stub crates' purposes in the
+present tense.
 
 **The Cut 10 prerequisite landed** at Epiphany `b4b17fc` (correction 34):
 `PipelineDocument` derives `Serialize`, `Deserialize` and `JsonSchema` with
