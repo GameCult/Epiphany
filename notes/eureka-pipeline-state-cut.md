@@ -1964,9 +1964,15 @@ moves to this commit.
     (Cut 6 proved no path in either direction, and Soul's pass on the
     Epiphany half saw it finish in half a second untouched). Either a
     shared target-dir fingerprint was evicted by another session's build,
-    or something depends on the leaf that this map says does not. The next
-    Soul in this tree checks `cargo tree -i epiphany-pipeline` and the
-    fingerprint reason with `CARGO_LOG=cargo::core::compiler::fingerprint=info`.
+    or something depends on the leaf that this map says does not. **Self
+    checked the second half at once**: `cargo tree --workspace -i
+    epiphany-pipeline -e normal,build,dev` lists the leaf alone, so no
+    workspace crate depends on it in any kind. What remains is the shared
+    target dir: another session was building Ghostlight into it during this
+    pass, and a fingerprint evicted by a different environment or profile
+    reads as a "recompile" of an untouched crate. That is the build-economy
+    cost of one shared `CARGO_TARGET_DIR` across sessions, already accepted
+    (correction 22); not a dependency, and not Hands' explanation either.
 
 ## Cut 7. Retire Huginn's TypeScript body
 
