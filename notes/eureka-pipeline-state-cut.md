@@ -1864,11 +1864,13 @@ states the new invariant, the CultNet surface, the Qdrant dependency, and that
 - **Operator:** confirm `npm` publication of `@gamecult/huginn` is not expected
   to continue. The package was never published to a registry consumer this map
   can find, but unpublishing is the operator's call.
-  **Ruled 2026-09-16:** not publishing, nothing to unpublish. Body fact from
-  the operator: "we don't even have npm access and cannot get it because our
-  entire subnet is blocked." No GameCult package can be published to npmjs
-  from this network, so any plan that assumes a registry publish is a plan
-  that assumes a token nobody can mint. Raised against the QUIC map's Q5.
+  **Ruled 2026-09-16:** not publishing, nothing to unpublish. The operator
+  first said npm was unreachable ("our entire subnet is blocked"), then
+  corrected it the same day: "apparently that was true yesterday, but I was
+  able to get to npm signup just now, so we're not actually blocked on
+  publishing. Still for a later pass." So registry publication is deferred
+  by choice, not impossible; the QUIC map's Q5 stays on C for that campaign
+  on that reason. Huginn itself publishes nothing either way.
 
 **Subtraction ledger:** −307 lines, −16 files, −1 npm package, −1 CLI
 entrypoint, −1 sibling `file:` dependency. +about 30 lines of workspace
