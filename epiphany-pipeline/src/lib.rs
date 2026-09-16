@@ -25,26 +25,23 @@
 //! hand-written impl that a later field can slip past. A `Vec` field must carry
 //! a maximum, because `Vec<T>` has no `Bounded` impl of its own.
 //!
-//! The wrappers are crate-private: outside code reaches the store through the
-//! admission path, never by registering or preparing a pipeline type itself.
+//! The wrappers are crate-private: outside code registers, prepares and
+//! decodes them through `register_pipeline_document_types`,
+//! `PipelineDocument::prepare` and `PipelineDocument::decode`, and validates a
+//! write through `validate_pipeline_write_envelope`.
 
-use cultcache_rs::DatabaseEntry;
-// Envelopes are a test-only shape here until the organ prepares, decodes and
-// validates them; only the type ids survive into the live path. `anyhow` and
-// `rmp-serde` come with them, which is why both are dev-dependencies: the live
-// library's errors are all `PipelineRefusal`.
-#[cfg(test)]
+// `anyhow` is the cache's own error type, which `prepare` and the registrar
+// pass through; every refusal this crate decides is a `PipelineRefusal`.
 use anyhow::Result;
-#[cfg(test)]
-use cultcache_rs::{CultCache, CultCacheEnvelope};
+use cultcache_rs::{CultCache, CultCacheEnvelope, DatabaseEntry};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Typed refusals of the pipeline documents. Bounds, formats and key identity
-/// are the document half (D2); `ForeignStore` is raised by the decode path that
-/// still lives here, and D2 hands it to the organ when admission moves there.
-/// Identity, the schema epoch and the `ForeignEpoch` refusal are the organ's
-/// (D2), and Cut 8 writes them there against a store a test can construct.
+/// Typed refusals of the pipeline documents: bounds, formats and key identity
+/// (D2's document half), and `ForeignStore`, raised by `decode` for an
+/// envelope of any other type. The organ's refusals wrap this enum; the
+/// store's identity and the schema epoch are refused there, against a store a
+/// test can construct.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PipelineRefusal {
     FieldBound { field: String, limit: u32, actual: u32 },
@@ -472,12 +469,9 @@ macro_rules! pipeline_kinds {
                 match self { $(Self::$variant(value) => value.validate($name)),* }
             }
 
-            /// Test scaffolding until the organ prepares writes (Cut 8). Every
-            /// caller is a test, and the only cache carrying these types is the
-            /// `cfg(test)` registrar beside it, so this is `cfg(test)` rather
-            /// than a live path wearing a dead-code waiver.
-            #[cfg(test)]
-            pub(crate) fn prepare(&self, cache: &CultCache) -> Result<CultCacheEnvelope> {
+            /// Prepares the envelope the organ stores: keyed by `pipeline_key`,
+            /// payload `[value]` through `prepare_entry_named`.
+            pub fn prepare(&self, cache: &CultCache) -> Result<CultCacheEnvelope> {
                 let key = pipeline_key(self)?;
                 Ok(match self {
                     $(Self::$variant(value) => {
@@ -486,10 +480,10 @@ macro_rules! pipeline_kinds {
                 })
             }
 
-            /// Test-only with its only caller, the write validator below, until
-            /// the organ decodes admitted envelopes (Cut 8).
-            #[cfg(test)]
-            pub(crate) fn decode(envelope: &CultCacheEnvelope) -> Result<Self, PipelineRefusal> {
+            /// Decodes a stored envelope, type-matched both ways: an envelope of
+            /// any other type is `ForeignStore`, never the kind that happens to
+            /// parse its payload.
+            pub fn decode(envelope: &CultCacheEnvelope) -> Result<Self, PipelineRefusal> {
                 let invalid = |error: rmp_serde::decode::Error| format_error("payload", &error.to_string());
                 $(if envelope.r#type == <$document as DatabaseEntry>::TYPE {
                     let document: $document = rmp_serde::from_slice(&envelope.payload).map_err(invalid)?;
@@ -499,25 +493,23 @@ macro_rules! pipeline_kinds {
             }
         }
 
-        /// Registers every type the document tests put in a cache: each kind
-        /// and one foreign document. Test scaffolding until the organ registers
-        /// its mind's types, which is why it is `cfg(test)` rather than a live
-        /// path wearing a dead-code waiver.
-        #[cfg(test)]
-        pub(crate) fn register_pipeline_document_types(cache: &mut CultCache) -> Result<()> {
+        /// Registers every pipeline kind in a cache, and nothing else: the one
+        /// door to the crate-private wrappers, so the organ registers exactly
+        /// what this crate publishes.
+        pub fn register_pipeline_document_types(cache: &mut CultCache) -> Result<()> {
             $(cache.register_entry_type::<$document>()?;)*
-            cache.register_entry_type::<ForeignDocument>()?;
             Ok(())
         }
     };
 }
 
 /// A document that is not a pipeline document, for the decode refusal and the
-/// spine-registry rules to be pinned against something real. The organ's Mind
-/// commit receipt is the case that matters: a mind's store legitimately holds
-/// one beside pipeline documents, and it is still not a document this library
-/// may decode. That type belongs to the harness, not here, so the rule is
-/// pinned against a stand-in carrying its type id.
+/// registrar's count to be pinned against something real. It stands in for
+/// the commit receipt of any organ: a mind's store legitimately holds one
+/// beside pipeline documents, and it is still not a document this library may
+/// decode. Huginn pins the same rule against its real receipt type; here the
+/// stand-in carries a receipt-shaped type id and is registered only by the
+/// tests' own cache, never by the live registrar.
 #[cfg(test)]
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(type = "epiphany.mind_commit_receipt.v1", schema = "ForeignDocument")]
@@ -643,6 +635,14 @@ const ROOT_LOCAL: &str = "self";
 /// from this name rather than restating the number.
 const LOCAL_MAX: usize = 64;
 
+/// The schema epoch every pipeline store is written at, owned here with the
+/// schemas it names. Evolution is additive and keeps it: a new named field
+/// with a serde default, or a widened `PipelineKind`, since each reader ships
+/// with the variants it knows and refuses an unknown kind on the kind, not on
+/// the epoch. A breaking change bumps it, and the organ refuses a store
+/// written at the old one.
+pub const PIPELINE_SCHEMA_EPOCH: &str = "epiphany.pipeline.epoch.v1";
+
 /// Composes and validates a local: every part is a `Label`, and the join is
 /// bounded whole. Both rules live here because this is the only way a local is
 /// built; `pipeline_key` has no other path to a key string. Parts are a slice,
@@ -736,12 +736,10 @@ pub fn pipeline_key(document: &PipelineDocument) -> Result<String, PipelineRefus
     Ok(format!("{root}:{kind}:{composed}"))
 }
 
-/// Bounds, formats, then key recomputation, for one envelope. Per-kind
-/// admission rules belong to the organ's admission path. Its only caller is a
-/// test until the organ validates writes through it (Cut 8), so it is
-/// `cfg(test)` rather than a live path wearing a dead-code waiver.
-#[cfg(test)]
-fn validate_pipeline_write_envelope(envelope: &CultCacheEnvelope) -> Result<()> {
+/// Bounds, formats, then key recomputation, on the envelope that will be
+/// stored, whoever prepared it. Per-kind and cross-document rules belong to
+/// the organ's admission path, which calls this first and never re-derives it.
+pub fn validate_pipeline_write_envelope(envelope: &CultCacheEnvelope) -> Result<(), PipelineRefusal> {
     let document = PipelineDocument::decode(envelope)?;
     document.validate()?;
     let expected = pipeline_key(&document)?;
@@ -750,8 +748,7 @@ fn validate_pipeline_write_envelope(envelope: &CultCacheEnvelope) -> Result<()> 
             kind: document.kind(),
             key: envelope.key.clone(),
             expected,
-        }
-        .into());
+        });
     }
     Ok(())
 }
@@ -974,9 +971,12 @@ mod tests {
         resolution
     }
 
+    /// The live registrar plus the foreign stand-in, which only the tests
+    /// register.
     fn schema_cache() -> Result<CultCache> {
         let mut cache = CultCache::new();
         register_pipeline_document_types(&mut cache)?;
+        cache.register_entry_type::<ForeignDocument>()?;
         Ok(cache)
     }
 
@@ -1069,10 +1069,9 @@ mod tests {
             assert_eq!(pipeline_key(&document), Ok(key.clone()));
             let mut envelope = document.prepare(&cache)?;
             envelope.key = format!("{key}-forged");
-            let error = validate_pipeline_write_envelope(&envelope).unwrap_err();
             assert_eq!(
-                error.downcast_ref::<PipelineRefusal>(),
-                Some(&PipelineRefusal::InvalidIdentity { kind: document.kind(), key: envelope.key, expected: key })
+                validate_pipeline_write_envelope(&envelope),
+                Err(PipelineRefusal::InvalidIdentity { kind: document.kind(), key: envelope.key, expected: key })
             );
         }
         let mut resolution = resolution_sample();
@@ -1962,6 +1961,34 @@ mod tests {
             );
         }
         assert!(stale.is_empty(), "published pipeline schemas differ from the Rust derivation; derived copies: {stale:?}");
+        Ok(())
+    }
+
+    /// The epoch is the version every kind is published at: its version
+    /// segment is read from the constant, not restated, and every type id
+    /// carries the same one, so a bumped epoch fails here until the kinds
+    /// move with it. The live registrar registers the kinds and nothing else,
+    /// so the foreign stand-in is not among them.
+    #[test]
+    fn every_kind_is_at_the_epochs_version() -> Result<()> {
+        let (name, version) = PIPELINE_SCHEMA_EPOCH.rsplit_once('.').expect("the epoch carries a version");
+        assert_eq!(name, "epiphany.pipeline.epoch");
+        assert!(
+            version.len() > 1 && version.starts_with('v') && version[1..].bytes().all(|byte| byte.is_ascii_digit()),
+            "{version:?} is not a version segment"
+        );
+        for kind in PipelineKind::ALL {
+            let type_id = kind.type_id();
+            assert!(type_id.ends_with(&format!(".{version}")), "{type_id} is not at the epoch's version {version}");
+        }
+
+        let mut cache = CultCache::new();
+        register_pipeline_document_types(&mut cache)?;
+        let registered = cache.registered_entry_types();
+        assert_eq!(registered.len(), PipelineKind::ALL.len(), "the live registrar registers exactly the kinds: {registered:?}");
+        for kind in PipelineKind::ALL {
+            assert!(registered.iter().any(|name| name == kind.type_id()), "{kind:?} is registered");
+        }
         Ok(())
     }
 }

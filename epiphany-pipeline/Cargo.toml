@@ -10,16 +10,18 @@ license-file = "../LICENSE"
 name = "epiphany_pipeline"
 path = "src/lib.rs"
 
-# A leaf type library. Every dependency here is one the document types need in
-# a non-test build; the write path's crates are dev-dependencies, because the
-# path itself is `cfg(test)` until the organ owns admission.
+# A leaf type library. Every dependency here is one the document types or the
+# write path need in a non-test build: the organ prepares, decodes and
+# validates envelopes through this crate, so `anyhow` (the cache's error type)
+# and `rmp-serde` (the payload decode) are normal dependencies. Only the
+# schema-publication check needs JSON.
 [dependencies]
+anyhow = "1"
 chrono = "0.4.44"
 cultcache-rs = { git = "https://github.com/GameCult/CultLib.git", rev = "a0813c6eed24d30bf88073ef615b633c77ebfcd6", package = "cultcache-rs" }
+rmp-serde = "1"
 schemars = "1"
 serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
-anyhow = "1"
-rmp-serde = "1"
 serde_json = "1"
