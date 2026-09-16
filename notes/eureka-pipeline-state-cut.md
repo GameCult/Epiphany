@@ -149,6 +149,13 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
   `acd32f3`, `30daff8`. **Closed as ruled today**; Cut 6d's Huginn
   follow-up owns the key sequence, in-force ignoring withdrawals, the Q19
   cap and six test gaps.
+- **Cut 9 landed and closed** at `5ae34f8` (every derivation moved whole
+  into `docs.rs`, one owner for in-force), `49cc6e3` (the read side) and
+  `8fc39b1` (34 entries). 56 tests; 67 + 34 killed. Soul closed it with
+  three bounded follow-ups in Hands (two loosenings the entries file called
+  unfailable are failable; one open-items fixture). **Cut 10 being mapped.**
+  D4, D6 and D7 are superseded by the landed read side; each carries a
+  banner naming its false sentences.
 - **Cut 7 landed and closed** on Huginn `eureka/memory-organ` at `1320fc4`,
   `f63c0f2`, `e20c786`, fix `4094e68`; Eve `main` `e777e4c`, fix `167a2d3`;
   EveConformance `main` `048ea2f`. Started in parallel on the operator's
@@ -970,6 +977,18 @@ for it to exclude.
 
 ## D4. Queries
 
+*Superseded by Cut 9 as landed (`49cc6e3`), 2026-09-16. Still true: one
+owner for every derivation, status derived at read time, the open-items
+sentence. Now false: `get` is `view`; `query` returns a
+`PipelineQueryPage { items, matched }`, not a `Vec`; `rulings_in_force` and
+`stewardship` were never built and are query presets; the view is
+`{ id, document, admission, status }`, not the seven-field shape below;
+`PipelineQuery` has no `status`, `outcome`, `text_contains` or `instance`
+and has `in_force: Option<bool>`; `semantic` is refused typed until Cut 11;
+"in force when no resolution names it" is the non-recursive form, and the
+landed rule is "no resolution that is itself in force" (Q17 B); `history`
+exists and is missing here. The Cut 9 section is the owner.*
+
 `huginn-mind` owns every derivation; no client re-derives status.
 
 - `get(id) -> Option<PipelineDocumentView>`
@@ -1030,6 +1049,12 @@ projection disposable, and it is the negative proof that the index is not truth.
 
 ## D6. The CultNet surface
 
+*Partly superseded by Cut 9 and Q13 A, 2026-09-16: the `RulingsInForce`
+and `Stewardship` operations are presets of `Query`; there is no `History`
+operation, which Q17 B's obligation requires; the wire types are
+`huginn-mind`'s, carried by the client for types only. The Cut 10 refresh
+is the owner of the surface's shape.*
+
 **Copy Odin's harness (R6, R7).** `huginn-daemon` binds one loopback UDP socket
 from `GAMECULT_IDUNN_CANDIDATE_BIND`, constructs
 `CultMeshRudpDocumentServer::new(socket, sink, snapshot, CultMeshSystemClock::default(), options)`,
@@ -1059,6 +1084,13 @@ ports (R21), with a private candidate range `27880-27887` by analogy with
 Odin's `27872-27879`.
 
 ## D7. `eureka-state`
+
+*Partly superseded by Cut 9 and Q13 A, 2026-09-16: the `query` output is a
+page with `matched`; the `rulings_in_force` and `stewardship` tool rows are
+presets; there is no `history` tool, without which the Q17 affordance
+stops at the crate boundary; "types are the `epiphany-pipeline` types" is
+false for the view and query types, which are `huginn-mind`'s. The Cut 13
+refresh is the owner.*
 
 A stdio MCP server that is a thin CultNet client. It owns no state, no cache and
 no fallback.
