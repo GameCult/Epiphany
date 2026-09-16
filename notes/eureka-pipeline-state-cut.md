@@ -3973,64 +3973,869 @@ record (D4); `open_items` and `history` are uncapped (D6, D7).
 
 ## Cut 10. `huginn-daemon`: the CultNet surface
 
-- **Repo/branch:** Huginn, same branch. Depends on Cut 9.
-- **Deletes first:** none.
+Imagination, 2026-09-16, refreshed against the Body after Cut 9 landed and
+Q13 was ruled A. Replaces the old Cut 10 section whole. The old section put
+the wire types in a binary crate (overturned by Q13 A), copied Odin's
+document-server harness (which cannot reply to a request), listed operations
+Cut 9 turned into presets, and predated `Mind::{view, query, open_items,
+history}`. Every anchor here is a function, type, constant or test **name**,
+never a line: a Hands batch is landing in `crates/huginn-mind/src/query.rs`,
+`docs.rs` and `tools/eureka-cut9-mutations.psd1` while this is written (the
+main tree carried those three modified and a harness sidecar at spec time),
+and this cut touches none of those three files.
 
-**Adds: `crates/huginn-daemon`.** Dependencies mirroring Odin's lean set (R8):
-`anyhow`, `chrono`, `cultcache-rs`, `cultmesh-rs`, `cultnet-rs`, `fs2`,
-`huginn-mind`, `rmp-serde`, `serde`, `signal-hook`.
+### Pins
 
-- `src/wire.rs`: `HuginnMindRequest` and `HuginnMindResponse` (D6), as
-  `DatabaseEntry` documents with derived schemas.
-- `src/main.rs`: `parse_options` for `--state-root`, `--idunn-projection`,
-  `--idunn-anchor`; bind `GAMECULT_IDUNN_CANDIDATE_BIND`; construct the
-  document server; `signal-hook` for SIGTERM/SIGINT; the `poll_once` loop.
-- `src/serve.rs`: `SinkHandle` implementing `CultMeshRudpRawDocumentSink`
-  (request → `admit`/query → response) and `SnapshotHandle` implementing
-  `CultMeshRudpSnapshotSource` (read-only snapshot of one instance's mind).
+| Repo | Branch | HEAD | State |
+|---|---|---|---|
+| Huginn | `eureka/memory-organ` | `8fc39b1` | the last commit; the Hands batch above is uncommitted in the tree. This cut lands after it. |
+| Epiphany | `codex/eureka-pipeline-state` | `fb18395f` | tree clean; `epiphany-pipeline/src/lib.rs` last moved at `d5a36c2a`, the rev `crates/huginn-mind/Cargo.toml` pins. No Epiphany change in this cut. |
+| CultLib | `main` | `47aa7b6` | `git diff --stat a0813c6 47aa7b6 -- packages/cultcache-rs packages/cultnet-rs packages/cultmesh-rs` is **empty**; every source read below is against the checkout Huginn pins, `a0813c6`. |
+| Odin | `main` | `5a015d9` | read for the house daemon shape (`crates/odin-daemon/src/main.rs`) and Eve document ids (`crates/odin-core/src/documents.rs`). |
+| Idunn | `main` | `5b3f646` | read for the house request/response shape over a hub (`src/host_actuator.rs`, `HostActuatorHub`). |
+| gamecult-ops | `main` | `36a466f` | `systemd/epiphany.service`, `runbooks/odin-yggdrasil.md`, `idunn/yggdrasil/bindings/odin.toml.in`, `inventory.md` (17872 still unallocated). |
 
-**Copy Odin's shape deliberately** (R6): the loopback-only candidate bind
-assertion, the signal handler with its PID-namespace comment, the bootstrap
-activation wait, the heartbeat, and `poll_server` mapping
-`CultMeshRudpPollOutcome::ApplicationRejected` to a logged non-fatal.
+Body facts this spec rests on, each by source read of the named file or by
+the probe at the end:
 
-**Authority map.**
+- **`CultMeshRudpDocumentServer` cannot reply to a request.** Its sink is
+  `CultMeshRudpRawDocumentSink::accept_raw_document(receipt) -> Result<()>`;
+  a `DocumentPutRaw` is admitted or rejected (`ApplicationRejected`), and the
+  only bytes that go back are the transport ACK. Reads are `SnapshotRequest`
+  → `SnapshotResponseRaw` selected by `schema_ids`/`record_keys` only
+  (`cultmesh-rs/src/rudp_document_server.rs`, `deliver_application_message`).
+  So D6's "replies go back as `DocumentPutRaw`" has no mechanism, and a
+  `PipelineQuery` cannot ride a snapshot filter. That server is Odin's shape
+  because Odin is a catalog; the organ is a service.
+- **`CultNetRudpServerHub` is the multi-session request/response substrate.**
+  One socket, one `CultNetRudpSession` per remote peer, events
+  `Connected | Frame | Pong | Disconnected` from `receive_event_once`, and
+  `send_schema_message(&session, &CultNetMessage)` addressed to one session
+  by `(remote_addr, session_generation)` (`cultnet-rs/src/rudp.rs`,
+  `CultNetRudpServerHub`). Idunn's `HostActuatorHub::service` is the live
+  house pattern (`Idunn/src/host_actuator.rs`). The hub drops any packet
+  whose `connection_id` is not its own (`receive_packet_once`).
+- **`cultnet.operation_request.v0` / `cultnet.operation_response.v0` are the
+  typed request/response envelope**, with C# reference parity
+  (`CultLib/src/GameCult.Networking/CultNetSchemaMessages.cs`,
+  `CultNetOperationRequestMessage`/`ResponseMessage`; `CultNetOperationServer.cs`
+  with `Accepted`/`Rejected` replies and `FailureSchemaId =
+  "gamecult.cultnet.operation_failure.v1"` carrying `{code, message}`), published
+  JSON at `CultLib/contracts/cultnet/cultnet.operation-{request,response}.schema.json`,
+  and named by Eve as its plugin ABI carrier (`Eve/docs/plugin-architecture.md`,
+  "Executable Plugin ABI"). Fields: `message_id, service_id, operation,
+  payload_schema, payload_encoding, payload, source_runtime_id?,
+  target_runtime_id?`; the response adds `status`, `diagnostics`. CultNet
+  validates `payload_encoding == "messagepack-base64"` and every string
+  non-empty (`contracts.rs`, `validate_message`). The Rust
+  `CultNetOperationServer` (`operation_service.rs`) is a single-peer wrapper
+  over one `CultNetRudpSocketTransportConnection` and nothing in Rust uses
+  it; the C# one is multi-handler. Not used here.
+- **Schema publication over CultNet is `SchemaCatalogRequest` →
+  `CultNetSchemaRegistry::create_catalog_response`**, registrations carry
+  `schema_json` (required, hashed canonically), `kind:
+  WireMessage | DocumentPayload | SharedContract` (`schema_discovery.rs`).
+  This is the one place JSON crosses the wire, and it is schema publication.
+- **A client is `CultMesh::create_rudp_client_for_endpoint(runtime_id,
+  connection_id, "rudp://host:port", CultMeshRudpSocketOptions)`** then
+  `connect`, `send_schema_message`, `receive_schema_message_once`,
+  `poll_resends` (`cultnet-rs/src/cultmesh.rs`, `rudp.rs`). `CultMesh::connect_rudp_client_for_endpoint`
+  does the connect wait. Cut 13 needs nothing else from the transport.
+- **`huginn-mind` at `8fc39b1`:** `Mind::open(state_root, &Slug) ->
+  Result<Mind<OwnedRedbMessagePackBackingStore>, MindRefusal>` with
+  `MindAlreadyOwned` for a held lock (`mind.rs`); `Mind::admit(batch, now)`,
+  `admit_prepared` and step A1 `if instance != self.instance()` inline in
+  `admit_steps` (`admission.rs`); `Mind::{view, query, open_items, history}`
+  (`query.rs`); `PipelineAdmissionBatch` derives only `Clone, Debug,
+  PartialEq, Eq` under a doc comment claiming the leaf's `PipelineDocument`
+  cannot serialise, which is false at `d5a36c2a` (Cut 9's finding);
+  `refusal.rs` still carries the `#[serde(remote = "PipelineRefusal")]`
+  mirror `DocumentRefusal` and the two `with` attributes on
+  `MindRefusal::Document`, dead since the leaf derives all three traits;
+  `store::test_stores::{MemoryStore, RefusingStore}` are `#[cfg(test)]
+  pub(crate)` and unreachable from another crate; `lib.rs` re-exports the
+  read and admission types but not `epiphany_pipeline`; the crate reads no
+  clock and no environment. `Mind<OwnedRedbMessagePackBackingStore>` is
+  `Send` (probe).
+- **Odin's daemon** (`odin-daemon/src/main.rs`): `parse_options` over exact
+  `--state-root --idunn-projection --idunn-anchor`, `GAMECULT_IDUNN_CANDIDATE_BIND`
+  asserted loopback, `signal_hook::flag::register` for SIGTERM/SIGINT with
+  the PID-namespace comment, a bootstrap loop `while !try_activate()` gated
+  on Idunn's process write lease and activation records, a self-presence
+  heartbeat published through `publish_cultnet_message_to_rudp_catalog`, and
+  `std::os::fd::{FromRawFd, RawFd}` for systemd-passed signer descriptors —
+  **Linux-only**. `signal-hook` 0.3 registers SIGTERM/SIGINT on Windows
+  (probe).
+- **`epiphany.service`** spells its endpoints `--qdrant-url`,
+  `--ollama-base-url`, `--ollama-model` and its Idunn health as
+  `--idunn-rudp-health 10.77.0.1:17870` (gamecult-ops `systemd/epiphany.service`);
+  those are Cut 11's and Cut 14's flags and are not added here.
+- **Eve's operator surface is a provider advertisement plus surface documents
+  through Odin**: `gamecult.eve.provider_advertisement.v1` (required:
+  `providerId, serviceId, verseId, title, kind, freshness, schemas, witnesses,
+  surfaces, commands`; `Eve/schemas/…provider_advertisement.v1.schema.json`)
+  and `gamecult.eve.surface_state.v1` (`odin-core/src/documents.rs`,
+  `EveSurfaceStateRecord { provider_id, title, version, updated_at, surface:
+  Value }`). Nothing in Rust builds one outside Sleipnir; both carry JSON
+  `Value` bodies. No Eve DSL type exists in `cultnet-rs` or `cultmesh-rs`.
+- **Probe** (detached worktree at `8fc39b1` under the scratchpad,
+  `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex`, PowerShell, `cargo
+  test -p huginn-daemon --lib` once, worktree removed, main tree untouched
+  by it): with the dependency set under Build budget, a `CultNetRudpServerHub`
+  on `127.0.0.1:0` accepted two `CultMesh::create_rudp_client_for_endpoint`
+  clients, received one `OperationRequest` from each carrying a base64
+  `rmp_serde::to_vec_named(PipelineQuery)`, answered each on its own session
+  with an `OperationResponse` carrying a `PipelineQueryPage`, and each client
+  decoded the reply correlated to its own `message_id`. `schemars::schema_for!
+  (PipelineQueryPage)` is 42,899 bytes of JSON. Build 30.4 s warm; lock 93 →
+  139 entries (41 new package names, listed under Build budget); target dir
+  10,619 → 11,030 paths, 8.74 → 9.08 GiB. Probe files kept at
+  `scratchpad/cut10-probe-lib.rs` and `cut10-probe-Cargo.toml`.
 
-- **Owner:** `huginn-daemon` owns the socket, the process and the lifecycle. It
-  owns **no** rule: every request becomes a `huginn-mind` call.
-- **Inputs:** CultNet `DocumentPutRaw` requests and snapshot queries.
-- **Outputs:** `DocumentPutRaw` responses, snapshot responses, presence health.
-- **Derived state:** session table, the `pending_index` retry slot (Cut 11).
-- **Forbidden writers:** the daemon may not call `cultcache_rs` put/CAS
-  directly, may not construct a receipt, and may not derive status.
-- **Shared paths:** `admit` from Cut 8; the import path in Cut 12.
-- **Deletion line:** n/a.
+### What the cut does
 
-**Verification.**
+The organ's body: one process that opens one instance's mind, serves
+admission and the read side over CultNet RUDP to whoever can reach its
+socket (the LAN and, through Cut 14's route, WireGuard), refuses to start
+when it cannot open the mind, and publishes its own wire schemas on request.
 
-| Test | Pins |
-|---|---|
-| `request_round_trips_through_the_sink_and_returns_a_typed_outcome` | Wire shape |
-| `a_refusal_returns_as_a_response_not_a_transport_error` | Refusals are data |
-| `snapshot_source_serves_only_the_named_instance` | Instance isolation on the wire |
-| `a_malformed_request_document_is_rejected_without_touching_a_mind` | Store bytes unchanged |
-| `foreign_instance_on_the_wire_is_refused` | Ruling 14 across the transport |
+- **The wire, in `huginn-mind::wire`** (Q13 A): `HuginnMindRequest` with one
+  variant per `Mind` method plus `Whoami`; `HuginnMindResponse` with the
+  method's return type per variant plus `Refused(MindRefusal)` for the read
+  side; `MindStatus`, the answer to `Whoami` and the typed state a dashboard
+  would project. All derive `Serialize, Deserialize, JsonSchema`; the payloads
+  are Cut 8's and Cut 9's types unchanged.
+- **The envelope, in `huginn-daemon::envelope`:** a `HuginnMindRequest` rides
+  `cultnet.operation_request.v0` (`service_id = "huginn.mind"`, `operation` =
+  the variant's name, `payload_schema = "huginn.mind_request.v1"`, `payload` =
+  base64 of named MessagePack); the response rides
+  `cultnet.operation_response.v0` the same way with `status` derived from the
+  response. An envelope the daemon cannot decode is answered with
+  `gamecult.cultnet.operation_failure.v1 { code, message }`, status
+  `rejected`, and touches no mind.
+- **The daemon, in `huginn-daemon::daemon`:** `Daemon<S: MindStore> { mind:
+  Mind<S>, index: I }` and `handle(&mut self, request, now) ->
+  HuginnMindResponse`, a pure dispatch with no socket, no clock and no rule:
+  `Admit` → `mind.admit`; every other instance-bearing request →
+  `mind.require_instance(&declared)?` then the method; after a `Committed`
+  outcome, `index.committed(&mind, &writes)`, whose error is logged and never
+  changes the outcome.
+- **The loop, in `huginn-daemon::serve`:** `run(daemon, hub, registry,
+  stopping)` over `CultNetRudpServerHub`: frames on the `schema` channel are
+  decoded, answered on their session, and every other message is answered
+  with `CultNetMessage::Error`; `SchemaCatalogRequest` is answered from the
+  registry holding the two wire schemas. Hostile datagrams and a departed
+  session are logged and served past, never fatal.
+- **`main`:** `--state-root`, `--instance`, `--bind`; open the mind first,
+  bind second, serve until SIGTERM/SIGINT. A mind that will not open ends the
+  process with the refusal on stderr and no socket ever bound.
+- **One instance check, one owner:** step A1 becomes `Mind::require_instance`,
+  called by `admit_steps` as before and by the daemon for reads. The daemon
+  compares nothing itself.
 
-- **Mutations:** make the sink bypass `admit` and write directly; let the
-  snapshot source ignore the instance filter. Each fails its test.
-- **Builds:** `cargo check -p huginn-daemon --bin huginn-daemon`.
-- **Pipeline smoke:** start the daemon on an ephemeral loopback port against a
-  temp state root, drive one `admit` and one `query` from a CultNet client in
-  the same test, assert the typed outcomes. This is the "typed handoff between
-  adjacent organs" tier `F:\Projects\CLAUDE.md` asks for.
-- **Process-probe rule:** the smoke spawns only `huginn-daemon` with explicit
-  argv and an ephemeral port; it never re-launches the test binary. Hands
-  confirms this by reading the spawn site before running it.
-- **Negative grep:** `rg -n "compare_and_swap|put_prepared_batch|HuginnCommitReceipt \{" crates/huginn-daemon/src`
-  empty.
+Not in this cut, by decision: an Eve provider advertisement or surface
+(Q23), the Idunn activation handshake and presence heartbeat (Cut 14),
+Qdrant and Ollama (Cut 11), a hand-off or import operation (Cut 12 decides
+whether it needs one; Findings), and any `.cc` state of the daemon's own.
 
-**Subtraction ledger:** +about 900 lines. +1 binary, +`cultmesh-rs`,
-`cultnet-rs`, `signal-hook`, `fs2`.
+### What changed against the old Cut 10 section
+
+1. **The wire types move out of the binary** into `huginn-mind::wire` (Q13 A)
+   and the daemon gains a lib target so Cut 13 can run it in-process.
+2. **`CultNetRudpServerHub` + operation envelopes replace
+   `CultMeshRudpDocumentServer` + `DocumentPutRaw`/snapshot**, because the
+   document server has no reply path and a snapshot has no query. `SinkHandle`
+   and `SnapshotHandle` are not built.
+3. **Operations are `Mind`'s methods:** `whoami, admit, view, query,
+   open_items, history`. D6's `Get` is `view`; `RulingsInForce` and
+   `Stewardship` are `query` presets (Cut 9); `HandOff` and `Import` are Cut
+   12's in-process operations and have no wire form here.
+4. **No Odin bootstrap wait, heartbeat, `fs2`, `cultmesh-rs` or
+   `pending_index`.** The Idunn handshake is Linux-only and Cut 14's; the
+   index retry slot is Cut 11's; the daemon holds no lease file of its own
+   (the owned store's lock is the single-writer mechanism, Cut 8).
+5. **The smoke spawns no process.** `serve::run` is driven in-process over a
+   loopback hub; Cut 14's runbook verification exercises the real process.
+6. **Two deletions in `huginn-mind`** the map assigned here: the
+   `DocumentRefusal` mirror, and the false doc on `PipelineAdmissionBatch`
+   (which now derives the three traits).
+7. **Tests 5 → 10, mutations 2 → 16** in `tools/eureka-cut10-mutations.psd1`.
+
+### Decisions, with the reasons
+
+### D1. Request/response over CultNet RUDP through the hub; not a CultMesh publication
+
+Admission is a command with a typed outcome and a query is a filter with a
+page; both are request/response. The three CultNet shapes that could carry
+them, by source read:
+
+| Shape | Reply per request | Multi-session | Query filters | Verdict |
+|---|---|---|---|---|
+| `CultMeshRudpDocumentServer` (D6's) | none from the sink; ACK or rejection | yes | `schema_ids`, `record_keys` only | cannot answer `admit` or `query` |
+| `CultNetOperationServer` (Rust) | yes, typed envelope | no: one peer, a new Connect resets the session | any | one workstation session at a time |
+| `CultNetRudpServerHub` + `OperationRequest`/`Response` | yes, per session | yes | any | **this** |
+
+A CultMesh publication path was considered for admission (put a request
+document, snapshot the response document later): two round trips and a
+response store the daemon would have to own and expire, which is a cache
+pretending to be truth. Rejected. Reads through a snapshot source (D6's
+"plain CultNet snapshot client can read a mind") are also not built: a
+snapshot cannot express `PipelineQuery`, and the raw image is the store's
+shape, not the view's (status and admission facts are derived, Cut 9).
+
+What this buys against doctrine: the organ speaks CultNet (RUDP over UDP,
+ruling 19) with CultLib's own typed envelope that the C# reference and Eve's
+ABI already speak; JSON crosses the wire only as schema publication (D7).
+What it does not buy: a CultMesh state document a dashboard can pull without
+speaking the operation envelope. That is Q23.
+
+### D2. The wire types, exactly
+
+`crates/huginn-mind/src/wire.rs`, `pub mod wire`, re-exported from `lib.rs`:
+
+```rust
+pub const MIND_SERVICE_ID: &str = "huginn.mind";
+pub const MIND_REQUEST_SCHEMA: &str = "huginn.mind_request.v1";
+pub const MIND_RESPONSE_SCHEMA: &str = "huginn.mind_response.v1";
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub enum HuginnMindRequest {
+    Whoami,
+    Admit(PipelineAdmissionBatch),                       // carries `instance`
+    View { instance: Slug, id: PipelineRef },
+    Query { instance: Slug, query: PipelineQuery },
+    OpenItems { instance: Slug, campaign: Slug },
+    History { instance: Slug, scope: HistoryScope },
+}
+impl HuginnMindRequest {
+    /// The envelope's `operation`: `whoami | admit | view | query | open_items | history`.
+    pub fn operation(&self) -> &'static str;
+    /// The instance the request declares; `Whoami` declares none.
+    pub fn instance(&self) -> Option<&Slug>;
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub enum HuginnMindResponse {
+    Whoami(MindStatus),
+    Admit(PipelineAdmissionOutcome),
+    View(Option<PipelineDocumentView>),
+    Query(PipelineQueryPage),
+    OpenItems(PipelineOpenItems),
+    History(Vec<PipelineDocumentView>),
+    Refused(MindRefusal),                                // the read side's refusal
+}
+impl HuginnMindResponse {
+    /// The envelope's `status`, the C# reference's vocabulary: `rejected`
+    /// for `Refused(_)` and `Admit(Refused(_))`, `accepted` otherwise
+    /// (`Conflict` and `AlreadyAdmitted` are answers, not refusals).
+    pub fn status(&self) -> &'static str;
+}
+
+/// What a mind says about itself: the typed state a dashboard projects.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct MindStatus {
+    pub instance: Slug,
+    pub schema_epoch: String,     // PIPELINE_SCHEMA_EPOCH
+    pub documents: u32,           // pipeline documents in the image
+    pub receipts: u32,
+}
+impl<S: MindStore> Mind<S> { pub fn status(&self) -> MindStatus; }   // in mind.rs
+```
+
+`Admit` carries the batch whole because the batch already carries
+`instance` and `provenance`; a second `instance` beside it would be two
+declarations. The read requests carry `instance` because ruling 14 says a
+write carrying another instance's identity is refused *whatever the
+transport*, and a read of the wrong mind is the same collision on the read
+side (D3). `Whoami` carries none: it is how a client learns which mind it
+reached.
+
+`PipelineAdmissionBatch` gains `Serialize, Deserialize, JsonSchema`; its
+doc comment loses the false sentence. `MindRefusal::Document` loses its two
+`with` attributes; `DocumentRefusal` is deleted.
+
+Serialisation: `rmp_serde::to_vec_named` and `rmp_serde::from_slice`, so
+field names on the wire are the names the JSON schemas publish (the C#
+reference keys by name). `PipelineDocument` is adjacently tagged
+`{kind, value}` and rides as a map; the leaf's `[value]` array form is the
+*store* shape, not the wire's, and the daemon never sees an envelope.
+
+Schemas: `schemas/cultnet/huginn.mind_request.v1.schema.json` and
+`huginn.mind_response.v1.schema.json` in Huginn, derived by
+`schemars::schema_for!` and pinned byte-for-byte by a test (Epiphany's
+`pipeline_published_schemas_match_derivation` pattern). They are Huginn's
+contracts, published from Huginn (D6's schema-publication paragraph stands).
+Expect about 100 KB each; the pipeline value types are inlined by
+`schemars` under `$defs` and Epiphany's thirteen files are not copied.
+
+### D3. One instance check, owned by the mind
+
+`admit_steps`'s A1 becomes:
+
+```rust
+impl<S: MindStore> Mind<S> {
+    /// Ruling 14 across every transport: the declared instance is this
+    /// mind's, else `ForeignInstance { declared, mind }`. A1 for admission;
+    /// the daemon asks it for every read that names an instance.
+    pub fn require_instance(&self, declared: &Slug) -> Result<(), MindRefusal>;
+}
+```
+
+`admit_steps` calls it where the inline comparison was; behaviour identical,
+H1 re-anchors to the new body (Per-file changes). The daemon's `handle`
+calls it once per instance-bearing read before dispatch and never compares
+an instance itself. Rejected: comparing in the daemon (a second validator of
+A1, the thing the brief forbids) and dropping the instance from reads (a
+client configured for `thought-cage` would silently read `yggdrasil`).
+
+### D4. The daemon is a pure dispatch over a hub, without a transport trait
+
+```rust
+// daemon.rs
+pub trait IndexSink<S: MindStore> {
+    /// Called after `Committed`, with the landed refs; Cut 11 reads
+    /// `mind.view(ref)` per ref and indexes. An error never reaches the caller.
+    fn committed(&mut self, mind: &Mind<S>, writes: &[PipelineRef]) -> anyhow::Result<()>;
+}
+pub struct NoIndex;                                   // this cut's implementation
+pub struct Daemon<S: MindStore, I: IndexSink<S>> { mind: Mind<S>, index: I }
+impl Daemon<OwnedRedbMessagePackBackingStore, NoIndex> {
+    pub fn open(state_root: &Path, instance: &Slug) -> Result<Self, MindRefusal>;   // Mind::open
+}
+impl<S: MindStore, I: IndexSink<S>> Daemon<S, I> {
+    pub fn with_index<J: IndexSink<S>>(self, index: J) -> Daemon<S, J>;
+    pub fn mind(&self) -> &Mind<S>;
+    pub fn runtime_id(&self) -> String;                // "huginn-<instance>"
+    pub fn handle(&mut self, request: HuginnMindRequest, now: DateTime<Utc>) -> HuginnMindResponse;
+}
+```
+
+`handle`, exactly: `Whoami` → `Whoami(mind.status())`. `Admit(batch)` →
+`mind.admit(batch, now)`; if `Committed { writes, .. }`, `index.committed(mind,
+&writes)` and on `Err` one `eprintln!` naming the refs; the outcome is
+returned as computed before the sink ran. Every other variant →
+`mind.require_instance(declared)` then the method, `Err(refusal)` →
+`Refused(refusal)`. No `Utc::now()` here: `now` is the caller's, so a test
+pins it.
+
+No `Transport` trait. The loop below is under forty lines; a trait with one
+live and one test implementation over it is the one-implementation
+abstraction ruling 20 killed in Cut 5. Typed hand-off between organs is
+proven without a socket at `handle` (Tests 1-4) and at the envelope codec
+(Tests 5-6); the loop is proven once over a loopback hub (Test 9). The
+hub is CultLib's port, not ours.
+
+The daemon's tests open real minds through `Mind::open` in a `tempfile`
+directory (redb, milliseconds) rather than promoting `MemoryStore` out of
+`cfg(test)`: no feature flag, no `pub` test surface, and the lock is
+exercised. If Cut 13's smoke wants a memory mind, one
+`#[cfg(any(test, feature = "test-stores"))]` line is the promotion; noted
+under Findings, not done.
+
+### D5. The envelope codec, exactly
+
+`envelope.rs`, pure functions:
+
+```rust
+pub const FAILURE_SCHEMA: &str = "gamecult.cultnet.operation_failure.v1";   // the C# reference's FailureSchemaId
+#[derive(Serialize, Deserialize, JsonSchema, ..)]
+pub struct OperationFailure { pub code: String, pub message: String }       // keys as the C# type: `code`, `message`
+
+pub fn encode_request(message_id: &str, request: &HuginnMindRequest, source_runtime_id: Option<String>) -> Result<CultNetMessage>;
+pub fn decode_request(message: &CultNetMessage) -> Result<(String /*message_id*/, HuginnMindRequest), OperationFailure>;
+pub fn encode_response(message_id: &str, operation: &str, response: &HuginnMindResponse, source_runtime_id: &str) -> Result<CultNetMessage>;
+pub fn encode_failure(message_id: &str, operation: &str, failure: &OperationFailure, source_runtime_id: &str) -> CultNetMessage;
+pub fn decode_response(message: &CultNetMessage) -> Result<(String, Result<HuginnMindResponse, OperationFailure>)>;   // Cut 13's side, tested here for symmetry
+```
+
+`decode_request` refuses, each with its own `code`, in this order:
+`not-an-operation-request` (any other `CultNetMessage`), `wrong-service`
+(`service_id != MIND_SERVICE_ID`), `wrong-payload-schema`, `payload-not-base64`,
+`payload-not-a-request` (`rmp_serde::from_slice` fails), `operation-mismatch`
+(`operation != request.operation()`: the envelope's string is checked against
+the enum, never trusted). `payload_encoding` is CultNet's own check
+(`validate_message`) and is not re-checked. `source_runtime_id` and
+`target_runtime_id` on a request are read by nothing (ruling 18: declared,
+not verified, and the declaration is in the payload). `message_id` is the
+client's correlation key and is echoed; the daemon keeps no table of them —
+the receipt is the organ's idempotency (A9), and a replayed `admit` answers
+`AlreadyAdmitted` from the mind, not from a message cache.
+
+`encode_response`: `status = response.status()`, `payload_schema =
+MIND_RESPONSE_SCHEMA`, `diagnostics = []`, `source_runtime_id =
+Some(runtime_id)`. `encode_failure`: `status = "rejected"`, `payload_schema =
+FAILURE_SCHEMA`, `diagnostics = [failure.code.clone()]`.
+
+Base64 is `base64::engine::general_purpose::STANDARD` (the crate cultnet-rs
+already depends on). Connection id is `cultnet_rs::CULTNET_OPERATION_CONNECTION_ID`
+(`0x4355_4c54`), CultLib's constant for operation services; the hub drops
+every other connection id, and Cut 13's client must use the same.
+
+### D6. The loop, exactly
+
+`serve.rs`:
+
+```rust
+pub struct ServeOptions { pub session_timeout: Duration /* 30 s */, pub idle_sleep: Duration /* 2 ms */ }
+pub fn bind(addr: SocketAddr, runtime_id: &str) -> Result<CultNetRudpServerHub>;   // non-blocking socket; max_fragment_bytes 1200, max_pending_reliable_packets 1024, max_peers 256
+pub fn schema_registry() -> Result<CultNetSchemaRegistry>;                          // the two wire schemas, kind WireMessage, wire contract CultNetSchemaV0
+pub fn answer<S, I>(daemon: &mut Daemon<S, I>, registry: &CultNetSchemaRegistry, message: CultNetMessage, now: DateTime<Utc>) -> CultNetMessage;
+pub fn run<S, I>(daemon: &mut Daemon<S, I>, hub: &mut CultNetRudpServerHub, registry: &CultNetSchemaRegistry, stopping: &AtomicBool, options: &ServeOptions) -> Result<()>;
+```
+
+`answer`: `OperationRequest` → `decode_request` → `handle(request,
+now)` → `encode_response`, or `encode_failure` on a decode failure;
+`SchemaCatalogRequest` → `registry.create_catalog_response`; anything else
+→ `CultNetMessage::Error { error: "huginn.mind answers cultnet.operation_request.v0 and cultnet.schema_catalog_request.v0" }`.
+
+`run`: until `stopping`, `hub.remove_timed_out_sessions`, `hub.poll_resends`,
+then drain `receive_event_once`: a `Frame` on channel `schema` is decoded
+(`decode_cultnet_message_from_slice`, `CultNetSchemaV0`) and its `answer`
+sent with `hub.send_schema_message(&session, ..)`; `Connected`, `Pong`,
+`Disconnected` are ignored; a frame on another channel is ignored. `Err`
+from `receive_event_once` (a hostile datagram fails `decode_rudp_packet`,
+or the peer limit) and from `send_schema_message` (a session that left) are
+printed and served past. `Utc::now()` is read once per frame here, the
+crate's only clock read. Idle loops sleep `idle_sleep`, Odin's shape.
+
+Stated limits: a socket error and a hostile datagram are indistinguishable
+at `receive_event_once` and both are logged, so a dead socket spins with
+logging rather than exiting (Odin has the same shape; Cut 14's health is
+the observer). The reliable window is `1024 × 1200` bytes per session, about
+1.2 MB in flight; a `Query` page of 200 maximal views may exceed it and
+`send_many` refuses with an error the loop logs, so the client times out
+instead of receiving a typed answer. Soul probes the number; if it is real,
+the fix is `PipelineQuery.limit` guidance in Cut 13 or a larger window, not
+a second page format.
+
+### D7. `main`, exactly
+
+`main.rs`: `parse_options` over exactly `--state-root <abs path>`,
+`--instance <slug>`, `--bind <ip:port>`, each required, each once, Odin's
+parser shape; then `Daemon::open` (**before** any socket), on `Err(refusal)`
+print `refusal` (its `Display`) to stderr and exit 1; then `bind`,
+`schema_registry`, `signal_hook::flag::register` for SIGTERM and SIGINT with
+Odin's PID-namespace comment (Cut 14 runs this under Idunn), `run`. Nothing
+reads the environment: `GAMECULT_IDUNN_CANDIDATE_BIND` and the rest are Cut
+14's, which decides how Idunn supplies `--bind`. The mind is dropped at
+process exit and the store's lock with it.
+
+The `--instance` slug is parsed as `Slug` (`epiphany_pipeline`'s newtype,
+`From<&str>`); the daemon reaches the leaf only through
+`huginn_mind::epiphany_pipeline`, a `pub use epiphany_pipeline;` added to
+`huginn-mind`'s `lib.rs` so one crate pins one rev and the daemon and Cut
+13's client never declare the git dependency twice.
+
+### D8. What this cut owns of the operator surface, and what it does not
+
+Owned here: `MindStatus` (the typed state a dashboard projects), the two
+wire schemas on the catalog, and the fact that any CultNet client can call
+`whoami`. Not owned here: an Eve provider advertisement or a
+`surface_state` composition through Odin. Reasons: the advertisement shape
+is a JSON `Value` body with `verseId`, `freshness`, `witnesses` fields that
+only mean something once the daemon is a Verse citizen on Yggdrasil beside
+Odin (Cut 14), nothing in Rust builds one outside Sleipnir, and the presence
+heartbeat it would ride on is Cut 14's. Building it here would be a
+dashboard-shaped surface with no dashboard, which `F:\Projects\CLAUDE.md`
+names as the thing not to invent. Q23 asks where it lands.
+
+### Deletes first
+
+| Path (by name) | Lines | What |
+|---|---:|---|
+| `crates/huginn-mind/src/refusal.rs`: `enum DocumentRefusal` with its `#[serde(remote = "PipelineRefusal")]`, `#[allow(dead_code)]` and doc comment; the `#[serde(with = "DocumentRefusal")]` and `#[schemars(with = "DocumentRefusal")]` attributes on `MindRefusal::Document` | about 20 | Dead since the leaf derives all three traits at `d5a36c2a`. `MindRefusal::Document(PipelineRefusal)` derives directly. |
+| `crates/huginn-mind/src/admission.rs`: the doc sentence on `PipelineAdmissionBatch` beginning `The leaf's `PipelineDocument` derives neither` | 3 | False at the pin. Replaced by "Rides the wire whole (`wire::HuginnMindRequest::Admit`)." |
+| `crates/huginn-mind/src/admission.rs`: the inline A1 comparison in `admit_steps` | 3 | Moves into `Mind::require_instance` (D3). |
+| `crates/huginn-daemon/src/main.rs`: `fn main() {}` | 1 | The stub. |
+| `README.md`, `AGENTS.md`: every sentence saying `huginn-daemon` is a stub, "nothing here publishes yet", "nothing here publishes or connects yet" | about 8 | Describe the live system. |
+| The old Cut 10 section's `src/wire.rs` in the binary, `SinkHandle`/`SnapshotHandle`, `cultmesh-rs`, `fs2`, `signal-hook` bootstrap wait and heartbeat, `pending_index` retry slot, `RulingsInForce`/`Stewardship`/`HandOff`/`Import` operations, the snapshot read path, and the spawn-the-binary smoke | — | Not built (What changed, 1-5). |
+| The map's D6 and D7 | — | Superseded by D1-D7 here for the transport and by Cut 13's refresh for the tools; the port (`rudp://10.77.0.1:17872`, private range `27880-27887`) and the schema-publication paragraph stand. D8 stands unchanged. Self's edit at landing. |
+
+Nothing in the leaf, `Cargo.toml` workspace, `Cargo.lock` beyond the
+daemon's additions, `query.rs`, `docs.rs`, or the cut-9 entries.
+
+### Keeps
+
+Every admission rule and refusal variant; `Mind::get`, `envelopes`,
+`envelope`, `receipts`; every test name in `huginn-mind`; H1-H67 with H1
+re-anchored; V1-V23 untouched; the leaf pin `d5a36c2a`; `MemoryStore` and
+`RefusingStore` `cfg(test)`; D8's trust boundary (no signer, no anchor, no
+credential path: ruling 18).
+
+### Adds
+
+| Add | Owner | Live consumer | Protected invariant | Why an existing owner cannot serve |
+|---|---|---|---|---|
+| `huginn-mind::wire`: `HuginnMindRequest`, `HuginnMindResponse`, `MindStatus`, the three constants, `operation()`, `instance()`, `status()` | `huginn-mind` | `huginn-daemon` (`envelope`, `daemon`), Cut 13's client (Q13 A) | One vocabulary of operations, equal to `Mind`'s methods; refusals are data in the response, never a transport error | Q13 A: the client imports types from `huginn-mind`; a binary crate cannot be imported. |
+| `Mind::require_instance`, `Mind::status` (`mind.rs`) | `huginn-mind` | `admit_steps`; `Daemon::handle` | Ruling 14 has one check and it is the mind's; `whoami` is derived from the mind, not from configuration | A1 was inline; the daemon must not restate it. |
+| `pub use epiphany_pipeline;` (`lib.rs`) | `huginn-mind` | the daemon's `Slug`, `PipelineRef`; Cut 13 | One git rev of the leaf in the workspace | Two `[dependencies]` entries on one git URL are two places to drift. |
+| `schemas/cultnet/huginn.mind_{request,response}.v1.schema.json` + test | Huginn | the catalog response; Cut 13's schema test | The published schema equals the derivation, byte for byte | Huginn's contracts are published from Huginn (D6). |
+| `huginn-daemon` `[lib]` `huginn_daemon`: `daemon.rs` (`IndexSink`, `NoIndex`, `Daemon`, `handle`), `envelope.rs` (D5), `serve.rs` (D6) | `huginn-daemon` | `main.rs`; Cut 13's smoke in-process; Cut 11 (`IndexSink`); Cut 14 (`run` under Idunn) | The daemon owns the socket, the process and the envelope, and no rule; the index never decides an outcome; an undecodable envelope touches no mind | Nothing in Huginn serves a socket; Odin's harness is a catalog, not a service. |
+| `main.rs` (D7) | `huginn-daemon` | the operator, Cut 14's unit | Refuse loudly before listening (ruling 15) | — |
+| `tools/eureka-cut10-mutations.psd1`, D1-D16 | the crate's suite | Epiphany's harness with `-Repo` | every ruling the daemon implements has a revert and a loosening | — |
+| Dependencies of `huginn-daemon`: `anyhow`, `base64 = "0.22"`, `chrono = "0.4.44"`, `cultnet-rs` (git `a0813c6…`), `huginn-mind` (path), `rmp-serde = "1"`, `schemars = "1"`, `serde`, `serde_json = "1"`, `signal-hook = "0.3"`; dev `tempfile = "3"` | `huginn-daemon` | as named | — | `cultmesh-rs`, `fs2`, `cultcache-rs` are not needed: the hub and the client live in `cultnet-rs`, the daemon names no store type and holds no lease file. |
+
+No new document type, kind, format, epoch, `.cc` file, HTTP, JSON on the
+wire outside the schema catalog, Qdrant, Ollama, signer or anchor.
+
+### Per-file changes, by name
+
+**`crates/huginn-mind/src/refusal.rs`**: the deletes above; module doc's
+"the wire (Cut 10) serialises it" stays true.
+
+**`crates/huginn-mind/src/admission.rs`**: `PipelineAdmissionBatch` derives
+`Serialize, Deserialize, JsonSchema`; doc replaced. In `admit_steps`, the A1
+block becomes `self.require_instance(instance)?;` under the same `// A1`
+comment.
+
+**`crates/huginn-mind/src/mind.rs`**: `require_instance` and `status` on
+`impl<S: MindStore> Mind<S>`; `status` counts `image` entries whose type is
+a `PipelineKind` type id (`is_known_type` minus the two organ types) and
+receipts by `HuginnCommitReceipt::TYPE`; `MindStatus` lives in `wire.rs`
+and is imported.
+
+**`crates/huginn-mind/src/wire.rs`** (new): D2, with a module doc: "The
+organ's request and response vocabulary: one operation per `Mind` method
+and `whoami`. Payloads are the admission and read types unchanged. The
+daemon carries these in CultNet's operation envelope; the client constructs
+them. Nothing here validates a document, derives a status or names a
+transport."
+
+**`crates/huginn-mind/src/lib.rs`**: `pub mod wire;`, `pub use wire::{...}`,
+`pub use epiphany_pipeline;`; module doc gains one sentence: "The wire
+vocabulary is here too, so the daemon and the client share one set of
+types."
+
+**`crates/huginn-mind/src/fixtures.rs`**: unchanged (the batch in flight may
+touch it; this cut needs nothing from it).
+
+**`crates/huginn-daemon/Cargo.toml`**: `[lib] name = "huginn_daemon" path =
+"src/lib.rs"`, `[[bin]] name = "huginn-daemon" path = "src/main.rs"`, the
+dependencies above, a header comment naming the crate's charter (socket,
+process, envelope; no rule).
+
+**`crates/huginn-daemon/src/lib.rs`**: `pub mod daemon; pub mod envelope;
+pub mod serve;` and re-exports.
+
+**`crates/huginn-daemon/src/{daemon,envelope,serve,main}.rs`**: D4-D7.
+Tests beside their module.
+
+**`schemas/cultnet/`** (new directory in Huginn): the two files; a
+`README.md` of five lines saying whose they are and how they are checked.
+
+**`tools/eureka-cut8-mutations.psd1`**: H1's `File` becomes
+`crates/huginn-mind/src/mind.rs` and its `Old` the comparison inside
+`require_instance` as Hands lands it (the mutant still `if false`); the
+header's `-Target` already lists `mind.rs`.
+
+**`tools/eureka-cut10-mutations.psd1`** (new): D1-D16 below.
+
+**`README.md`, `AGENTS.md`**: `huginn-daemon` is live (the CultNet surface:
+admission and reads over RUDP, schema catalog, no index yet); `eureka-state`
+is the remaining stub; the `cargo` block gains `cargo run -p huginn-daemon --
+--state-root <abs> --instance <slug> --bind 127.0.0.1:17872`.
+
+**`Cargo.lock`**: regenerated; +41 package names (Build budget).
+
+### Authority map
+
+- **Owner:** `huginn-daemon` owns the socket, the sessions, the process
+  lifetime and the envelope; `huginn-mind` owns every rule, the instance
+  check, the receipt, the status and the wire vocabulary. Inside the daemon:
+  `Daemon::open` owns "may this process serve this mind" (by delegating to
+  `Mind::open`); `Daemon::handle` owns "which `Mind` method answers this
+  request"; `envelope` owns "is this a request at all"; `serve::run` owns
+  "which session gets which reply".
+- **Inputs:** `--state-root`, `--instance`, `--bind`; datagrams on one socket;
+  the wall clock, once per frame, in `serve`.
+- **Outputs:** one `OperationResponse` (or failure, or `Error`) per frame on
+  the frame's session; the schema catalog; the process exit code; stderr.
+- **Derived state:** the hub's session table (CultLib's, expired by timeout);
+  `MindStatus` per `Whoami` call; the schema registry built at start. The
+  daemon persists nothing of its own.
+- **Forbidden writers:** the daemon may not call `compare_and_swap_batch`,
+  `admit_prepared`, `prepare_entry`, or construct a `HuginnCommitReceipt`; may
+  not validate a document, derive a status or compare an instance (it calls
+  `require_instance`); may not read `stored_at`; may not open a second mind
+  or reopen its mind; may not spool, cache or retry a request; may not read
+  `source_runtime_id`, `connect_payload` or `remote_addr` for any decision;
+  may not sign, verify or enrol an identity; may not read the environment.
+  `IndexSink` may not change an outcome. `huginn-mind` may not name a socket,
+  a message, or `cultnet_rs`.
+- **Shared paths:** `Mind::require_instance` under `admit_steps` and under
+  every read the daemon dispatches; `Mind::admit` under the wire (this cut),
+  Cut 12's hand-off (in-process) and Cut 13's tool (through the wire);
+  `envelope::{encode,decode}_*` under the daemon and Cut 13's client.
+- **Deletion line:** the `refusal.rs` mirror and the false doc land in
+  commit (1) before `wire.rs` exists; `cargo test -p huginn-mind --lib` is
+  green between commits.
+
+### Verification
+
+**Commits.** (1) `huginn-mind`: the two deletes, `require_instance` with
+H1 re-anchored, `status`, `PipelineAdmissionBatch` derives, the leaf
+re-export; suite green, H1-H67 and V1-V23 killed. (2) `huginn-mind::wire`
+and the two schema files with their test. (3) `huginn-daemon` lib: `daemon`,
+`envelope`, `serve`, tests. (4) `main.rs`, README/AGENTS. (5)
+`eureka-cut10-mutations.psd1`, every entry killed. Soul verifies per
+commit; if Hands runs long the split is between (2) and (3), recorded as
+10a/10b.
+
+**Builds.** `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex` through
+PowerShell (the Bash tool collapses the path; Cut 6d's scar); path-list
+baseline before and after; **no `cargo clean` of any scope**. `cargo check
+-p huginn-mind --lib --tests`; `cargo test -p huginn-mind --lib` (51 + the
+batch in flight's count, 0 warnings); `cargo check -p huginn-daemon --lib
+--bin huginn-daemon --tests`; `cargo test -p huginn-daemon --lib`; `cargo
+check --workspace` (the `eureka-state` stub still builds); `cargo tree -p
+huginn-daemon -e normal -d` shows **no duplicate of any GameCult crate**
+(one `cultcache-rs`, one `epiphany-pipeline`, one `cultnet-rs`); the only
+duplicates are the `windows-sys` majors the lock already carried plus 0.52
+from `socket2` (probe).
+Host = target = workstation; the Linux build is Cut 14's.
+
+**Tests**, `crates/huginn-mind` (new, beside the existing) and
+`crates/huginn-daemon`, each named for the rule it pins. Daemon tests open
+`Daemon::open(tempdir, "yggdrasil")` and seed with one `instance` document
+built inline (`PipelineInstance { instance, display_name, created_at, host }`
+through `huginn_mind::epiphany_pipeline`), `PipelineProvenance { faculty:
+Faculty::Hands, .. }`, and a fixed `now`.
+
+| # | Test | Pins |
+|---|---|---|
+| 1 | `mind::tests::require_instance_is_the_one_check_admission_and_the_daemon_share` (huginn-mind) | D3: `require_instance("thought-cage")` on a `yggdrasil` mind is `ForeignInstance { declared: "thought-cage", mind: "yggdrasil" }`; `admit` with `batch.instance = "thought-cage"` returns the same value; the existing `admission_refuses_a_foreign_instance_whatever_the_transport` still passes. |
+| 2 | `wire::tests::the_wire_vocabulary_is_the_minds_methods_and_status_is_derived_from_the_response` (huginn-mind) | D2: `operation()` yields the six names; `instance()` is `None` only for `Whoami`; `status()` is `rejected` exactly for `Refused(_)` and `Admit(Refused(_))`; every variant round-trips through `to_vec_named`/`from_slice`. |
+| 3 | `wire::tests::published_wire_schemas_match_derivation` (huginn-mind) | D2: the two files equal `serde_json::to_string_pretty(schema_for!(..))` byte for byte. |
+| 4 | `daemon::tests::a_batch_round_trips_typed_through_handle_without_a_socket` | D4: `Admit([instance])` → `Admit(Committed { writes: [instance:self] })`; `Whoami` → `MindStatus { instance: "yggdrasil", documents: 1, receipts: 1 }`; `Query { kinds: [Instance] }` → one view whose `admission.provenance` is the batch's; `View(id)` → `Some`; `OpenItems` → all empty; `History(Repo(..))` → empty. No socket, no clock read (`now` is passed). |
+| 5 | `daemon::tests::a_read_or_a_write_naming_another_instance_is_refused_by_the_mind_and_writes_nothing` | Rulings 14 and 18 across the transport: `Query { instance: "thought-cage" }` → `Refused(ForeignInstance)`; `Admit(batch.instance = "thought-cage")` → `Admit(Refused(ForeignInstance))`; `Whoami.documents` unchanged after both. |
+| 6 | `daemon::tests::the_index_is_handed_every_landed_write_after_commit_and_never_decides_the_outcome` | D4, Cut 11's seam: a `RecordingIndex` receives exactly `Committed.writes` (derived writes included: a ruling that answers a question hands two refs) and can `mind.view` each at call time; a `FailingIndex` leaves the outcome `Committed` and the documents readable. |
+| 7 | `envelope::tests::a_refusal_is_a_typed_response_not_a_transport_failure` | D5: `encode_response(Refused(..))` is an `OperationResponse` with `status: "rejected"`, `payload_schema: MIND_RESPONSE_SCHEMA`, decoding back to the same `HuginnMindResponse`; `Committed` → `accepted`; `AlreadyAdmitted` and `Conflict` → `accepted`. |
+| 8 | `envelope::tests::a_malformed_envelope_is_answered_with_a_failure_and_touches_no_mind` | D5: six malformed messages (each code above) through `serve::answer` yield `OperationResponse { status: "rejected", payload_schema: FAILURE_SCHEMA, message_id: <echoed> }` with the named `code`, and `Whoami.documents` is 0 after all six; a non-operation message yields `CultNetMessage::Error`; a `SchemaCatalogRequest { include_schema_json: true }` yields both schemas whose `content_hash` equals the registry's. |
+| 9 | `serve::tests::two_clients_get_their_own_replies_over_loopback` | D6: `bind("127.0.0.1:0")`, `run` on a thread with a stop flag; two `CultMesh::connect_rudp_client_for_endpoint` clients with `CULTNET_OPERATION_CONNECTION_ID`; one sends `Admit`, the other `Query`, each in its own thread; each receives the reply whose `message_id` is its own and decodes it typed; a third client on another connection id receives nothing within the timeout; stop flag → `run` returns and the thread joins. |
+| 10 | `daemon::tests::the_daemon_refuses_loudly_when_it_cannot_open_the_mind_and_binds_nothing` | Ruling 15: a first `Daemon::open` holds the lock; a second on the same path is `Err(MindAlreadyOwned)`; a store planted for `yggdrasil` opened as `thought-cage` is `Err(ForeignInstance)`; `Daemon::open`'s signature takes no address (the bind cannot precede it), and `main`'s order is pinned by D12 below. |
+
+**Negative greps.**
+
+- `rg -n "compare_and_swap|admit_prepared|prepare_entry|HuginnCommitReceipt \{|stored_at|in_force|closing_resolution|pipeline_key|validate\(" crates/huginn-daemon/src` empty.
+- `rg -n "!= self.instance\(\)|== self.instance\(\)|\.instance\(\) [!=]=|instance != |instance == " crates/huginn-daemon/src` empty (the daemon compares no instance).
+- `rg -n "require_instance" crates/huginn-mind/src`: the definition, one call in `admit_steps`, tests; `crates/huginn-daemon/src`: one call in `handle`.
+- `rg -n "Utc::now|SystemTime::now" crates/huginn-daemon/src`: exactly one, in `serve.rs`; `crates/huginn-mind/src` empty.
+- `rg -n "std::env|env::var|GAMECULT_IDUNN" crates/huginn-daemon/src` empty (Cut 14's).
+- `rg -n "ServiceIdentitySigner|enroll_service_identity|verify_service_identity|TrustAnchor|source_runtime_id|connect_payload" crates/huginn-daemon/src`: `source_runtime_id` only where the response sets it; nothing else (ruling 18; D8 stands).
+- `rg -n "reqwest|qdrant|ollama|http://|serde_json::to_value|CultMeshRudpDocumentServer|DocumentPutRaw|SnapshotRequest" crates/huginn-daemon/src` empty except `SnapshotRequest`, which must not appear either (Cut 14 adds Idunn's presence answer if it needs one; Findings).
+- `rg -n "serde_json" crates/huginn-daemon/src`: only in the schema registry build and its test.
+- `rg -n "cultnet_rs|cultmesh_rs|UdpSocket" crates/huginn-mind/src` empty.
+- `rg -n "serde\(remote|DocumentRefusal" crates/huginn-mind/src` empty.
+- `rg -n "epiphany-pipeline" crates/huginn-daemon/Cargo.toml` empty (the leaf is reached through `huginn_mind::epiphany_pipeline`).
+- `rg -n "stub" README.md AGENTS.md`: only about `eureka-state`.
+- `git diff --stat <batch commit> -- crates/huginn-mind/src/query.rs crates/huginn-mind/src/docs.rs tools/eureka-cut9-mutations.psd1` empty.
+
+**Mutations, `tools/eureka-cut10-mutations.psd1`.** Run:
+
+```
+$env:CARGO_TARGET_DIR = 'C:\Users\Meta\.cargo-target-codex'
+powershell -File F:\Projects\Epiphany\tools\eureka-mutations.ps1 -Repo F:\Projects\Huginn `
+    -Entries tools/eureka-cut10-mutations.psd1 `
+    -Target crates/huginn-mind/src/mind.rs,crates/huginn-mind/src/wire.rs,crates/huginn-daemon/src/daemon.rs,crates/huginn-daemon/src/envelope.rs,crates/huginn-daemon/src/serve.rs `
+    -Test 'cargo test -p huginn-daemon --lib'
+```
+
+Entries whose test lives in `huginn-mind` carry their own `Command = 'cargo
+test -p huginn-mind --lib'`. Anchors are content Hands lands, matched once.
+Each ruling has a **revert** (the rule absent) and, where one exists, a
+**loosening**.
+
+| # | Rule | Revert | Loosening | Killed by |
+|---|---|---|---|---|
+| D1 | 14: one instance check, the mind's (D3) | `require_instance` body → `Ok(())` (H1's shape, now shared) | compare `declared.0.len()` to `self.instance.0.len()` | test 1 and test 5 (one anchor, two suites, one owner) |
+| D2 | 14/18 on the wire: the daemon passes the declared instance through | `handle`: `Admit(mut batch)` → `batch.instance = self.mind.instance().clone()` before `admit` | reads: `require_instance` called only for `Query`, not `View`/`OpenItems`/`History` | test 5 |
+| D3 | refusals are data, never a transport failure | `encode_response`: `Refused(_)` → `encode_failure(.., OperationFailure { code: "refused", .. })` | `status()` returns `accepted` for `Refused(_)` | test 7 |
+| D4 | an undecodable envelope touches no mind | `decode_request`: on `payload-not-a-request` return `Ok((id, HuginnMindRequest::Whoami))` | `wrong-service` check dropped | test 8 |
+| D5 | the operation string is checked, not trusted | `operation-mismatch` check dropped | compare case-insensitively | test 8 (an `Admit` payload under `operation: "query"`) |
+| D6 | the index never decides an outcome | `handle`: `index.committed` `Err` → return `Admit(Refused(Unavailable { .. }))` | `index.committed` called before `admit` (the sink then sees refs it cannot `view`) | test 6 |
+| D7 | the index sees every landed write | `index.committed(mind, &[])` | pass `writes[..1]` | test 6 (the derived write) |
+| D8 | each reply goes to its own session | `run`: send the reply to the first session in `hub.sessions()` | send to every session | test 9 |
+| D9 | only the operation connection id is served | `bind`: `CULTNET_OPERATION_CONNECTION_ID` → `CULTMESH_RUDP_DOCUMENT_CATALOG_CONNECTION_ID` | — | test 9 (the third client) |
+| D10 | `whoami` is derived from the mind | `status()`: `documents` → `self.image.len()` (counts the epoch record and receipts) | `receipts` → `0` | test 4 |
+| D11 | 15: a mind that will not open is refused before anything listens | `Daemon::open`: `Mind::open` `Err` → open an empty `Mind` at a sibling path `<instance>-fallback` | `MindAlreadyOwned` mapped to `Ok` after a retry with the lock file deleted | test 10 |
+| D12 | 15: bind after open | `main.rs`: `startup(options) -> Result<(Daemon, Hub, Registry)>` is the one place both happen; the mutant moves `bind` above `Daemon::open`. Test 10 holds the mind's lock, calls `startup` with a free port, asserts `Err`, then binds that port itself: under the mutant the hub holds it and the test's bind fails | — | test 10 |
+| D13 | the wire vocabulary equals `Mind`'s methods | `operation()`: `History` → `"query"` | — | test 2 |
+| D14 | the published schema equals the derivation | the request schema file has one whitespace change | — | test 3 |
+| D15 | `AlreadyAdmitted` and `Conflict` are answers | `status()`: `Admit(AlreadyAdmitted { .. })` → `rejected` | — | test 7 |
+| D16 | a non-operation message is answered, not dropped | `answer`: the `_ =>` arm returns `Error { error: "" }` (CultNet's `validate_message` refuses the empty string, so the send fails and the client hangs) | — | test 8 (the `Error` text is non-empty and names both accepted messages) |
+
+Stated limits: the loop's "log and serve past" on a hostile datagram has no
+mutant because the hub's error path is CultLib's (Findings); the reliable
+window limit is probed, not mutated; the SIGTERM path is not testable in
+the harness and is pinned by reading `main`.
+
+**Operator checks before landing:** Q22 and Q23 below. Q22 has a recommended
+default Hands builds under; Q23 changes nothing in this cut whichever way it
+goes.
+
+### Subtraction estimate
+
+`huginn-mind`: −about 25 (the mirror, the false doc, the inline A1), +about
+150 (`wire.rs` 90, `require_instance` and `status` 30, exports 5, doc 5),
++about 90 tests, +2 schema files (about 200 KB of derived JSON, not counted
+as source). `huginn-daemon`: +about 520 outside tests (`daemon.rs` 110,
+`envelope.rs` 170, `serve.rs` 140, `main.rs` 90, `lib.rs` 10), +about 480
+tests, +1 lib target; the bin target exists as a stub and becomes real.
+Entries file about 260. Total about +1,500 with tests and entries against
+the old section's +900; the difference is the envelope codec and the
+malformed-input surface the old section did not have, and ten tests for
+five.
+
+Liability retired before it shipped: `SinkHandle`/`SnapshotHandle`, a
+`cultmesh-rs` and `fs2` dependency, a pending-index slot, a second copy of
+Odin's Idunn bootstrap on a platform where it does not compile, a
+process-spawning smoke, and four wire operations that were presets or Cut
+12's. Retired in the tree: the dead serde mirror and a false doc.
+
+Kinds, formats, epoch, leaf pin, `.cc` files: zero.
+
+### Build budget
+
+- **Packages that compile:** `huginn-mind` (lib + tests), `huginn-daemon`
+  (lib + bin + tests), `cultnet-rs` and its 40 new transitive packages
+  (probe: `aead, aes, aes-gcm, base64, base64ct, cipher, const-oid, ctr,
+  curve25519-dalek(+derive), der, ed25519, ed25519-dalek, fiat-crypto,
+  ghash, hmac, inout, opaque-debug, pkcs8, polyval, ppv-lite86, rand,
+  rand_chacha, rand_core, rmpv, rustc_version, semver, signal-hook(+registry),
+  signature, socket2, spki, subtle, universal-hash, wasi, wasip2,
+  wit-bindgen, zerocopy(+derive), zeroize`; lock 93 → 139 entries). Most of
+  their rlibs were warm from Epiphany builds: the probe built in 30 s.
+- **Targets:** one lib target new; the bin target exists. Debug only,
+  workstation host = target, no features, no codegen, no release profile.
+- **Footprint:** baseline this pass 10,619 paths, 8.74 GiB under
+  `C:\Users\Meta\.cargo-target-codex\debug`; the probe left it at 11,030
+  paths, 9.08 GiB, and the cut's own build lands on top of that. **Expected
+  delta for the cut: +100 to +300 paths, +0.1 to +0.3 GiB** beyond the
+  probe's, all under `debug/`. Drive C: has over 250 GiB free. Hands records
+  the path list before and after and reports a miss.
+- **Retention:** the shared dir is the operator's; nothing is cleaned.
+
+### Operator questions
+
+- **Q22. Is the organ's surface request/response over CultNet RUDP, a
+  CultMesh state publication, or both?** **A. Request/response through
+  `CultNetRudpServerHub` with `cultnet.operation_request/response.v0`
+  (recommended; D1).** Admission and typed queries are request/response by
+  nature; CultLib's envelope has C# parity and Eve names it as the ABI
+  carrier; the schema catalog is the one JSON surface. **B. CultMesh
+  publication only:** admission as a document put and reads as snapshots.
+  Refused above: the document server cannot reply from its sink, a snapshot
+  cannot carry a query, and a response store would be a cache pretending to
+  be truth. **C. Both:** A for the operations, plus the daemon publishing
+  `MindStatus` (and later an Eve surface) as a CultMesh document through
+  Odin's catalog for dashboards to pull. C is A plus Q23's answer, not a
+  third transport; it costs Odin registration, which is Cut 14's body. If C
+  is wanted now, `MindStatus` is already the document, and the publication
+  is one `publish_cultnet_message_to_rudp_catalog` call on a heartbeat that
+  Cut 14 owns.
+- **Q23. Where does the operator interface land?** Doctrine says an earned
+  daemon publishes its capabilities as Eve DSL through CultMesh, lowered by
+  others. **A. Not this cut (recommended).** This cut owns `MindStatus` and
+  the wire schemas; a `gamecult.eve.provider_advertisement.v1` and a
+  `surface_state` composition need a Verse identity, freshness and a
+  heartbeat that exist only once Cut 14 puts the daemon beside Odin on
+  Yggdrasil. Land it as a named cut after 14 ("Verse presence": the
+  advertisement, the status surface, the Idunn health it rides with), before
+  the proof campaign so Cut 16 can read the mind from a dashboard. Cuts 15
+  and 16 are skill wiring and the proof; neither is the right owner. **B.
+  Fold it into Cut 14**, since Odin registration is part of being deployed
+  on Yggdrasil; the cost is a larger Cut 14 that already carries the Idunn
+  handshake, the backup and the route. **C. Build the advertisement here**
+  against a workstation-local Odin: a surface with no dashboard, and a
+  `verseId` chosen before the Verse exists; not recommended.
+
+Decisions Self can overturn without an operator: no transport trait (D4);
+real redb minds in the daemon's tests rather than a promoted `MemoryStore`
+(D4); the failure-schema mirror carried in the daemon (D5); the option
+spelling `--state-root --instance --bind` (D7); the base64 cost of the
+operation envelope (about a third over raw bytes, accepted as CultNet's
+contract).
+
+### Findings not assignable to this cut
+
+- **`CultNetRudpServerHub::receive_event_once` propagates a hostile
+  datagram as `Err`** (`receive_packet_once`: `decode_rudp_packet(&wire)?`)
+  and the peer limit likewise, so every hub service must treat `Err` as a
+  discard or die on the first stray packet; Idunn's `HostActuatorHub::service`
+  propagates it. CultLib's, under the QUIC campaign's owner; a stray datagram
+  on a mesh port is not hypothetical.
+- **The Rust `cultnet-rs` has no `gamecult.cultnet.operation_failure.v1`
+  type or published schema**, though the C# reference defines
+  `CultNetOperationServer.FailureSchemaId` and `CultNetOperationFailure
+  { code, message }`, and `contracts/cultnet/` publishes only the request
+  and response schemas. This cut carries a two-field mirror with the C#
+  keys; parity belongs in CultLib.
+- **The Rust `CultNetOperationServer` is single-peer and unused in Rust**;
+  the C# one is a multi-handler dispatcher. Either it grows to match or it
+  is deleted; not this campaign's.
+- **The Idunn activation handshake is a second message family.** Odin
+  answers Idunn's route challenge as a `SnapshotRequest` for its own
+  presence record (`exact_self_presence_query`) through the document
+  server's snapshot source, and publishes presence with
+  `publish_cultnet_message_to_rudp_catalog`. Under D1 the hub can answer a
+  `SnapshotRequest` frame with a `SnapshotResponseRaw` (it is one more
+  `CultNetMessage` on the `schema` channel), so Cut 14 adds an arm to
+  `serve::answer` rather than a second server; but Cut 14's spec must say
+  exactly which message Idunn's route driver sends and how a hub-based
+  service satisfies `route_required = true`. Odin's `main.rs` uses
+  `std::os::fd` and builds on Linux only; the Idunn arm will be `cfg(unix)`
+  or Cut 14 must move the signer-descriptor reading behind a port.
+- **`gamecult-ops/runbooks/odin-yggdrasil.md` describes the pre-v2 body**
+  (Compose container, `/srv/odin/current`, `odin.service`) while the
+  binding is `gamecult.idunn.operator_binding.v2` under `idunn-odin`; the
+  runbook Cut 14 models on it is modelling a stale one.
+- **Cut 12 has no wire operation here.** If the two minds of a hand-off live
+  in two daemons, Cut 12 needs either a wire `HandOff`/`Import` pair (one
+  more variant each in `wire.rs`) or an offline tool that opens both stores;
+  if both minds are stores on one host, `hand_off(&mut from, &mut to, ..)`
+  is in-process and no wire form exists. Cut 12's refresh decides; the wire
+  enum widens additively either way.
+- **Cut 13's `tool_schemas_equal_the_published_schemas`** compares against
+  Epiphany's `schemas/cultnet/` (the pipeline documents); it should compare
+  the tool schemas against Huginn's `schemas/cultnet/huginn.mind_*.v1` (the
+  operations). And Cut 13 gains a `history` tool (Q17 B's obligation, Cut
+  9's finding) and loses `rulings_in_force`/`stewardship` as tools in favour
+  of presets. Cut 13's refresh.
+- **`MemoryStore` is `cfg(test)`-private to `huginn-mind`.** The daemon's
+  tests do not need it; if Cut 13's in-process smoke wants a mind without a
+  file, promote `test_stores` behind `#[cfg(any(test, feature =
+  "test-stores"))]` (one line) in that cut.
+- **A `Query` page of 200 maximal views may exceed the hub's reliable
+  window** (1024 packets × 1200 bytes); `send_many` then errors and the
+  client times out. Soul measures it against the leaf's bounds; if real,
+  Cut 13 caps `limit` by default or the hub options grow. Not a second page
+  format.
+- **The wire schemas are large** (`PipelineQueryPage` alone 42.9 KB; the
+  response schema will inline every pipeline value type). Fine on the
+  catalog (16 MiB payload cap) and as files; noted so nobody reads the size
+  as a defect.
+- **`Faculty::SelfFaculty`** is the wire spelling clients will see (carried
+  from Cut 9).
+- **`README.md`/`AGENTS.md`** go stale again at Cut 11 and Cut 13; the
+  "describe the live system" tension recurs until the workspace is whole.
+
+### Pinned HEADs
+
+- Huginn `eureka/memory-organ` at `8fc39b1`; at spec time the main tree
+  carried the concurrent Hands batch uncommitted in
+  `crates/huginn-mind/src/query.rs`, `docs.rs`, `tools/eureka-cut9-mutations.psd1`
+  and a `docs.rs.eureka-mutation-original` harness sidecar. This spec
+  anchors by name and touches none of those files.
+- Epiphany `codex/eureka-pipeline-state` at `fb18395f`; leaf at `d5a36c2a`.
+- CultLib `main` `47aa7b6`, Rust runtimes identical to `a0813c6`.
+- Odin `main` `5a015d9`; Idunn `main` `5b3f646`; gamecult-ops `main`
+  `36a466f`.
+- Probe artifacts: `scratchpad/cut10-wt` (detached at `8fc39b1`, one `cargo
+  test -p huginn-daemon --lib`, 1 passed in 0.08 s after a 30.4 s build,
+  removed and pruned); `scratchpad/cut10-probe-lib.rs` and
+  `cut10-probe-Cargo.toml` kept as evidence. The shared target dir read
+  10,619 paths / 8.74 GiB before and 11,030 / 9.08 GiB after; nothing was
+  cleaned. No file in any repo was written and no `notes/` file was touched.
 
 ## Cut 11. Qdrant collections and Ollama embeddings
 
