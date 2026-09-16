@@ -3258,6 +3258,20 @@ operator may simply want recorded.
   by repo and assignment date; the in-force stewardship is the latest not
   withdrawn; a return, when there is one, is an ordinary second hand-off.
   Mapped as a leaf cut with Q17's.
+- **Q19. Can a withdrawal be withdrawn?** Raised by Imagination mapping
+  Cut 6d. **A. No**: a subject reopened by withdrawal is resolved again at
+  the next sequence; chain depth two at admission. **B. Yes**, a withdrawal
+  of a withdrawal reinstates. **Recommended and ruled A, 2026-09-16**
+  ("Agreed on 19 and 20"); it is what gives "latest not withdrawn" one
+  reading.
+- **Q20. Stewardship key granularity.** Imagination found that keying
+  stewardship by repo and date lets a repo move at most once per day per
+  instance, and `Date` is day-granular by design. **A. A per-(instance,
+  repo) sequence**, `<instance>:stewardship:<repo>.n<N>`, writer-set and
+  checked by admission as previous plus one, exactly as Q17's resolutions;
+  `assigned_on` stays a field. **B. Keep the date** and state the limit.
+  **Recommended and ruled A, 2026-09-16.** Supersedes Q18's "by repo and
+  date" wording; Q18's substance (a repo can come back) stands.
 
 ## Target contradictions for Self to reconcile
 
