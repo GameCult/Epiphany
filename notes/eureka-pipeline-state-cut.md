@@ -52,6 +52,10 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
   on the grammar found no collision in 212,450 adversarial keys and four
   unpinned checks.
 - **Cut 6c specified** against `95ee551a`; waits on the 6b fix batch.
+- **Cut 7 landed** on Huginn `eureka/memory-organ` at `1320fc4` (retire),
+  `f63c0f2` (workspace), `e20c786` (docs), and Eve `main` at `e777e4c`
+  (fixture provenance). Soul in flight. Started in parallel on the operator's
+  instruction; it has no dependency on the Epiphany cuts.
 - **Target rewritten** at `5fb4eb22`.
 
 **Cut 6c is the last cut inside Epiphany.** Cuts 7-16 build Huginn's Rust
@@ -1835,6 +1839,41 @@ states the new invariant, the CultNet surface, the Qdrant dependency, and that
 **Subtraction ledger:** −307 lines, −16 files, −1 npm package, −1 CLI
 entrypoint, −1 sibling `file:` dependency. +about 30 lines of workspace
 scaffolding. Two Eve fields corrected.
+
+**Landed 2026-09-16** at Huginn `1320fc4`, `f63c0f2`, `e20c786` on
+`eureka/memory-organ` and Eve `e777e4c` on `main`. Hands verified the
+spec's Body claims before deleting: no `package.json` under `F:\Projects`
+depends on `@gamecult/huginn` but its own; the Eve fixture neither imports
+nor executes Huginn; the catalog entry needs no change. Corrections:
+
+25. **The deletes table sums to 15 files and 315 lines, not 16 and 307.** The
+    seven paths were unambiguous, so Hands deleted exactly those; `dist/` is
+    96 lines by numstat, not 88. Spec arithmetic, not a Body fault.
+26. **`Cargo.lock` is committed**, following Odin's layout, though the spec's
+    adds did not list it. Kept.
+27. **`.gitignore` keeps `node_modules/`**, which the spec did not name and
+    which is now stale too. One-line follow-up.
+28. **The conformance fixture also carries `"splitTarget": "Huginn"`.** The
+    spec named two fields; the third is as false as the two. Soul is asked
+    whether anything reads it.
+
+Verification: `cargo check --workspace` clean (three stub crates, zero
+dependencies); both negative greps empty; `.voidbot` diff empty; Eve's four
+`web/*.test.mjs` pass (13 tests), the fixture compiles through
+`compileEveDsl`, and the edited conformance JSON validates against Eve's
+schema. Huginn net +118 / −444 across 26 files; README 74 → 47, AGENTS
+81 → 48. No mutation suite: nothing here is a rule a unit test pins.
+
+Consumer grep over the whole tree found no live consumer of the package, CLI
+or DSL builder. The surface id `cultcache.huginn.inspector` survives in
+Ghostlight's vendored Eve copy and the `Eve-aetheria-authority` worktree,
+both of which still say `"ownerRepo": "Huginn"` until re-vendored, and in
+VoidBot's provider-advertisement prose describing the old inspection role.
+Recorded as FU-2: re-vendor, and retire the VoidBot hand-off prose when
+VoidBot's Persona doc is next touched.
+
+Operator ruling on the npm check: not publishing, nothing to unpublish, and
+npmjs is unreachable from this network (see Verification above).
 
 ## Cut 8. `huginn-mind`: storage, identity and admission
 
