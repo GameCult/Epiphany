@@ -84,6 +84,29 @@
             Test = 'tests::a_verdict_claim_names_the_promise_and_the_mutation_it_measured'
             Old  = 'mutations: Vec<Label>[8]'
             New  = 'mutations: Vec<Label>[16]'
+        },
+        # Soul's Cut 6c pass: three rules that survived, each now pinned by a
+        # forgery the fix batch added. The ids are Soul's.
+        @{
+            Id   = 'S2'
+            Rule = 'A fix''s commit is validated whether or not a record is named: Fixed { by: Some(..) } does not excuse the sha.'
+            Test = 'tests::fixed_resolution_requires_a_commit_sha'
+            Old  = '                commit.validate(&format!("{field}.commit"))?;'
+            New  = '                if by.is_none() { commit.validate(&format!("{field}.commit"))?; }'
+        },
+        @{
+            Id   = 'S14'
+            Rule = 'The validator bounds a supersession at eight itself; the schema''s maxItems is not the only bound.'
+            Test = 'tests::resolution_outcome_referents_are_parsed_ids_of_their_kind'
+            Old  = '            Self::Superseded { by } => list(&format!("{field}.by"), by, 8),'
+            New  = '            Self::Superseded { by } => list(&format!("{field}.by"), by, 9),'
+        },
+        @{
+            Id   = 'S10'
+            Rule = 'A Recorded or Withdrawn reason is bounded as a Line.'
+            Test = 'tests::resolution_outcome_referents_are_parsed_ids_of_their_kind'
+            Old  = '            Self::Recorded { reason } | Self::Withdrawn { reason } => reason.validate(&format!("{field}.reason")),'
+            New  = '            Self::Recorded { reason } | Self::Withdrawn { reason } => { let _ = reason; Ok(()) }'
         }
     )
 }

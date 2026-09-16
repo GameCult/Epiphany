@@ -1645,6 +1645,30 @@ mod tests {
         assert_eq!(resolved(finding.clone(), fixed(Some(ruling("R8")))), Ok(()));
         let forged = PipelineRef { kind: PipelineKind::Finding, id: id("ruling", "R8") };
         refused("resolution.outcome.by.id", resolved(finding, fixed(Some(forged))));
+
+        // Soul F2: the validator's bound on a supersession is its own, not
+        // only the schema's. Eight referents are the most a subject names;
+        // nine are refused as a count before any item is read.
+        let rulings = |count: usize| (1..=count).map(|n| ruling(&format!("R{n}"))).collect::<Vec<_>>();
+        assert_eq!(resolved(ruling("R8"), ResolutionOutcome::Superseded { by: rulings(8) }), Ok(()));
+        assert_eq!(
+            resolved(ruling("R8"), ResolutionOutcome::Superseded { by: rulings(9) }),
+            Err(PipelineRefusal::FieldBound { field: "resolution.outcome.by".into(), limit: 8, actual: 9 })
+        );
+
+        // Soul F3: the two reason-carrying outcomes are bounded like every
+        // `Line`; the shared arm is pinned on both so neither can drop out.
+        let wide = Line("a".repeat(1001));
+        for outcome in [
+            ResolutionOutcome::Recorded { reason: wide.clone() },
+            ResolutionOutcome::Withdrawn { reason: wide },
+        ] {
+            let finding = PipelineRef { kind: PipelineKind::Finding, id: id("finding", "cut-3a.s2.F4") };
+            assert_eq!(
+                resolved(finding, outcome),
+                Err(PipelineRefusal::FieldBound { field: "resolution.outcome.reason".into(), limit: 1000, actual: 1001 })
+            );
+        }
     }
 
     /// Ruling B: a fix names the tree where the finding stopped being true,
@@ -1652,20 +1676,27 @@ mod tests {
     /// check passes and `hex` refuses.
     #[test]
     fn fixed_resolution_requires_a_commit_sha() {
-        let fixed = |commit: &str| {
+        let fixed = |commit: &str, by: Option<PipelineRef>| {
             let mut resolution = resolution_sample();
             resolution.subject = PipelineRef { kind: PipelineKind::Finding, id: id("finding", "cut-3a.s2.F4") };
-            resolution.outcome = ResolutionOutcome::Fixed { commit: Sha(commit.into()), by: None };
+            resolution.outcome = ResolutionOutcome::Fixed { commit: Sha(commit.into()), by };
             PipelineDocument::Resolution(resolution).validate()
         };
-        assert_eq!(fixed("5f98228d9c"), Ok(()));
+        assert_eq!(fixed("5f98228d9c", None), Ok(()));
         for forged in ["5F98228D9C", "5f9822", "dirty-worktree", ""] {
             assert_eq!(
-                fixed(forged),
+                fixed(forged, None),
                 Err(PipelineRefusal::InvalidFormat { field: "resolution.outcome.commit".into(), value: forged.into() }),
                 "{forged:?} is not a commit"
             );
         }
+        // Soul F1: naming the record that fixed it does not excuse the commit.
+        let ruling = PipelineRef { kind: PipelineKind::Ruling, id: id("ruling", "R8") };
+        assert_eq!(
+            fixed("dirty-worktree", Some(ruling)),
+            Err(PipelineRefusal::InvalidFormat { field: "resolution.outcome.commit".into(), value: "dirty-worktree".into() }),
+            "a fix with a named record still names a commit"
+        );
     }
 
     /// A mutation record has a key-safe identity a verdict claim can name,
