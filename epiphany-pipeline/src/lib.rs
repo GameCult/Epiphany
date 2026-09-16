@@ -1464,8 +1464,14 @@ mod tests {
         // produces -- are not this derivation, and copying one of those into
         // `schemas/cultnet` publishes a schema no Rust type produces. A shared
         // directory cleared first would have to defend that clear against a
-        // held handle; an unshared one has nothing to defend. The directory is
-        // only created when something is stale, so a passing run leaves none.
+        // held handle; an unshared one has nothing to defend. The cost is that
+        // nothing ever removes one. The directory is only created when
+        // something is stale, so a passing run leaves none -- but a failing run
+        // leaves its copies behind for good, one directory per failing run
+        // where the shared design left one however often it failed. That is the
+        // trade: the copies are the evidence the failure message names, and
+        // they outlive the run that wrote them. Whoever reads the failure is
+        // the one who deletes them.
         let derived_dir = std::env::temp_dir().join(format!(
             "epiphany-pipeline-schemas-{}-{}",
             std::process::id(),
