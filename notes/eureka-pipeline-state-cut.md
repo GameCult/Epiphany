@@ -6,10 +6,10 @@ operator rejected the repo-owned store.
 Status: cut map. The ends are owned by `notes/eureka-pipeline-state-target.md`;
 this document owns the means. Self updates this header in every landing commit.
 
-**Cuts 1-6 landed and are Soul-verified, with two fix batches on Cut 6. Cut 6b
-(the key grammar) is in Hands. Cut 6c (the Ghostlight shapes) is specified and
-waits on 6b. Everything from Cut 7 on is unbuilt, and none of it is in this
-repo.** The old Cuts 3b-7 described a repo-owned store and are dead; they are
+**Cuts 1-6, 6b, 6c and 6d are landed and closed inside Epiphany, and Cuts 7,
+8 and 9 are landed and closed inside Huginn. Cut 10 is mapped and in Hands.
+Cuts 11-16 are unbuilt, and none of them is in this repo.** The old Cuts 3b-7
+described a repo-owned store and are dead; they are
 kept, clearly marked, under "History" at the end of this file. Nothing above
 that section describes the old model.
 
@@ -153,9 +153,39 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
   into `docs.rs`, one owner for in-force), `49cc6e3` (the read side) and
   `8fc39b1` (34 entries). 56 tests; 67 + 34 killed. Soul closed it with
   three bounded follow-ups in Hands (two loosenings the entries file called
-  unfailable are failable; one open-items fixture). **Cut 10 being mapped.**
-  D4, D6 and D7 are superseded by the landed read side; each carries a
-  banner naming its false sentences.
+  unfailable are failable; one open-items fixture). D4, D6 and D7 are
+  superseded by the landed read side; each carries a banner naming its false
+  sentences.
+- **The public ref validator landed** across both repos, the last of Cut 9's
+  follow-ups. Epiphany `5cda0886` opens one door onto the reference grammar,
+  `PipelineRef::validate_ref`, as an inherent method rather than a free
+  function, because the check concerns one public type this crate owns; not
+  the bare name `validate`, which would shadow the in-crate `Bounded::validate`
+  its own callers use and break the build. 34 tests, entries R1 (revert) and
+  R2 (loosening), no schema or epoch change. **`5cda0886` is the new leaf
+  pin.** Huginn `5ba7b0c6` moves that pin and validates at both read doors:
+  `view` refuses a malformed ref before answering, and `history` refuses a
+  malformed `Subject` scope. The refusal is the existing
+  `MindRefusal::Document(PipelineRefusal::InvalidFormat)` rather than a new
+  variant, since the grammar it breaks lives in the leaf and a second name
+  for one rule is a second authority; `MissingReference` stays admission's
+  "names a document that is not here", which is a different thing. The
+  `query` filters take `Slug`, `Label` and `OrgRepo`, not refs, so they were
+  untouched. 57 tests, entries V24 and V24L, and **V10L is demoted** out of
+  the suite to a recorded unfailable weakening: with the ref validated at the
+  door, a subject's kind is a function of its id on both sides, so comparing
+  the whole subject and comparing only its id cannot differ. Cut 9's spec
+  text still calls V10L failable and is stale there.
+- **Self's ruling on the boundary Hands pinned, 2026-09-16.** A resolution id
+  carrying no sequence part is well formed to the leaf and is not refused
+  there. The leaf owns the grammar of ids; per-kind local shape belongs to
+  admission, which is where the sequence rules already live. This costs
+  nothing on the write path, because a resolution's key is derived by
+  `pipeline_key` from the typed record and is never hand-authored, so a
+  sequence-less resolution id cannot reach admission at all. On the read side
+  such an id is well formed and simply names nothing. Recorded as a decision
+  rather than raised as an operator question, because no product meaning
+  turns on it.
 - **Cut 7 landed and closed** on Huginn `eureka/memory-organ` at `1320fc4`,
   `f63c0f2`, `e20c786`, fix `4094e68`; Eve `main` `e777e4c`, fix `167a2d3`;
   EveConformance `main` `048ea2f`. Started in parallel on the operator's
