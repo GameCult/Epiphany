@@ -355,6 +355,16 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
   - **Count correction, Self's to make:** the entry count above was wrong.
     The suite held **53 entries at `44ed8a9`**, not 52, and holds **59 as of
     `202e5e3`**.
+- **The harness moved out of this repo, 2026-09-17.** The fourth of the
+  process changes the operator approved on cost review. It now lives in the
+  Eureka repo at `C:\Users\Meta\.claude\skills\eureka\tools\eureka-mutations.ps1`
+  (`GameCult/Eureka`, `9b43747`), and `F:\Projects\Epiphany\tools\eureka-mutations.ps1`
+  is deleted. It was only ever here because Epiphany needed it first, and
+  Huginn had been reaching across a repo boundary for it. It takes `-Repo`, so
+  one copy serves every campaign and a fix to it fixes all of them. **Every
+  brief and every earlier reference in this document that names the Epiphany
+  path is history and no longer resolves.** CultLib keeps its own JavaScript
+  runner, which cannot be this script, and owes the same contract by name.
 - **Operator ruling on the oversize document, 2026-09-17: the body plane.**
   A body too large for the control plane travels CultMesh's content and body
   transfer, which exists for exactly this class of content, with the control
