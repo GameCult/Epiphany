@@ -570,6 +570,38 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
     `store_path_for` behind a test-support feature, and a consumer that turns
     the feature on might reach the bypass again. Second, the lockfile side
     effect.
+  - **Soul's check of the residue, 2026-09-22** (Opus). **The residue holds on
+    every invariant it claimed.**
+    - `path_for` is private (probe: `E0624`).
+    - `store_path_for` runs the grammar check in its own body, and refused 10
+      escape forms.
+    - The old escape through `new` and then `open_with` is refused.
+    - `test-support` is not compiled into a release daemon.
+    - `getrandom`: all three versions are present both before and after. Only
+      a dev-only `tempfile` edge moved.
+    - There is one `cultcache-rs`.
+    - Suites, each with M0 green and every restore identical by hash: leaf
+      5/5, Cut 8 67/67, Cut 9 38/38, Cut 10 77/77.
+
+    Recorded, not blocking:
+    - Step-function gate formulas survive a 2×2 grid (F4). The grid proves the
+      two terms are independent, not that each is linear. Production measures
+      real bytes.
+    - `trim()`, a U+2011 fold and a space fold placed inside
+      `require_grammatical_slug` survive (F5). None of them reopens N1.
+    - S5's bound behaves as a byte count (F6).
+    - The `test-support` comment claims more than Cargo enforces, and does no
+      harm (F7).
+
+    **Harness defects in H1, confirmed, and Self's to fix in Eureka:**
+    - **F1, medium.** After H1 fires, the sidecar is kept on purpose. The next
+      run's startup repair treats it as a crash: it writes the M0 original
+      over an operator's hand-cleaned file, calls it "died mid-mutation", and
+      finishes **green**.
+    - **F2, low-medium.** `.eureka-mutation-overwritten` is overwritten without
+      a check.
+
+    Queued behind the RS Hands, which is using the harness now.
   - **The read-side consumer cut is mapped** at `notes/eureka-read-side-cut.md`
     (Imagination, Opus). Cuts in order:
     - **P-1 and P-2:** CultLib, before merge. Now folded into selection's
