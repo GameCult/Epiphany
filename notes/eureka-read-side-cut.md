@@ -999,7 +999,11 @@ here.**
   `projection: header`. Under Q-BP2 B, BP-3 would reuse this cut's
   `PipelineDocumentSummary`. It would not grow a second one.
 
-**Q-RS1. What is a title? The leaf's epoch moves in RS-L, so this is the free
+**Q-RS1: RULED B by the operator, 2026-09-22 ("good rec").** A new leaf text
+type, `Title`, holds 1 to 200 bytes. All four titles use it (campaign, cut
+spec, question and ruling), in epoch v2. RS-L implements it.
+
+*History, the question as asked:* **Q-RS1. What is a title? The leaf's epoch moves in RS-L, so this is the free
 moment to decide.** Titles are required by the ruling. The leaf's `Short`
 accepts the empty string, so a required `Short` can still be a bare leaf.
 Campaign and cut-spec titles are already `Short` and can be empty today.
