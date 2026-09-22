@@ -499,6 +499,52 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
       the bytes it had captured at the start, which silently threw away the
       edits. `git status` caught it before commit.
     - **Soul's pass dispatched** (Opus).
+  - **Soul's pass on the fourth fix batch, 2026-09-22** (Opus). **Cut 10
+    closes on its stated invariants.** Findings:
+    - **N1's escape is closed in every form tried.** Refused names were
+      `../x`, `..`, `..\..\x`, absolute paths, drive-relative paths, UNC and
+      `\\?\` paths, `a/b`, a leading dot, a trailing dot, `a..b`, fullwidth,
+      NUL, empty and overlong. The whole tree was walked after each attempt,
+      and no file or directory was created.
+    - `validate_slug` is `Bounded::validate` itself.
+    - `Admit` and all four reads share `require_instance`.
+    - All separator folds die, including a fold of two separators into a
+      third.
+    - There is one `cultcache-rs`, and the leaf's range touches only the door
+      and its test.
+    - Suites: leaf 2/2, Cut 8 67/67, Cut 9 38/38, Cut 10 71/71. M0 was green
+      in each, and restores were verified by hash.
+  - **Residue, not blocking. The residue batch goes to Hands (Sonnet):**
+    - **S1:** the gate fixtures still fit by coincidence: (3,4,16), (40,4,16)
+      and (3,10,19). A formula that ignores the runtime id survives, and so
+      does one that ignores the operation. Needs a point that varies the two
+      independently.
+    - **S2:** N1 has no mutation entry. Deleting the door in `open_with`
+      (`mind.rs:135`) survives all 81 tests.
+    - **S3:** `Mind::path_for` (`mind.rs:104`) is public and bypasses the
+      door. The daemon's tests construct stores through it. Make it private,
+      or make it fallible.
+    - **S4:** a Unicode hyphen fold placed before the check survives.
+    - **S5:** the leaf's door test does not pin the 64-byte bounds, whole-name
+      or per-label, nor NUL. Those mutants survive all 35 leaf tests. This
+      predates the leaf work.
+    - **S8:** the header of the leaf's entries file names the deleted harness
+      path.
+  - **Recorded, not fixed here:**
+    - **S6:** declared names used only as read filters (`open_items(campaign)`,
+      the `campaign` filter in `query`, `HistoryScope::Repo`) are never checked
+      against the grammar, and read as empty. `OrgRepo`'s doc claims a format
+      it does not enforce. Owner: the read-side consumer cut, which reshapes
+      these reads.
+    - **S7:** the grammar admits Windows device names. `NUL` fails only after
+      the parent directory has been created. This is informational: there is
+      no escape and no aliasing. Revisit if the organ ever runs on Windows in
+      production.
+  - **H1, medium, a harness defect.** The Eureka harness silently discards any
+    edit made to a target while a run is in flight, or between entries. It
+    restores the bytes it captured at M0, and never checks whether the current
+    bytes are the mutant it wrote (`eureka-mutations.ps1:163-175, 393, 415`).
+    Fixed in the Eureka repository in the same batch.
     - *History:* **Cut 10 stays open until the fourth fix batch lands** (Hands, Sonnet): N1
     through the leaf check, one generated separator test for N3, fixtures that
     vary the operation and the runtime id for N4, and the prose fixes for N5
