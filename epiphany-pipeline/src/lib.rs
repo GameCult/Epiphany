@@ -156,11 +156,13 @@ fn dotted_text(field: &str, value: &str) -> Result<(), PipelineRefusal> {
 
 /// GitHub's own grammar for `owner/repo`, exactly one `/`: the owner is
 /// `[A-Za-z0-9-]`, 1 to 39 bytes, with no leading or trailing hyphen; the repo
-/// is `[A-Za-z0-9._-]`, 1 to 100 bytes, and is never `.` or `..`.
+/// is `[A-Za-z0-9._-]`, 1 to 100 bytes, is never `.` or `..`, and does not end
+/// in `.git`. The repo's own byte alphabet excludes `/`, so a second `/`
+/// inside it is already refused by the byte check; no separate
+/// `contains('/')` check is needed.
 fn org_repo_text(field: &str, value: &str) -> Result<(), PipelineRefusal> {
     let valid = value.split_once('/').is_some_and(|(owner, repo)| {
-        !repo.contains('/')
-            && (1..=39).contains(&owner.len())
+        (1..=39).contains(&owner.len())
             && owner.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
             && !owner.starts_with('-')
             && !owner.ends_with('-')
@@ -168,6 +170,7 @@ fn org_repo_text(field: &str, value: &str) -> Result<(), PipelineRefusal> {
             && repo.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
             && repo != "."
             && repo != ".."
+            && !repo.ends_with(".git")
     });
     if valid {
         Ok(())
@@ -201,19 +204,21 @@ fn within(limit: usize) -> impl Fn(&str, &str) -> Result<(), PipelineRefusal> {
     move |field: &str, value: &str| bound(field, limit, value.len())
 }
 
-/// A title holds at least one non-whitespace character and no control
-/// characters: C0 (`U+0000`-`U+001F`), C1 (`U+0080`-`U+009F`), the line and
-/// paragraph separators `U+2028`/`U+2029`, the zero-width characters
-/// `U+200B`-`U+200D` and `U+2060`, and the byte-order mark `U+FEFF`.
-/// Surrounding whitespace is otherwise allowed once a visible character is
-/// present.
+/// A title holds at least one `char::is_alphanumeric()` character, no
+/// `char::is_control()` character, and no bidi control character: `U+061C`,
+/// `U+200E`, `U+200F`, `U+202A`-`U+202E`, `U+2066`-`U+2069`. No denylist of
+/// individual zero-width or format characters is maintained here; a
+/// character not covered by one of these three tests is allowed.
 fn title_text(field: &str, value: &str) -> Result<(), PipelineRefusal> {
-    let visible = value.chars().any(|character| !character.is_whitespace());
-    let control = value.chars().any(|character| {
-        matches!(character, '\u{0000}'..='\u{001F}' | '\u{0080}'..='\u{009F}' | '\u{2028}' | '\u{2029}')
-            || matches!(character, '\u{200B}'..='\u{200D}' | '\u{2060}' | '\u{FEFF}')
+    let alphanumeric = value.chars().any(|character| character.is_alphanumeric());
+    let control = value.chars().any(|character| character.is_control());
+    let bidi = value.chars().any(|character| {
+        matches!(
+            character,
+            '\u{061C}' | '\u{200E}' | '\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}'
+        )
     });
-    if !visible || control {
+    if !alphanumeric || control || bidi {
         return Err(format_error(field, value));
     }
     within(200)(field, value)
@@ -222,9 +227,9 @@ fn title_text(field: &str, value: &str) -> Result<(), PipelineRefusal> {
 bounded_text! {
     /// Text of at most 200 UTF-8 bytes.
     Short = 200, |field, value| within(200)(field, value);
-    /// A title: 1 to 200 UTF-8 bytes, enforced by admission; JSON Schema
-    /// length counts characters. A title holds at least one non-whitespace
-    /// character and carries no control characters (see `title_text`).
+    /// A title: 1 to 200 UTF-8 bytes. Holds at least one alphanumeric
+    /// character, no control character, and no bidi control character
+    /// (`U+061C`, `U+200E`, `U+200F`, `U+202A`-`U+202E`, `U+2066`-`U+2069`).
     #[schemars(extend("minLength" = 1))]
     Title = 200, title_text;
     /// Text of at most 1,000 UTF-8 bytes.
@@ -235,8 +240,12 @@ bounded_text! {
     Label = 64, label_text;
     /// A campaign slug or key segment: label parts joined by `.`.
     Slug = 64, dotted_text;
-    /// A GitHub repository as `Org/Repo`.
-    OrgRepo = 200, org_repo_text;
+    /// A GitHub repository as `Org/Repo`, at most 140 UTF-8 bytes (39 + 1 +
+    /// 100). The owner is 1 to 39 `[A-Za-z0-9-]` bytes with no leading or
+    /// trailing hyphen; the repo is 1 to 100 `[A-Za-z0-9._-]` bytes, is never
+    /// `.` or `..`, and does not end in `.git`. Compare and key repositories
+    /// only through `OrgRepo::identity()`.
+    OrgRepo = 140, org_repo_text;
     /// A git commit id: 7-40 lowercase hex characters.
     Sha = 40, |field, value| hex(field, value, 7..=40);
     /// A full git commit id: exactly 40 lowercase hex characters.
@@ -269,6 +278,14 @@ impl OrgRepo {
     /// exactly what a document's own `OrgRepo` field refuses.
     pub fn validate_org_repo(&self) -> Result<(), PipelineRefusal> {
         Bounded::validate(self, "org_repo")
+    }
+
+    /// The one canonical key for an `OrgRepo`: the value, ASCII-lowercased.
+    /// Every comparison and every lookup keyed by repository identity goes
+    /// through this, so `GameCult/Epiphany` and `gamecult/epiphany` are the
+    /// same repository.
+    pub fn identity(&self) -> String {
+        self.0.to_ascii_lowercase()
     }
 }
 
@@ -2603,6 +2620,14 @@ mod tests {
         assert_eq!(OrgRepo::from("GameCult/Epiphany").validate_org_repo(), Ok(()));
         assert_eq!(OrgRepo::from("a/b").validate_org_repo(), Ok(()));
         assert_eq!(OrgRepo::from("a-b/c.d_e").validate_org_repo(), Ok(()));
+        // Consecutive hyphens stay allowed on both sides; only a leading or
+        // trailing owner hyphen is refused.
+        assert_eq!(OrgRepo::from("a--b/c--d").validate_org_repo(), Ok(()));
+        // S4: a 39-byte owner is accepted, a 100-byte repo is accepted.
+        let owner_at_39 = format!("{}/b", "a".repeat(39));
+        assert_eq!(OrgRepo::from(owner_at_39.as_str()).validate_org_repo(), Ok(()));
+        let repo_at_100 = format!("a/{}", "a".repeat(100));
+        assert_eq!(OrgRepo::from(repo_at_100.as_str()).validate_org_repo(), Ok(()));
         let repo_refused = |value: &str, why: &str| {
             let result = OrgRepo::from(value).validate_org_repo();
             assert!(
@@ -2633,6 +2658,17 @@ mod tests {
         repo_refused("a/", "an empty repo is refused");
         repo_refused("a.b/c", "a dot is not an owner byte");
         repo_refused("a_b/c", "an underscore is not an owner byte");
+        // F7 fix batch: a repo name ending in `.git` is refused.
+        repo_refused("a/b.git", "a repo ending in .git is refused");
+        repo_refused("a/.git", "a repo of exactly .git is still a .git suffix");
+
+        // identity(): the one canonical key, ASCII-lowercased. Every
+        // comparison and key derivation goes through it.
+        assert_eq!(
+            OrgRepo::from("GameCult/Epiphany").identity(),
+            OrgRepo::from("gamecult/epiphany").identity()
+        );
+        assert_eq!(OrgRepo::from("GameCult/Epiphany").identity(), "gamecult/epiphany");
 
         assert_eq!(Label::from("cut-10").validate_label(), Ok(()));
         let label_refused = |value: &str, why: &str| {
@@ -2681,12 +2717,13 @@ mod tests {
             Err(PipelineRefusal::InvalidFormat { field: "ruling.title".into(), value: String::new() })
         );
 
-        // F2: a title is a visible placeholder, not merely a non-empty one. A
-        // string of nothing but whitespace, or one carrying a control
-        // character (C0, C1, a line/paragraph separator, a zero-width
-        // character, or the byte-order mark), is refused the same way an
-        // empty title is; surrounding whitespace around a visible character
-        // is still allowed.
+        // F2 second fix batch: a title holds at least one
+        // `char::is_alphanumeric()` character, no `char::is_control()`
+        // character, and no bidi control character. No zero-width denylist:
+        // a zero-width joiner/non-joiner inside real text is allowed, and a
+        // string of nothing but invisible characters is refused because it
+        // has no alphanumeric character, not because those characters are
+        // individually denylisted.
         let refused = |value: &str| {
             let mut refused_question = question.clone();
             refused_question.title = Title(value.into());
@@ -2697,13 +2734,18 @@ mod tests {
             );
         };
         refused(" ");
-        refused("   ");
-        refused("\0");
-        refused("\n");
-        refused("a\nb");
-        refused("\u{200b}");
-        refused("\u{feff}");
-        refused("\u{80}");
+        refused("\u{7f}");
+        refused("a\u{7f}");
+        refused("\u{0}");
+        refused("\u{9f}");
+        refused("\u{2028}");
+        refused("\u{202e}"); // RLO alone
+        refused("\u{202e}text"); // RLO plus text
+        refused("\u{200e}"); // LRM alone
+        refused("\u{0301}"); // a lone combining mark
+        refused("\u{fe0f}"); // a variation selector alone
+        refused("\u{a0}"); // NBSP alone
+        refused("\u{1f680}"); // emoji only
 
         let accepted = |value: &str| {
             let mut accepted_question = question.clone();
@@ -2716,7 +2758,16 @@ mod tests {
         };
         accepted("a");
         accepted("\u{e9}");
+        accepted("\u{200c}\u{647}\u{6cc}"); // Persian text containing ZWNJ
+        accepted("a\u{200d}b");
+        accepted("a \u{1f680}");
         accepted(" a ");
+        // Discrepancy from the fix spec: HANGUL FILLER (U+3164) is Unicode
+        // General_Category Lo, so `char::is_alphanumeric()` is true for it in
+        // this toolchain; it is not a denylist candidate, since the fix
+        // batch deletes the hand-written exclusion list on purpose. A title
+        // of U+3164 alone is therefore accepted, not refused.
+        accepted("\u{3164}");
 
         question.title = Title("a".repeat(200));
         assert_eq!(PipelineDocument::Question(question.clone()).validate(), Ok(()));
