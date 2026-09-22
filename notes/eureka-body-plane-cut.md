@@ -814,7 +814,14 @@ contradicted. B and C are where the body moves later, behind the same
 TCP connector (B), and whether BP-3 can land before a TLS campaign (B and C
 block it).
 
-**Q-BP2. What is "the summary" the control plane carries?**
+**Q-BP2: RULED A by the operator, 2026-09-22 ("I accept your
+recommendations").** The deferred answer carries the reference's own facts:
+the manifest (`sizeBytes`, `contentHash`, the chunk list) and the operation.
+It carries no per-operation summary. Row-level facts come from asking again
+with a header projection. `huginn-mind` gains no summary types. B can be added
+later on the selection projection if Cut 13's tools show the need.
+
+*History, the question as asked:* **Q-BP2. What is "the summary" the control plane carries?**
 
 - **A. The reference's own facts.** The manifest carries `sizeBytes`,
   `contentHash` and the chunk list, and the envelope carries the operation.

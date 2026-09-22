@@ -714,7 +714,9 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
     - **F2: a `Title` holds at least one non-whitespace character and no
       control characters** (C0, C1, U+2028/9, zero-width and BOM). That is
       what "not a bare placeholder" means. It is free inside epoch v2 and
-      would cost another epoch later. *Flagged for the operator's review.*
+      would cost another epoch later. **Accepted by the operator,
+      2026-09-22** ("I accept your recommendations"). Q-BP2 was ruled A in the
+      same message.
     - **F7: `OrgRepo` becomes GitHub's grammar, in the same epoch v2.** Both
       the owner and the repo are `[A-Za-z0-9._-]+`. The owner has no dot or
       underscore, is at most 39 bytes, and has no leading or trailing
