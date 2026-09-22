@@ -639,6 +639,50 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
     - **Stale:** entry E1 in `tools/eureka-cut8-epiphany-mutations.psd1`
       still anchors on the v1 epoch string, so that historical suite cannot
       rerun. **Soul's pass dispatched**, and it includes E1.
+  - **Soul on RS-2 and RS-1, 2026-09-22** (Opus). Both build, and every suite
+    kills every mutant.
+    - **Held for RS-2:** nothing deleted is reachable. `resolutions_of` and
+      `assignments_of` survive and are pinned. Dropping V24L and
+      `Reader::views()` was right. N4 and D13 hold.
+    - **Held for RS-1:** every R2 loosening dies. The opener cases refuse as
+      the spec says.
+    - **Correct counts:** Cut 9 has **26** entries and Cut 10 has **71**.
+      The 27 and 65 in Hands' report were the map's estimate, not a run.
+
+    Findings:
+    - **F1, medium: the read side never checks ordinal density.**
+      `AdmissionIndex::build` (`query.rs:113-130`) copies the ordinal without
+      calling `head`. `head`'s only caller is admission. With planted
+      duplicates, gaps, zeros or out-of-range chains, `query` and `view` both
+      answer `Ok`. The shipped code is exactly the spec's named mutant ("the
+      check runs only in admission"). R3L tests something else, and a test
+      named `…reads_alike` never reads. `head`'s doc claims every reader asks
+      it. The schema publishes `minimum: 0`. RS-3 makes this field the order.
+    - **F2, low-medium: a second in-process owner bricks admission.**
+      `Mind::open_with` is `pub` over a store whose clones share one lock.
+      Two Minds admitting concurrently produced `[1,2,2]`, and after that
+      every admission refuses. Before RS-1, the same misuse landed both
+      batches.
+    - **F3, low-medium: R5 is not binary.** Two loosenings survive:
+      - "types first when there is no epoch record" (R5b);
+      - "epoch first only when the record's key is foreign" (R5c).
+    - **F5, low: stale prose.** The gate step numbering in `mind.rs`, `docs.rs`
+      pointing at `history`, a test named for two doors, and the Cut 9 header.
+  - **Self's rulings, 2026-09-22 (RS fix batch):**
+    - **F1:** density is checked wherever the ordinal is read. The read index
+      is built through `head`, or through the same density function. A test
+      that runs `query` and `view` over a store with a duplicate, a gap, a
+      zero and ordinals above N must refuse. The mutant "check only in
+      admission" is added and must die. The schema says `minimum: 1`.
+    - **F2: the smallest seal.** `Mind::open_with` is gated behind the
+      `test-support` feature, like `store_path_for`. Production opens only
+      through `Mind::open`, which takes the per-path lock. The full store
+      seal stays a recorded follow-up.
+    - **F3:** fixtures pin R5b and R5c. A foreign store with no epoch record
+      must refuse as the spec's epoch-first order says. A store with the epoch
+      at the current key, a foreign value and a foreign type must refuse
+      `ForeignEpoch`.
+    - **F5:** fix the prose.
   - **Soul on RS-L, 2026-09-22** (Opus). **What held:**
     - The `Title` bound counts bytes, and the empty title is refused.
     - Epoch v2 covers all 13 ids.
