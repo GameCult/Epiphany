@@ -6405,3 +6405,12 @@ as the `schemars` dependency, now in `epiphany-pipeline`.
   - **S7:** schema descriptions state the rules and the true maxima.
   - **S8:** delete the dead check.
   - **In Hands (Sonnet).**
+- **2026-09-22: the RS-L second fix landed** at `998f97e8` and `ec704d64` (Sonnet, on Yggdrasil).
+  - The title rule is the three-rule algorithm. The denylists and the whitespace check are deleted.
+  - `OrgRepo` refuses a `.git` suffix and gains `identity()`.
+  - Nine schemas were regenerated, and the byte-for-byte pin passes.
+  - Leaf tests: 37/37. No other crate depends on the leaf, and no fixture in the workspace is refused.
+  - Hand probes: every bound probe (H01–H05d) is still killed. The class probes (H06–H10) no longer apply, because the code they mutated is gone.
+  - **Stated limit, accepted by Self:** U+3164, the Hangul Filler, is `Lo`, so `is_alphanumeric` accepts it. A title made only of such characters is invisible and valid. Hands pinned it as accepted rather than reintroduce a one-code-point denylist, which is what this rewrite removed. Closing this properly needs Unicode property data (Default_Ignorable_Code_Point), which is a dependency the leaf does not carry. **Follow-up, FU-Title-Ignorable**, if a display surface ever cares.
+  - **Recorded, not this cut's:** `epiphany-core`'s `process_observation` test is flaky in the container, with a different test name on each run. It reads `/proc` and is environmental.
+  - **Soul's pass on the new rules is dispatched.**
