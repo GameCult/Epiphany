@@ -211,6 +211,21 @@ bounded_text! {
     Sha256Hex = 64, |field, value| hex(field, value, 64..=64);
 }
 
+impl Slug {
+    /// The public door onto the slug grammar, for a caller outside this crate
+    /// that holds a bare `Slug` and no way to reach `Bounded`, which is
+    /// crate-private. On the pattern of `PipelineRef::validate_ref`: it
+    /// delegates so the grammar keeps one owner, and it applies exactly the
+    /// `dotted_text` check that every `Slug` field in this crate is held to,
+    /// so a caller that validates a declared name this way and a document
+    /// field of the same type refuse the same inputs. Named `validate_slug`
+    /// rather than a bare `validate`, because an inherent `validate` would
+    /// shadow `Bounded`'s for every in-crate caller holding a `Slug`.
+    pub fn validate_slug(&self) -> Result<(), PipelineRefusal> {
+        Bounded::validate(self, "slug")
+    }
+}
+
 /// A calendar date, `YYYY-MM-DD`.
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(transparent)]
@@ -2440,5 +2455,34 @@ mod tests {
             "the leaf reads a resolution id kind-deep"
         );
         Ok(())
+    }
+
+    /// The public door onto the slug grammar, for a caller outside this crate
+    /// holding a bare declared name (Huginn's `require_instance` and
+    /// `Mind::open`, before either reaches admission or the filesystem). It
+    /// applies exactly `dotted_text`: one valid dotted name, and refusals for
+    /// fullwidth characters, `..`, both path separators, the empty string,
+    /// and an empty label.
+    #[test]
+    fn slug_validate_applies_the_dotted_grammar() {
+        assert_eq!(slug("huginn-yggdrasil").validate_slug(), Ok(()));
+        assert_eq!(slug("outer.inner").validate_slug(), Ok(()));
+
+        let refused = |value: &str, why: &str| {
+            let result = slug(value).validate_slug();
+            assert!(
+                matches!(&result, Err(PipelineRefusal::InvalidFormat { field, .. }) if field == "slug"),
+                "{why}: {value:?} was not refused, got {result:?}"
+            );
+        };
+
+        refused("\u{FF41}\u{FF41}", "fullwidth characters are not ascii alphanumeric");
+        refused("..", "a bare .. is an empty label either side of the dot");
+        refused("../escaped", "a forward-slash path separator is not a label byte");
+        refused("..\\escaped", "a backslash path separator is not a label byte");
+        refused("outer\\inner", "a lone backslash inside one label is not a label byte, with no empty label to hide behind");
+        refused("", "the empty string has no label");
+        refused("outer..inner", "an empty label between two dots is refused");
+        refused(".", "a single dot is one empty label");
     }
 }
