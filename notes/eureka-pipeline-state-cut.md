@@ -6361,3 +6361,16 @@ as the `schemars` dependency, now in `epiphany-pipeline`.
   - **S3:** `--all-targets` release builds unify `test-support` into the daemon.
   - **S4:** prose.
   - **Closing fixes are in Hands (Sonnet). RS-1 closes when S1 is fixed and proven by hand probe.**
+- **2026-09-22: RS-1's closing fixes landed.** Huginn `fbf793f..8c5f784` (Sonnet, on Yggdrasil):
+  - S1: the fixtures use `NEVER_A_KNOWN_TYPE`, which `is_known_type` rejects at every epoch.
+  - S2: `Mind::receipts()` is `pub(crate)`.
+  - S3: `open_with`'s doc states the real release condition. No Idunn deploy recipe for Huginn exists yet.
+  - S4: prose.
+  - Tests: mind 70/70, daemon 18/18.
+  - **Hand probes:** R5b and R5c both survived at `7771c37` and are both killed at `8c5f784`.
+  - **RS-2 and RS-1 are closed.**
+- **2026-09-22: the committed mutation suites are deleted** (operator ruling, "better nothing than a harness that punishes refactoring").
+  - Huginn `7771c37` (2,383 lines).
+  - Epiphany `703fdd0b` (1,021 lines, the leaf suites).
+  - Tests pin behaviour. Soul runs cargo-mutants on the diff and makes one-off hand probes.
+- **Next on this campaign:** BP-2, the widened pin move, waits on selection Cut 1 merging and on BP-1. The RS-L fix (`8473e75d`) gets its Soul pass now.
