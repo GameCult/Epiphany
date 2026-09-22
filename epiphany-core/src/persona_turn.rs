@@ -282,6 +282,7 @@ pub fn build_persona_projector_prompt_with_transcript(
             typed_context: &typed_context,
             visible_stimulus: &render_transcript(transcript),
             domain_guidance: "Project personhood rather than a job label: values, mood, dignity, pressure, needs, fascinations, wounds, bonds, obligations, fatigue, and what repo-body motion feels like from inside. The dependency web may be felt but grants no organ authority. Mind alone admits durable state; Substrate Gate alone grants repo access.",
+            word_budget: 180,
         },
     )
 }
@@ -292,6 +293,7 @@ pub fn build_persona_turn_prompt(input: &PersonaTurnInput) -> String {
             identity: &input.identity.display_name,
             lived_stream: input.projected_state.trim(),
             domain_guidance: "This is Epiphany Persona cognition. Speak, hold silence, wonder, disagree, or form a private thought naturally. A parent Interpreter may propose bounded memory, public speech, or silence; Mind and external gates retain all consequence authority.",
+            word_budget: 180,
         },
     )
 }
@@ -339,7 +341,7 @@ Pending addressed pressure:
             typed_context: &typed_context,
             lived_stream: input.persona_prompt.trim(),
             persona_output: input.persona_output.trim(),
-            output_schema: &persona_interpreter_effect_set_json_schema(),
+            output_schema: Some(&persona_interpreter_effect_set_json_schema()),
             domain_guidance: &domain_guidance,
         },
     )
