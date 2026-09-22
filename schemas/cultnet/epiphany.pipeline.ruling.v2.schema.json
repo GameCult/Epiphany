@@ -93,9 +93,14 @@
       "description": "A campaign slug or key segment: label parts joined by `.`.",
       "maxLength": 64,
       "type": "string"
+    },
+    "Title": {
+      "description": "A title: 1 to 200 UTF-8 bytes, never empty. All four leaf titles\n(campaign, cut spec, question and ruling) carry this type, ruled B\nunder Q-RS1: the epoch moves in this cut regardless, so tightening the\ntwo titles that were `Short` costs nothing extra and avoids a second\nepoch bump later just to make a title required.",
+      "maxLength": 200,
+      "type": "string"
     }
   },
-  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.ruling.v1.schema.json",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.ruling.v2.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
     "answers": {
@@ -149,11 +154,15 @@
     },
     "ruling": {
       "$ref": "#/$defs/Para"
+    },
+    "title": {
+      "$ref": "#/$defs/Title"
     }
   },
   "required": [
     "campaign",
     "label",
+    "title",
     "ruling",
     "ruled_on",
     "precedents",

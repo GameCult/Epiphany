@@ -190,9 +190,22 @@ fn within(limit: usize) -> impl Fn(&str, &str) -> Result<(), PipelineRefusal> {
     move |field: &str, value: &str| bound(field, limit, value.len())
 }
 
+fn title_text(field: &str, value: &str) -> Result<(), PipelineRefusal> {
+    if value.is_empty() {
+        return Err(format_error(field, value));
+    }
+    within(200)(field, value)
+}
+
 bounded_text! {
     /// Text of at most 200 UTF-8 bytes.
     Short = 200, |field, value| within(200)(field, value);
+    /// A title: 1 to 200 UTF-8 bytes, never empty. All four leaf titles
+    /// (campaign, cut spec, question and ruling) carry this type, ruled B
+    /// under Q-RS1: the epoch moves in this cut regardless, so tightening the
+    /// two titles that were `Short` costs nothing extra and avoids a second
+    /// epoch bump later just to make a title required.
+    Title = 200, title_text;
     /// Text of at most 1,000 UTF-8 bytes.
     Line = 1000, |field, value| within(1000)(field, value);
     /// Text of at most 4,000 UTF-8 bytes; longer narrative is cited by `DocRef`.
@@ -223,6 +236,30 @@ impl Slug {
     /// shadow `Bounded`'s for every in-crate caller holding a `Slug`.
     pub fn validate_slug(&self) -> Result<(), PipelineRefusal> {
         Bounded::validate(self, "slug")
+    }
+}
+
+impl OrgRepo {
+    /// The public door onto the `org_repo` grammar, for a caller outside this
+    /// crate that holds a bare `OrgRepo` (the organ's `repo` alias, RS-3) and
+    /// no way to reach `Bounded`. On the pattern of `Slug::validate_slug`: it
+    /// delegates to `org_repo_text` through `Bounded::validate`, so the
+    /// grammar keeps one owner and a declared name checked this way refuses
+    /// exactly what a document's own `OrgRepo` field refuses.
+    pub fn validate_org_repo(&self) -> Result<(), PipelineRefusal> {
+        Bounded::validate(self, "org_repo")
+    }
+}
+
+impl Label {
+    /// The public door onto the label grammar, for a caller outside this
+    /// crate that holds a bare `Label` (the organ's `cut` alias, RS-3) and no
+    /// way to reach `Bounded`. On the pattern of `Slug::validate_slug`: it
+    /// delegates to `label_text` through `Bounded::validate`, so the grammar
+    /// keeps one owner and a declared name checked this way refuses exactly
+    /// what a document's own `Label` field refuses.
+    pub fn validate_label(&self) -> Result<(), PipelineRefusal> {
+        Bounded::validate(self, "label")
     }
 }
 
@@ -341,21 +378,21 @@ value_types! {
         promise: Option<Label>, mutations: Vec<Label>[8],
     }
 
-    pub struct PipelineCampaign { slug: Slug, title: Short, repos: Vec<OrgRepo>[8], working_branch: Short, target_doc: DocRef }
+    pub struct PipelineCampaign { slug: Slug, title: Title, repos: Vec<OrgRepo>[8], working_branch: Short, target_doc: DocRef }
     pub struct PipelineTarget {
         campaign: Slug, revision: u32, invariants: Vec<TargetInvariant>[32], not_in_scope: Vec<Line>[32],
         canonical_implementations: Vec<Line>[16], doc: DocRef,
     }
     pub struct PipelineQuestion {
-        campaign: Slug, label: Label, question: Para, options: Vec<QuestionOption>[8], recommended: Label,
+        campaign: Slug, label: Label, title: Title, question: Para, options: Vec<QuestionOption>[8], recommended: Label,
         depends: Vec<Line>[8], raised_in: Option<PipelineRef>, asked_on: Date,
     }
     pub struct PipelineRuling {
-        campaign: Slug, label: Label, answers: Option<Short>, choice: Option<Label>, ruling: Para,
+        campaign: Slug, label: Label, title: Title, answers: Option<Short>, choice: Option<Label>, ruling: Para,
         operator_quote: Option<Para>, ruled_on: Date, precedents: Vec<ForeignRef>[8], authority: RulingAuthority,
     }
     pub struct PipelineCutSpec {
-        campaign: Slug, cut: Label, revision: u32, title: Short, repo: OrgRepo, branch: Short, base: Sha,
+        campaign: Slug, cut: Label, revision: u32, title: Title, repo: OrgRepo, branch: Short, base: Sha,
         depends_on: Vec<Short>[8], first: Vec<Line>[16], deletes: Vec<CutDelete>[64], keeps_moves: Vec<Line>[64],
         adds: Vec<Line>[64], file_changes: Vec<FileChange>[256], authority_map: Option<AuthorityMap>,
         verification: CutVerification, estimate: StructuralDelta,
@@ -595,31 +632,31 @@ pub(crate) struct ForeignDocument {
 
 pipeline_kinds! {
     Campaign(PipelineCampaign) => EpiphanyPipelineCampaignDocument, "campaign",
-        "epiphany.pipeline.campaign.v1", "EpiphanyPipelineCampaignDocument";
+        "epiphany.pipeline.campaign.v2", "EpiphanyPipelineCampaignDocument";
     Target(PipelineTarget) => EpiphanyPipelineTargetDocument, "target",
-        "epiphany.pipeline.target.v1", "EpiphanyPipelineTargetDocument";
+        "epiphany.pipeline.target.v2", "EpiphanyPipelineTargetDocument";
     Question(PipelineQuestion) => EpiphanyPipelineQuestionDocument, "question",
-        "epiphany.pipeline.question.v1", "EpiphanyPipelineQuestionDocument";
+        "epiphany.pipeline.question.v2", "EpiphanyPipelineQuestionDocument";
     Ruling(PipelineRuling) => EpiphanyPipelineRulingDocument, "ruling",
-        "epiphany.pipeline.ruling.v1", "EpiphanyPipelineRulingDocument";
+        "epiphany.pipeline.ruling.v2", "EpiphanyPipelineRulingDocument";
     CutSpec(PipelineCutSpec) => EpiphanyPipelineCutSpecDocument, "cut_spec",
-        "epiphany.pipeline.cut_spec.v1", "EpiphanyPipelineCutSpecDocument";
+        "epiphany.pipeline.cut_spec.v2", "EpiphanyPipelineCutSpecDocument";
     CutReport(PipelineCutReport) => EpiphanyPipelineCutReportDocument, "cut_report",
-        "epiphany.pipeline.cut_report.v1", "EpiphanyPipelineCutReportDocument";
+        "epiphany.pipeline.cut_report.v2", "EpiphanyPipelineCutReportDocument";
     Verdict(PipelineVerdict) => EpiphanyPipelineVerdictDocument, "verdict",
-        "epiphany.pipeline.verdict.v1", "EpiphanyPipelineVerdictDocument";
+        "epiphany.pipeline.verdict.v2", "EpiphanyPipelineVerdictDocument";
     Finding(PipelineFinding) => EpiphanyPipelineFindingDocument, "finding",
-        "epiphany.pipeline.finding.v1", "EpiphanyPipelineFindingDocument";
+        "epiphany.pipeline.finding.v2", "EpiphanyPipelineFindingDocument";
     FollowUp(PipelineFollowUp) => EpiphanyPipelineFollowUpDocument, "follow_up",
-        "epiphany.pipeline.follow_up.v1", "EpiphanyPipelineFollowUpDocument";
+        "epiphany.pipeline.follow_up.v2", "EpiphanyPipelineFollowUpDocument";
     Resolution(PipelineResolution) => EpiphanyPipelineResolutionDocument, "resolution",
-        "epiphany.pipeline.resolution.v1", "EpiphanyPipelineResolutionDocument";
+        "epiphany.pipeline.resolution.v2", "EpiphanyPipelineResolutionDocument";
     Instance(PipelineInstance) => EpiphanyPipelineInstanceDocument, "instance",
-        "epiphany.pipeline.instance.v1", "EpiphanyPipelineInstanceDocument";
+        "epiphany.pipeline.instance.v2", "EpiphanyPipelineInstanceDocument";
     Stewardship(PipelineStewardship) => EpiphanyPipelineStewardshipDocument, "stewardship",
-        "epiphany.pipeline.stewardship.v1", "EpiphanyPipelineStewardshipDocument";
+        "epiphany.pipeline.stewardship.v2", "EpiphanyPipelineStewardshipDocument";
     HandOff(PipelineHandOff) => EpiphanyPipelineHandOffDocument, "hand_off",
-        "epiphany.pipeline.hand_off.v1", "EpiphanyPipelineHandOffDocument";
+        "epiphany.pipeline.hand_off.v2", "EpiphanyPipelineHandOffDocument";
 }
 
 /// Parses a full document id: the grammar read backwards. A key and an id are
@@ -717,7 +754,7 @@ const LOCAL_MAX: usize = 64;
 /// the epoch. A breaking change bumps it, so that a store written at the old
 /// one can be refused by whoever opens it; this crate owns no store and
 /// refuses none.
-pub const PIPELINE_SCHEMA_EPOCH: &str = "epiphany.pipeline.epoch.v1";
+pub const PIPELINE_SCHEMA_EPOCH: &str = "epiphany.pipeline.epoch.v2";
 
 /// Composes and validates a local: every part is a `Label`, and the join is
 /// bounded whole. Both rules live here because this is the only way a local is
@@ -848,6 +885,10 @@ mod tests {
         value.into()
     }
 
+    fn t(value: &str) -> Title {
+        value.into()
+    }
+
     fn l(value: &str) -> Label {
         value.into()
     }
@@ -891,7 +932,7 @@ mod tests {
         let branch = || s("codex/eureka-pipeline-state");
         vec![
             (D::Campaign(PipelineCampaign {
-                slug: slug(CAMPAIGN), title: s("Eureka pipeline state"), repos: vec![repo()],
+                slug: slug(CAMPAIGN), title: t("Eureka pipeline state"), repos: vec![repo()],
                 working_branch: branch(), target_doc: doc_ref(),
             }), format!("{CAMPAIGN}:campaign:self")),
             (D::Target(PipelineTarget {
@@ -900,7 +941,7 @@ mod tests {
                 not_in_scope: vec!["Eve browsing".into()], canonical_implementations: vec!["CultLib".into()], doc: doc_ref(),
             }), format!("{CAMPAIGN}:target:r2")),
             (D::Question(PipelineQuestion {
-                campaign: slug(CAMPAIGN), label: l("Q1"), question: "Who owns the state?".into(),
+                campaign: slug(CAMPAIGN), label: l("Q1"), title: t("Who owns the state?"), question: "Who owns the state?".into(),
                 options: vec![
                     QuestionOption { label: l("A"), text: "an instance".into() },
                     QuestionOption { label: l("B"), text: "a repo".into() },
@@ -910,7 +951,7 @@ mod tests {
                 asked_on: date(),
             }), format!("{CAMPAIGN}:question:Q1")),
             (D::Ruling(PipelineRuling {
-                campaign: slug(CAMPAIGN), label: l("R8"), answers: Some(id("question", "Q1")), choice: Some(l("A")),
+                campaign: slug(CAMPAIGN), label: l("R8"), title: t("An instance owns its mind"), answers: Some(id("question", "Q1")), choice: Some(l("A")),
                 ruling: "An instance owns its mind.".into(), operator_quote: Some("all recommendations, go ahead".into()),
                 ruled_on: date(),
                 precedents: vec![ForeignRef {
@@ -920,7 +961,7 @@ mod tests {
                 authority: RulingAuthority::Operator,
             }), format!("{CAMPAIGN}:ruling:R8")),
             (D::CutSpec(PipelineCutSpec {
-                campaign: slug(CAMPAIGN), cut: l("3a"), revision: 1, title: s("Pipeline documents"), repo: repo(),
+                campaign: slug(CAMPAIGN), cut: l("3a"), revision: 1, title: t("Pipeline documents"), repo: repo(),
                 branch: branch(), base: sha(), depends_on: vec![s("2")], first: vec!["Read the spec.".into()],
                 deletes: vec![CutDelete { path: s("old.rs"), lines: 3, note: "dead".into() }],
                 keeps_moves: vec!["commit owner".into()], adds: vec!["pipeline_documents.rs".into()],
@@ -1033,6 +1074,16 @@ mod tests {
         samples().remove(0).0
     }
 
+    fn question_sample() -> PipelineQuestion {
+        let PipelineDocument::Question(question) = samples().remove(2).0 else { unreachable!() };
+        question
+    }
+
+    fn ruling_sample() -> PipelineRuling {
+        let PipelineDocument::Ruling(ruling) = samples().remove(3).0 else { unreachable!() };
+        ruling
+    }
+
     fn report_sample() -> PipelineCutReport {
         let PipelineDocument::CutReport(report) = samples().remove(5).0 else { unreachable!() };
         report
@@ -1107,14 +1158,14 @@ mod tests {
     #[test]
     fn bounds_refuse_in_utf8_bytes() {
         let PipelineDocument::Campaign(mut campaign) = campaign_sample() else { unreachable!() };
-        campaign.title = Short("é".repeat(100));
+        campaign.title = Title("é".repeat(100));
         assert_eq!(PipelineDocument::Campaign(campaign.clone()).validate(), Ok(()));
-        campaign.title = Short(format!("{}a", "é".repeat(100)));
+        campaign.title = Title(format!("{}a", "é".repeat(100)));
         assert_eq!(
             PipelineDocument::Campaign(campaign.clone()).validate(),
             Err(PipelineRefusal::FieldBound { field: "campaign.title".into(), limit: 200, actual: 201 })
         );
-        campaign.title = s("ok");
+        campaign.title = t("ok");
         campaign.repos = vec![OrgRepo("GameCult/Epiphany".into()); 9];
         assert_eq!(
             PipelineDocument::Campaign(campaign).validate(),
@@ -2360,7 +2411,7 @@ mod tests {
                 "wireContracts": ["cultnet.schema.v0"],
                 "schemaVersion": kind.type_id(),
                 "documentType": kind.type_id(),
-                "title": format!("Epiphany Pipeline {kind:?} v1"),
+                "title": format!("Epiphany Pipeline {kind:?} v2"),
                 "path": file,
             });
             assert!(
@@ -2516,5 +2567,85 @@ mod tests {
         // S5: NUL is refused as a label byte, not merely as one more
         // non-alphanumeric character that happens to be caught by coincidence.
         refused("a\u{0}b", "NUL is not a label byte");
+    }
+
+    /// The two doors added beside `Slug::validate_slug` (RS-L), on its
+    /// pattern: each delegates to the grammar its own document field already
+    /// carries, so a declared name checked through the door and a field of
+    /// the same type refuse the same inputs. `OrgRepo` is the `repo` alias's
+    /// domain and `Label` is the `cut` alias's (RS-3's vocabulary table).
+    #[test]
+    fn the_org_repo_and_label_doors_are_the_grammar() {
+        assert_eq!(OrgRepo::from("GameCult/Epiphany").validate_org_repo(), Ok(()));
+        let repo_refused = |value: &str, why: &str| {
+            let result = OrgRepo::from(value).validate_org_repo();
+            assert!(
+                matches!(&result, Err(PipelineRefusal::InvalidFormat { field, .. }) if field == "org_repo"),
+                "{why}: {value:?} was not refused, got {result:?}"
+            );
+        };
+        repo_refused("GameCult", "no slash at all");
+        repo_refused("/Repo", "an empty org before the slash");
+        repo_refused("GameCult/", "an empty repo after the slash");
+        repo_refused("a/b/c", "a second slash makes the repo half ambiguous");
+        let org_at_201 = format!("{}/{}", "a".repeat(99), "a".repeat(101));
+        assert_eq!(org_at_201.len(), 201, "one byte past the 200-byte org_repo bound");
+        repo_refused(&org_at_201, "201 bytes overall is refused");
+
+        assert_eq!(Label::from("cut-10").validate_label(), Ok(()));
+        let label_refused = |value: &str, why: &str| {
+            let result = Label::from(value).validate_label();
+            assert!(
+                matches!(&result, Err(PipelineRefusal::InvalidFormat { field, .. }) if field == "label"),
+                "{why}: {value:?} was not refused, got {result:?}"
+            );
+        };
+        label_refused("", "the empty string has no label");
+        label_refused("a.b", "a dot is not a label byte");
+        label_refused(&"a".repeat(65), "65 bytes is past the 64-byte label bound");
+        label_refused("\u{e9}", "a non-ascii byte is not a label byte");
+    }
+
+    /// Q-RS1, ruled B: `question` and `ruling` gain a required `title`, the
+    /// new `Title` type shared with the two titles that move off `Short`
+    /// (campaign, cut spec). Each kind round-trips through `prepare`/`decode`
+    /// with its title intact, an empty title is refused for both, and the
+    /// bound is pinned at its edge: 200 bytes accepted, 201 refused (L3 dies
+    /// on the removal of the non-empty check, not on the length bound, since
+    /// `Title`'s length bound is shared with every other `bounded_text!`
+    /// member and already covered by `bounds_refuse_in_utf8_bytes`).
+    #[test]
+    fn question_and_ruling_carry_a_title() -> Result<()> {
+        let cache = schema_cache()?;
+
+        let mut question = question_sample();
+        question.title = t("Who owns the state?");
+        let envelope = PipelineDocument::Question(question.clone()).prepare(&cache)?;
+        assert_eq!(PipelineDocument::decode(&envelope)?, PipelineDocument::Question(question.clone()));
+
+        let mut ruling = ruling_sample();
+        ruling.title = t("An instance owns its mind");
+        let envelope = PipelineDocument::Ruling(ruling.clone()).prepare(&cache)?;
+        assert_eq!(PipelineDocument::decode(&envelope)?, PipelineDocument::Ruling(ruling.clone()));
+
+        question.title = Title(String::new());
+        assert_eq!(
+            PipelineDocument::Question(question.clone()).validate(),
+            Err(PipelineRefusal::InvalidFormat { field: "question.title".into(), value: String::new() })
+        );
+        ruling.title = Title(String::new());
+        assert_eq!(
+            PipelineDocument::Ruling(ruling.clone()).validate(),
+            Err(PipelineRefusal::InvalidFormat { field: "ruling.title".into(), value: String::new() })
+        );
+
+        question.title = Title("a".repeat(200));
+        assert_eq!(PipelineDocument::Question(question.clone()).validate(), Ok(()));
+        question.title = Title("a".repeat(201));
+        assert_eq!(
+            PipelineDocument::Question(question).validate(),
+            Err(PipelineRefusal::FieldBound { field: "question.title".into(), limit: 200, actual: 201 })
+        );
+        Ok(())
     }
 }

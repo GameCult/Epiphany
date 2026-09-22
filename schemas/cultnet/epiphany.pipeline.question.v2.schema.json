@@ -1,29 +1,9 @@
 {
   "$defs": {
-    "CodeLocation": {
-      "properties": {
-        "end_line": {
-          "format": "uint32",
-          "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "line": {
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "path": {
-          "$ref": "#/$defs/Short"
-        }
-      },
-      "required": [
-        "path",
-        "line"
-      ],
-      "type": "object"
+    "Date": {
+      "description": "A calendar date, `YYYY-MM-DD`.",
+      "maxLength": 10,
+      "type": "string"
     },
     "Label": {
       "description": "A key label: `[A-Za-z0-9_-]{1,64}`.",
@@ -35,9 +15,9 @@
       "maxLength": 1000,
       "type": "string"
     },
-    "OrgRepo": {
-      "description": "A GitHub repository as `Org/Repo`.",
-      "maxLength": 200,
+    "Para": {
+      "description": "Text of at most 4,000 UTF-8 bytes; longer narrative is cited by `DocRef`.",
+      "maxLength": 4000,
       "type": "string"
     },
     "PipelineKind": {
@@ -74,6 +54,21 @@
       ],
       "type": "object"
     },
+    "QuestionOption": {
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/Label"
+        },
+        "text": {
+          "$ref": "#/$defs/Line"
+        }
+      },
+      "required": [
+        "label",
+        "text"
+      ],
+      "type": "object"
+    },
     "Short": {
       "description": "Text of at most 200 UTF-8 bytes.",
       "maxLength": 200,
@@ -83,50 +78,69 @@
       "description": "A campaign slug or key segment: label parts joined by `.`.",
       "maxLength": 64,
       "type": "string"
+    },
+    "Title": {
+      "description": "A title: 1 to 200 UTF-8 bytes, never empty. All four leaf titles\n(campaign, cut spec, question and ruling) carry this type, ruled B\nunder Q-RS1: the epoch moves in this cut regardless, so tightening the\ntwo titles that were `Short` costs nothing extra and avoids a second\nepoch bump later just to make a title required.",
+      "maxLength": 200,
+      "type": "string"
     }
   },
-  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.follow_up.v1.schema.json",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.question.v2.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
+    "asked_on": {
+      "$ref": "#/$defs/Date"
+    },
     "campaign": {
       "$ref": "#/$defs/Slug"
     },
-    "item": {
-      "$ref": "#/$defs/Line"
+    "depends": {
+      "items": {
+        "$ref": "#/$defs/Line"
+      },
+      "maxItems": 8,
+      "type": "array"
     },
     "label": {
       "$ref": "#/$defs/Label"
     },
-    "locations": {
+    "options": {
       "items": {
-        "$ref": "#/$defs/CodeLocation"
+        "$ref": "#/$defs/QuestionOption"
       },
-      "maxItems": 16,
+      "maxItems": 8,
       "type": "array"
     },
-    "owner": {
-      "$ref": "#/$defs/Short"
+    "question": {
+      "$ref": "#/$defs/Para"
     },
-    "repo": {
-      "$ref": "#/$defs/OrgRepo"
+    "raised_in": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PipelineRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
-    "source": {
-      "$ref": "#/$defs/PipelineRef"
+    "recommended": {
+      "$ref": "#/$defs/Label"
     },
-    "why_it_can_wait": {
-      "$ref": "#/$defs/Line"
+    "title": {
+      "$ref": "#/$defs/Title"
     }
   },
   "required": [
     "campaign",
     "label",
-    "source",
-    "repo",
-    "locations",
-    "item",
-    "why_it_can_wait",
-    "owner"
+    "title",
+    "question",
+    "options",
+    "recommended",
+    "depends",
+    "asked_on"
   ],
-  "title": "PipelineFollowUp",
+  "title": "PipelineQuestion",
   "type": "object"
 }

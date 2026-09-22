@@ -200,7 +200,7 @@
       "type": "string"
     }
   },
-  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.resolution.v1.schema.json",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.resolution.v2.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "The record of how a subject was closed and by what. `sequence` is per\nsubject and set by the writer, `1` for the first, and it is the last\npart of the key, so a subject's resolutions share a prefix and a\nwithdrawn one is kept under its subject rather than overwritten.\nWhether a sequence is the previous plus one, and whether an earlier\nresolution still stands, are admission's rules: this crate refuses\nneither `0` nor a gap, exactly as it refuses neither `revision: 0` nor\na `revision` with no predecessor.",
   "properties": {

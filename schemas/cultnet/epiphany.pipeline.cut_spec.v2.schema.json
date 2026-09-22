@@ -267,6 +267,11 @@
       ],
       "type": "object"
     },
+    "Title": {
+      "description": "A title: 1 to 200 UTF-8 bytes, never empty. All four leaf titles\n(campaign, cut spec, question and ruling) carry this type, ruled B\nunder Q-RS1: the epoch moves in this cut regardless, so tightening the\ntwo titles that were `Short` costs nothing extra and avoids a second\nepoch bump later just to make a title required.",
+      "maxLength": 200,
+      "type": "string"
+    },
     "VerificationTest": {
       "properties": {
         "name": {
@@ -283,7 +288,7 @@
       "type": "object"
     }
   },
-  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.cut_spec.v1.schema.json",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.cut_spec.v2.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
     "adds": {
@@ -376,7 +381,7 @@
       "type": "array"
     },
     "title": {
-      "$ref": "#/$defs/Short"
+      "$ref": "#/$defs/Title"
     },
     "verification": {
       "$ref": "#/$defs/CutVerification"

@@ -129,7 +129,7 @@
       "type": "object"
     }
   },
-  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.verdict.v1.schema.json",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.verdict.v2.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
     "campaign": {

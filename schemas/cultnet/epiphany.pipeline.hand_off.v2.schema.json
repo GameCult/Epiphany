@@ -26,7 +26,7 @@
       "type": "string"
     }
   },
-  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.hand_off.v1.schema.json",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.hand_off.v2.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "A reassignment of stewardship, recorded in both minds. `documents` names\nwhat travels with it.",
   "properties": {

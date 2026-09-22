@@ -16,7 +16,7 @@
       "type": "string"
     }
   },
-  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.instance.v1.schema.json",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.pipeline.instance.v2.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "A mind's identity document. A store is canonical to exactly one\ninstance, and this says which; identity lives in the state, not in a\npath.",
   "properties": {
