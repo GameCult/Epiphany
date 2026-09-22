@@ -602,6 +602,28 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
       a check.
 
     Queued behind the RS Hands, which is using the harness now.
+  - **RS-2 and RS-1 landed** (Sonnet).
+    - **RS-2, `92ac16c`.** Removes `open_items`, `history` and the admission
+      window, plus `Reader::views()` and the `Reader` lifetime they alone
+      required. Net −543 against an estimate of about −440. The negative greps
+      are empty. Cut 9 27/27, Cut 10 65/65.
+      - V24L is dropped: with `history`'s door gone, "one door and not the
+        other" has no shape left.
+      - D13L is rewritten as `"queries"`. The harness judged the case-only
+        mutant `"Query"` a no-op, because it compares with PowerShell's
+        case-insensitive `-eq`. **That is a harness defect** and joins the
+        H1 follow-up.
+    - **RS-1, `0d6f9a6`.**
+      - Receipt v2 carries an `ordinal` equal to `head + 1`, left out of
+        the digest.
+      - `head` requires the ordinals to run exactly 1..N.
+      - The opener checks the epoch before the types.
+      - Five new tests.
+      - Readside mutations 9/9 (R1, R1L, R1L2, R3L, and R2/R5 with no
+        loosening, by the "binary rule" reasoning of D9/D12).
+      - H6 is re-anchored on the new gate order.
+      - Suites: Cut 8 67/67, Cut 9 27/27, Cut 10 65/65.
+    - **Soul's pass dispatched** (Opus).
   - **The read-side consumer cut is mapped** at `notes/eureka-read-side-cut.md`
     (Imagination, Opus). Cuts in order:
     - **P-1 and P-2:** CultLib, before merge. Now folded into selection's
