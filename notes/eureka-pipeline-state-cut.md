@@ -6341,3 +6341,8 @@ no longer exists.
 
 Dead operator question **Q2** survives as ruling 8's epoch rule; **Q5** survives
 as the `schemars` dependency, now in `epiphany-pipeline`.
+
+- **2026-09-22: Epiphany could not be built from a clean machine.** It pinned Ghostlight `22281891`, whose `vendor/cultcache-py` submodule points at the deleted `GameCult/cultcache-py`. Only local cargo caches hid this. The fix moves the pin to Ghostlight `22937b71`, where that submodule was replaced by the PyPI dependency, and makes three call-site edits in `epiphany-core/src/persona_turn.rs`: `word_budget: 180` (Ghostlight's own `PERSONA_WORD_BUDGET`), plus `output_schema` wrapped in `Some`.
+  - Commits: `codex/eureka-pipeline-state` `0bc90b9c`, `main` `4d1113ef`, `codex/epiphany-shakedown-live` `075049b9`, `codex/epiphany-model-bridge` `ed3c7471`.
+  - Clean build on Yggdrasil: 244/244 tests pass. Peak 4.36 GiB.
+  - **Recorded, not fixed:** `codex/epiphany-model-bridge` has its own pre-existing break. It depends on `path = "../vendor/cultcache-rs"` and `"../vendor/cultnet-rs"`, which do not exist.
