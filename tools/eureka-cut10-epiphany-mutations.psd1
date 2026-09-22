@@ -1,8 +1,12 @@
 # Eureka Cut 10 mutation suite, the Epiphany half: the public slug door,
 # `Slug::validate_slug`, filled into its owner by Self's ruling on the F6
-# fork. Entries only; the harness is tools/eureka-mutations.ps1.
+# fork. Entries only; the harness moved out of this repo, 2026-09-17, to
+# `C:\Users\Meta\.claude\skills\eureka\tools\eureka-mutations.ps1`
+# (`GameCult/Eureka`), so one copy serves every campaign. It takes `-Repo`
+# when run from outside that checkout.
 #
-#   powershell -File tools/eureka-mutations.ps1 `
+#   powershell -File C:\Users\Meta\.claude\skills\eureka\tools\eureka-mutations.ps1 `
+#       -Repo F:\Projects\Epiphany `
 #       -Entries tools/eureka-cut10-epiphany-mutations.psd1 `
 #       -Target epiphany-pipeline/src/lib.rs `
 #       -Test 'cargo test -p epiphany-pipeline --lib'
@@ -33,6 +37,33 @@
             Test = 'tests::slug_validate_applies_the_dotted_grammar'
             Old  = '        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b''_'' | b''-''));'
             New  = '        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b''_'' | b''-'' | b''\\''));'
+        },
+        @{
+            Id   = 'S5whole'
+            Rule = 'The whole-name bound is 64 bytes: `dotted_text` refuses a value one byte past it, even when every individual label sits far under 64.'
+            Test = 'tests::slug_validate_applies_the_dotted_grammar'
+            Old  = 'fn dotted_text(field: &str, value: &str) -> Result<(), PipelineRefusal> {
+    if value.is_empty() || value.len() > 64 {
+        return Err(format_error(field, value));
+    }'
+            New  = 'fn dotted_text(field: &str, value: &str) -> Result<(), PipelineRefusal> {
+    if value.is_empty() {
+        return Err(format_error(field, value));
+    }'
+        },
+        @{
+            Id   = 'S5label'
+            Rule = 'The per-label bound is 64 bytes too, the same check `Label` is held to on its own: a lone label carrying no dot is refused one byte past it.'
+            Test = 'tests::slug_validate_applies_the_dotted_grammar'
+            Old  = '    if !valid || value.is_empty() || value.len() > 64 {'
+            New  = '    if !valid || value.is_empty() {'
+        },
+        @{
+            Id   = 'S5nul'
+            Rule = 'NUL is refused as a label byte, not merely as one more character `is_ascii_alphanumeric` happens to reject.'
+            Test = 'tests::slug_validate_applies_the_dotted_grammar'
+            Old  = '        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b''_'' | b''-''));'
+            New  = '        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b''_'' | b''-'' | 0u8));'
         }
     )
 }

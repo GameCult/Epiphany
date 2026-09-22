@@ -2484,5 +2484,37 @@ mod tests {
         refused("", "the empty string has no label");
         refused("outer..inner", "an empty label between two dots is refused");
         refused(".", "a single dot is one empty label");
+
+        // S5: the 64-byte whole-name bound, pinned with a two-label name
+        // whose parts sit far under 64 bytes each (31 and 32, then 32 and
+        // 32), so only `dotted_text`'s own `value.len() > 64` check -- not
+        // `label_text`'s per-part one -- can be the check that refuses 65.
+        let filler = |n: usize| "a".repeat(n);
+        let at_64 = format!("{}.{}", filler(31), filler(32));
+        let at_65 = format!("{}.{}", filler(32), filler(32));
+        assert_eq!(at_64.len(), 64, "a 64-byte whole name, two labels well under 64 each");
+        assert_eq!(at_65.len(), 65, "one byte past the whole-name bound, same two-label shape");
+        assert_eq!(slug(&at_64).validate_slug(), Ok(()));
+        refused(&at_65, "65 bytes overall is refused, even though neither label alone reaches 64");
+
+        // S5: the 64-byte per-label bound, pinned directly against `Label`
+        // (the type `label_text` guards on its own, with no separate
+        // whole-name wrapper), and with a lone label carrying no dot, so only
+        // `label_text`'s own length check can be the one refusing 65.
+        let label_at_64 = Label::from(filler(64).as_str());
+        let label_at_65 = Label::from(filler(65).as_str());
+        assert_eq!(label_at_64.validate("label"), Ok(()));
+        assert!(
+            matches!(
+                label_at_65.validate("label"),
+                Err(PipelineRefusal::InvalidFormat { ref field, .. }) if field == "label"
+            ),
+            "a 65-byte label was not refused, got {:?}",
+            label_at_65.validate("label")
+        );
+
+        // S5: NUL is refused as a label byte, not merely as one more
+        // non-alphanumeric character that happens to be caught by coincidence.
+        refused("a\u{0}b", "NUL is not a label byte");
     }
 }
