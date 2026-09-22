@@ -465,7 +465,41 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
     `require_grammatical_instance` and its daemon-side branch are deleted.
     This rejects the interim option of moving the probe without a pin move,
     because that would leave a workaround living beside its owner.
-    **Cut 10 stays open until the fourth fix batch lands** (Hands, Sonnet): N1
+    **The fourth fix batch landed** (Sonnet): leaf `9d3a3efd`, Huginn
+    `cc71a56` and `4f7e3b5`.
+    - **Leaf.** It gains `Slug::validate_slug`. The name keeps it from
+      shadowing `Bounded::validate` inside the crate, the same reason
+      `validate_ref` is named as it is.
+    - **Huginn, N1.** Huginn moves its pin to the new leaf. `require_instance`,
+      `Mind::open` and `open_with` all go through the leaf's door.
+      `require_grammatical_instance` and its branch on the daemon side are
+      deleted. The escape probe is now refused, and no file is created.
+      `Admit` and `Query` refuse a fullwidth name identically.
+    - **Huginn, N3.** One generated test covers 30 separator variants.
+    - **Huginn, N4.** The size gate is exercised across operation and runtime
+      id.
+    - **N5 and N6.** Prose corrected.
+    - **Graph.** `cargo tree -d` shows one `cultcache-rs` (`a0813c6`).
+    - **Tests.** Leaf 34→35, mind 60→62, daemon 17→19.
+    - **Mutation suites.** Every entry killed, M0 green in each, restores
+      verified by hash:
+
+      | Suite | Killed |
+      |---|---|
+      | leaf | 2/2 |
+      | Cut 8 | 67/67 |
+      | Cut 9 | 38/38 |
+      | Cut 10 | 71/71 |
+
+    - **Correction owed here (N5): the earlier line "S1 and S1d … each now
+      dies on all three" is false.** S1d exempts the orphan fault by
+      construction and dies on the undecodable fault. S1 dies on the orphan.
+    - **A scar reported by Hands.** Hands edited a harness target while a
+      mutation run was in flight. At the end of the run the harness restored
+      the bytes it had captured at the start, which silently threw away the
+      edits. `git status` caught it before commit.
+    - **Soul's pass dispatched** (Opus).
+    - *History:* **Cut 10 stays open until the fourth fix batch lands** (Hands, Sonnet): N1
     through the leaf check, one generated separator test for N3, fixtures that
     vary the operation and the runtime id for N4, and the prose fixes for N5
     and N6.
