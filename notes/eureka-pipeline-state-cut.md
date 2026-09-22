@@ -624,6 +624,21 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
       - H6 is re-anchored on the new gate order.
       - Suites: Cut 8 67/67, Cut 9 27/27, Cut 10 65/65.
     - **Soul's pass dispatched** (Opus).
+  - **Operator rulings, 2026-09-22:** Q-RS1 is B (one non-empty `Title` for
+    all four titles), Q-RS2 is A (`huginn-mind` links `cultnet-rs`;
+    FU-SelSplit recorded), Q-BP1 is A (chunks on the held session). Recorded
+    in their maps.
+  - **RS-L landed** (Sonnet) at `d74e36aa`.
+    - `Title`, 1 to 200 bytes and non-empty, is used by campaign, cut spec,
+      question and ruling.
+    - Epoch v2, with 13 type ids and schema files renamed. The negative grep
+      is empty.
+    - `validate_org_repo` and `validate_label` are added as doors.
+    - Leaf tests go from 35 to 37.
+    - Six new entries (L1, L1L, L2, L2L, L3, L3L), all killed.
+    - **Stale:** entry E1 in `tools/eureka-cut8-epiphany-mutations.psd1`
+      still anchors on the v1 epoch string, so that historical suite cannot
+      rerun. **Soul's pass dispatched**, and it includes E1.
   - **The read-side consumer cut is mapped** at `notes/eureka-read-side-cut.md`
     (Imagination, Opus). Cuts in order:
     - **P-1 and P-2:** CultLib, before merge. Now folded into selection's
