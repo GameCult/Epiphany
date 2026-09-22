@@ -6454,4 +6454,11 @@ as the `schemars` dependency, now in `epiphany-pipeline`.
     - **4:** `lib.rs:2868` says "eleven" above twelve fixtures. **Self's ruling made the same slip.** Say twelve.
     - **6:** `campaign.repos` accepts both spellings of one repo and validates. Refuse duplicates **by identity**.
   - **7, recorded, not fixed:** `identity()` allocates per comparison. Revisit only if a profile says so.
+  - **2026-09-22: the closing fixes landed** at `38bc5381` and `bcfc0d54`. **RS-L is closed.**
+    - The unequal direction is pinned, and all five mutants die: `eq -> true`, `hash -> ()`, `cmp -> Equal`, `partial_cmp -> None`, and a raw-string `partial_cmp`.
+    - The `OrgRepo` schema description goes from 1,207 to 313 characters, with the reasoning moved to a source comment that schemars never sees.
+    - The bidi count comment says twelve.
+    - `campaign.repos` refuses duplicates by identity, as `DuplicateRepo { field, repo }`.
+    - Tests: 38. The schema pin is green.
+    - **Two corrections to Self's ruling:** only **8** schemas reference `OrgRepo`, not nine, confirmed from the test's own diff. The duplicate check needed an optional hook on `value_types!`, because a cross-element invariant cannot be expressed per field; it is documented at the macro and at the call site.
   - **5, answered here so BP-2 does not rediscover it.** Stewardship and hand-off keys change for any repo with an uppercase letter, which would strand documents in an existing store. **BP-2 moves the leaf to epoch v2, and Huginn refuses a store from a previous epoch at open.** So the mismatch cannot happen silently: an old store is refused loudly, which is the designed migration. BP-2 states this rather than writing a key migration.
