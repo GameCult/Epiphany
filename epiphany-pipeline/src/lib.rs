@@ -154,23 +154,34 @@ fn dotted_text(field: &str, value: &str) -> Result<(), PipelineRefusal> {
     Ok(())
 }
 
+/// GitHub's own grammar for `owner/repo`, exactly one `/`: the owner is
+/// `[A-Za-z0-9-]`, 1 to 39 bytes, with no leading or trailing hyphen; the repo
+/// is `[A-Za-z0-9._-]`, 1 to 100 bytes, and is never `.` or `..`.
 fn org_repo_text(field: &str, value: &str) -> Result<(), PipelineRefusal> {
-    match value.split_once('/') {
-        Some((org, repo))
-            if !org.is_empty() && !repo.is_empty() && !repo.contains('/') && value.len() <= 200 =>
-        {
-            Ok(())
-        }
-        _ => Err(format_error(field, value)),
+    let valid = value.split_once('/').is_some_and(|(owner, repo)| {
+        !repo.contains('/')
+            && (1..=39).contains(&owner.len())
+            && owner.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+            && !owner.starts_with('-')
+            && !owner.ends_with('-')
+            && (1..=100).contains(&repo.len())
+            && repo.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+            && repo != "."
+            && repo != ".."
+    });
+    if valid {
+        Ok(())
+    } else {
+        Err(format_error(field, value))
     }
 }
 
 macro_rules! bounded_text {
     ($($(#[$doc:meta])* $name:ident = $limit:literal, $check:expr;)*) => {$(
-        $(#[$doc])*
         #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
         #[serde(transparent)]
         #[schemars(extend("maxLength" = $limit))]
+        $(#[$doc])*
         pub struct $name(pub String);
         impl Bounded for $name {
             fn validate(&self, field: &str) -> Result<(), PipelineRefusal> {
@@ -190,8 +201,19 @@ fn within(limit: usize) -> impl Fn(&str, &str) -> Result<(), PipelineRefusal> {
     move |field: &str, value: &str| bound(field, limit, value.len())
 }
 
+/// A title holds at least one non-whitespace character and no control
+/// characters: C0 (`U+0000`-`U+001F`), C1 (`U+0080`-`U+009F`), the line and
+/// paragraph separators `U+2028`/`U+2029`, the zero-width characters
+/// `U+200B`-`U+200D` and `U+2060`, and the byte-order mark `U+FEFF`.
+/// Surrounding whitespace is otherwise allowed once a visible character is
+/// present.
 fn title_text(field: &str, value: &str) -> Result<(), PipelineRefusal> {
-    if value.is_empty() {
+    let visible = value.chars().any(|character| !character.is_whitespace());
+    let control = value.chars().any(|character| {
+        matches!(character, '\u{0000}'..='\u{001F}' | '\u{0080}'..='\u{009F}' | '\u{2028}' | '\u{2029}')
+            || matches!(character, '\u{200B}'..='\u{200D}' | '\u{2060}' | '\u{FEFF}')
+    });
+    if !visible || control {
         return Err(format_error(field, value));
     }
     within(200)(field, value)
@@ -200,11 +222,10 @@ fn title_text(field: &str, value: &str) -> Result<(), PipelineRefusal> {
 bounded_text! {
     /// Text of at most 200 UTF-8 bytes.
     Short = 200, |field, value| within(200)(field, value);
-    /// A title: 1 to 200 UTF-8 bytes, never empty. All four leaf titles
-    /// (campaign, cut spec, question and ruling) carry this type, ruled B
-    /// under Q-RS1: the epoch moves in this cut regardless, so tightening the
-    /// two titles that were `Short` costs nothing extra and avoids a second
-    /// epoch bump later just to make a title required.
+    /// A title: 1 to 200 UTF-8 bytes, enforced by admission; JSON Schema
+    /// length counts characters. A title holds at least one non-whitespace
+    /// character and carries no control characters (see `title_text`).
+    #[schemars(extend("minLength" = 1))]
     Title = 200, title_text;
     /// Text of at most 1,000 UTF-8 bytes.
     Line = 1000, |field, value| within(1000)(field, value);
@@ -1228,8 +1249,9 @@ mod tests {
         let key = |document: PipelineDocument| pipeline_key(&document);
 
         // Soul's hand-off pair. A dotted slug is ordinary on the receiver side
-        // and a dotted repo name on the repo side, so both are escaped: left
-        // unescaped these two both key to
+        // and a dotted repo name (the part after the mandatory `/`, GitHub's
+        // grammar owns no dot on the owner side) is ordinary on the repo side,
+        // so both are escaped: left unescaped these two both key to
         // `yggdrasil:hand_off:thought-cage.GameCult.Epiphany_-thing.2026-09-15`.
         let handed = |to: &str, repo: &str| {
             let mut hand_off = hand_off_sample();
@@ -1238,14 +1260,14 @@ mod tests {
             key(PipelineDocument::HandOff(hand_off))
         };
         let dotted_receiver = handed("thought-cage.GameCult", "Epiphany/thing");
-        let dotted_repo = handed("thought-cage", "GameCult.Epiphany/thing");
+        let dotted_repo = handed("thought-cage", "GameCult/Epiphany.thing");
         assert_eq!(
             dotted_receiver,
             Ok(format!("{INSTANCE}:hand_off:thought-cage_dGameCult.Epiphany_-thing.2026-09-15"))
         );
         assert_eq!(
             dotted_repo,
-            Ok(format!("{INSTANCE}:hand_off:thought-cage.GameCult_dEpiphany_-thing.2026-09-15"))
+            Ok(format!("{INSTANCE}:hand_off:thought-cage.GameCult_-Epiphany_dthing.2026-09-15"))
         );
         assert_ne!(dotted_receiver, dotted_repo, "a dotted repo and a dotted receiver cannot claim one key");
 
@@ -1521,25 +1543,27 @@ mod tests {
         assert_eq!(key, Ok(format!("{INSTANCE}:stewardship:GameCult_-Epiphany.n1")));
         assert!(!key.unwrap().contains('/'), "no key segment carries a slash");
 
-        // The escape is not a cosmetic substitution, and the pair that proves it
-        // is a pair: under `/` -> `_` alone both of these key to
+        // The escape is not a cosmetic substitution, and the pair that proves
+        // it is a pair: GitHub's grammar keeps `.` and `_` out of the owner,
+        // so both live in the repo half here, and under a naive scheme that
+        // collapsed `/`, `.` and `_` all to a bare `_` both of these key to
         // `GameCult_Epiphany_thing`, and one of the two documents is lost.
         let keyed = |repo: &str| {
             let mut value = stewardship.clone();
             value.repo = OrgRepo(repo.into());
             pipeline_key(&PipelineDocument::Stewardship(value))
         };
-        let underscored_org = keyed("GameCult_Epiphany/thing");
+        let dotted_repo = keyed("GameCult/Epiphany.thing");
         let underscored_repo = keyed("GameCult/Epiphany_thing");
         assert_eq!(
-            underscored_org,
-            Ok(format!("{INSTANCE}:stewardship:GameCult__Epiphany_-thing.n1"))
+            dotted_repo,
+            Ok(format!("{INSTANCE}:stewardship:GameCult_-Epiphany_dthing.n1"))
         );
         assert_eq!(
             underscored_repo,
             Ok(format!("{INSTANCE}:stewardship:GameCult_-Epiphany__thing.n1"))
         );
-        assert_ne!(underscored_org, underscored_repo, "two repos cannot claim one key");
+        assert_ne!(dotted_repo, underscored_repo, "two repos cannot claim one key");
 
         let mut no_org = stewardship.clone();
         no_org.repo = OrgRepo("Epiphany".into());
@@ -2577,6 +2601,8 @@ mod tests {
     #[test]
     fn the_org_repo_and_label_doors_are_the_grammar() {
         assert_eq!(OrgRepo::from("GameCult/Epiphany").validate_org_repo(), Ok(()));
+        assert_eq!(OrgRepo::from("a/b").validate_org_repo(), Ok(()));
+        assert_eq!(OrgRepo::from("a-b/c.d_e").validate_org_repo(), Ok(()));
         let repo_refused = |value: &str, why: &str| {
             let result = OrgRepo::from(value).validate_org_repo();
             assert!(
@@ -2588,9 +2614,25 @@ mod tests {
         repo_refused("/Repo", "an empty org before the slash");
         repo_refused("GameCult/", "an empty repo after the slash");
         repo_refused("a/b/c", "a second slash makes the repo half ambiguous");
-        let org_at_201 = format!("{}/{}", "a".repeat(99), "a".repeat(101));
-        assert_eq!(org_at_201.len(), 201, "one byte past the 200-byte org_repo bound");
-        repo_refused(&org_at_201, "201 bytes overall is refused");
+        repo_refused("../..", "an owner of dots is not GitHub's grammar");
+        repo_refused("a/..", "a repo of .. is refused outright");
+        repo_refused("a/.", "a repo of . is refused outright");
+        repo_refused("-a/b", "a leading hyphen is not a valid owner");
+        repo_refused("a-/b", "a trailing hyphen is not a valid owner");
+        repo_refused("a b/c", "a space is not an owner byte");
+        repo_refused("a/b c", "a space is not a repo byte");
+        repo_refused("\u{e9}/\u{fc}", "non-ascii bytes are refused on either side");
+        repo_refused("\0/\0", "NUL is refused on either side");
+        repo_refused("a\n/b", "a newline is not an owner byte");
+        let owner_at_40 = format!("{}/b", "a".repeat(40));
+        repo_refused(&owner_at_40, "40 bytes is past the 39-byte owner bound");
+        let repo_at_101 = format!("a/{}", "a".repeat(101));
+        repo_refused(&repo_at_101, "101 bytes is past the 100-byte repo bound");
+        repo_refused("a//b", "an empty middle segment is still a second slash");
+        repo_refused("/b", "an empty owner is refused");
+        repo_refused("a/", "an empty repo is refused");
+        repo_refused("a.b/c", "a dot is not an owner byte");
+        repo_refused("a_b/c", "an underscore is not an owner byte");
 
         assert_eq!(Label::from("cut-10").validate_label(), Ok(()));
         let label_refused = |value: &str, why: &str| {
@@ -2638,6 +2680,43 @@ mod tests {
             PipelineDocument::Ruling(ruling.clone()).validate(),
             Err(PipelineRefusal::InvalidFormat { field: "ruling.title".into(), value: String::new() })
         );
+
+        // F2: a title is a visible placeholder, not merely a non-empty one. A
+        // string of nothing but whitespace, or one carrying a control
+        // character (C0, C1, a line/paragraph separator, a zero-width
+        // character, or the byte-order mark), is refused the same way an
+        // empty title is; surrounding whitespace around a visible character
+        // is still allowed.
+        let refused = |value: &str| {
+            let mut refused_question = question.clone();
+            refused_question.title = Title(value.into());
+            assert_eq!(
+                PipelineDocument::Question(refused_question).validate(),
+                Err(PipelineRefusal::InvalidFormat { field: "question.title".into(), value: value.into() }),
+                "{value:?} should be refused"
+            );
+        };
+        refused(" ");
+        refused("   ");
+        refused("\0");
+        refused("\n");
+        refused("a\nb");
+        refused("\u{200b}");
+        refused("\u{feff}");
+        refused("\u{80}");
+
+        let accepted = |value: &str| {
+            let mut accepted_question = question.clone();
+            accepted_question.title = Title(value.into());
+            assert_eq!(
+                PipelineDocument::Question(accepted_question).validate(),
+                Ok(()),
+                "{value:?} should validate"
+            );
+        };
+        accepted("a");
+        accepted("\u{e9}");
+        accepted(" a ");
 
         question.title = Title("a".repeat(200));
         assert_eq!(PipelineDocument::Question(question.clone()).validate(), Ok(()));
