@@ -6374,3 +6374,34 @@ as the `schemars` dependency, now in `epiphany-pipeline`.
   - Epiphany `703fdd0b` (1,021 lines, the leaf suites).
   - Tests pin behaviour. Soul runs cargo-mutants on the diff and makes one-off hand probes.
 - **Next on this campaign:** BP-2, the widened pin move, waits on selection Cut 1 merging and on BP-1. The RS-L fix (`8473e75d`) gets its Soul pass now.
+- **Soul on the RS-L fix, 2026-09-22** (Opus, on Yggdrasil).
+  - **Held:**
+    - cargo-mutants 27.1: 22/22 caught. Leaf tests: 37.
+    - OrgRepo bounds are exact.
+    - The listed title classes are refused.
+    - Huginn builds against the new leaf. Its tests show 8 expected `Title` compile errors, which are BP-2's load.
+  - **RS-L does not close.** Findings:
+    - **S1:** DEL (U+007F) passes. The hand-written C0/C1 ranges skip it.
+    - **S2:** "visible" is undefined. A title made only of bidi controls, LRM/RLM, U+180E, a lone combining mark, variation selectors, tags or Hangul fillers is accepted. RLO followed by text allows Trojan-source spoofing.
+    - **S3:** refusing ZWNJ/ZWJ rejects Persian text and emoji sequences.
+    - **S4:** hand probes H01–H10 survive. Unpinned: the owner and repo bounds, a hyphenated repo, U+2028/9, the C1 and C0 edges, U+200C/D, U+2060, and NBSP.
+    - **S5:** `a/b.git` is accepted, giving the same repo a second identity.
+    - **S6:** GitHub names are case-insensitive. Huginn compares repos by exact string (`admission.rs:505`, `docs.rs:103`), so one repo can hold two stewardships.
+    - **S7:** schema prose. `Title` names the private `title_text`, and OrgRepo says maxLength 200 where the true maximum is 140.
+    - **S8:** the repo-contains-slash check is dead.
+- **Self's rulings on the RS-L second fix, 2026-09-22:**
+  - **Title.** A title is valid only if all of these hold:
+    - it contains at least one `char::is_alphanumeric()` character;
+    - it contains no `char::is_control()` character;
+    - it contains no bidi control (U+061C, U+200E/F, U+202A–E, U+2066–9);
+    - it is 1–200 bytes.
+
+    **The zero-width denylist is deleted**, so ZWJ and ZWNJ are allowed alongside real content. The rule uses std only, with no Unicode property tables. An emoji-only title is refused. **Flagged for the operator: this refines the accepted F2 rule.**
+  - **OrgRepo.**
+    - Refuse repo names ending in `.git`.
+    - **Identity is ASCII-case-insensitive.** The leaf exposes one canonical key, `OrgRepo::identity()` (ASCII lowercase), and every comparison and key goes through it. Huginn adopts it at BP-2.
+    - Double hyphens stay allowed.
+  - **S4:** pin every boundary and class with a behavioural test.
+  - **S7:** schema descriptions state the rules and the true maxima.
+  - **S8:** delete the dead check.
+  - **In Hands (Sonnet).**
