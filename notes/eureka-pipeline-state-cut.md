@@ -545,6 +545,53 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
     restores the bytes it captured at M0, and never checks whether the current
     bytes are the mutant it wrote (`eureka-mutations.ps1:163-175, 393, 415`).
     Fixed in the Eureka repository in the same batch.
+  - **The residue batch landed** (Sonnet). Commits:
+    - Huginn `65c46aa`: seals `path_for`, adds N1 entries on all three sites
+      (`open_with` now dies), the U+2010 fold, and gate fixtures that vary the
+      operation and runtime id independently.
+    - Huginn `f7e0d02`: moves the leaf pin to `b3ae787b`, which carries S5
+      (64-byte bounds and NUL pinned) and S8. The lockfile also picked up a
+      `getrandom` 0.4.3→0.3.4 change as a side effect.
+    - Eureka `5d2bd3e`, H1: the harness saves a mid-run edit as
+      `.eureka-mutation-overwritten`, prints `EDIT LOST`, and fails the run.
+      Demonstrated before and after.
+
+    Tests: mind 65, daemon 20, leaf 35. Every suite is fully killed:
+
+    | Suite | Killed |
+    |---|---|
+    | leaf | 5/5 |
+    | Cut 8 | 67/67 |
+    | Cut 9 | 38/38 |
+    | Cut 10 | 77/77 |
+
+    There is one `cultcache-rs`. **Soul's check of the residue is
+    dispatched.** It covers two things. First, `path_for` became
+    `store_path_for` behind a test-support feature, and a consumer that turns
+    the feature on might reach the bypass again. Second, the lockfile side
+    effect.
+  - **The read-side consumer cut is mapped** at `notes/eureka-read-side-cut.md`
+    (Imagination, Opus). Cuts in order:
+    - **P-1 and P-2:** CultLib, before merge. Now folded into selection's
+      R-G and R-M.
+    - **RS-L:** leaf epoch v2, titles, and the `OrgRepo` and `Label` doors.
+    - **RS-2:** subtraction.
+    - **RS-1:** receipt v2 with ordinals, and the epoch gate moved ahead of
+      the type gate.
+    - **BP-2, widened:** one pin move.
+    - **RS-3:** the consumer, including the value door for S6.
+
+    Its appendix carries the summary type, copied from a session scratchpad
+    that will not survive.
+
+    Probed facts:
+    - The seven old relations each equal one selection.
+    - Admission order cannot be recovered from the clock: 31 receipts carry
+      5 distinct seconds.
+    - Today's opener refuses an old store by the wrong gate.
+
+    **Operator questions Q-RS1 (titles) and Q-RS2 (whether `huginn-mind` may
+    link `cultnet-rs`) are open.**
     - *History:* **Cut 10 stays open until the fourth fix batch lands** (Hands, Sonnet): N1
     through the leaf check, one generated separator test for N3, fixtures that
     vary the operation and the runtime id for N4, and the prose fixes for N5
