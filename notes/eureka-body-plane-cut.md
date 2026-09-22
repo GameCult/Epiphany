@@ -771,7 +771,17 @@ Two real forks. Every other choice above (the content plane over the body
 plane per F2, the reference's manifest, the ephemeral store, the constants,
 the order) is a default with its reason stated. It is recorded, not asked.
 
-**Q-BP1. Which physical path carries the body?**
+**Q-BP1: RULED A by the operator, 2026-09-22 ("A is fine here").**
+- Chunk requests and responses travel on the session the client already
+  holds, byte-identical on the wire to the reference's
+  `CultMeshLegacyRudpContentServer`.
+- BP-1 amends `transport-planes.md` to name this as Rust's *explicit* content
+  path, never an implicit default.
+- It lasts until Rust has an authenticated content connector, TCP+TLS or
+  QUIC. That later move sits behind the same `fetch_content` owner and needs
+  no change to the reference type.
+
+*History, the question as asked:* **Q-BP1. Which physical path carries the body?**
 
 CultMesh's own transport doctrine says "Schema messages must not carry bulk
 bodies" and that the RUDP content path is legacy, "compatibility and parity
