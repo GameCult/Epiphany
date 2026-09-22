@@ -80,7 +80,7 @@
       "type": "string"
     },
     "Title": {
-      "description": "A title: 1 to 200 UTF-8 bytes. Holds at least one alphanumeric\ncharacter, no control character, and no bidi control character\n(`U+061C`, `U+200E`, `U+200F`, `U+202A`-`U+202E`, `U+2066`-`U+2069`).",
+      "description": "A title: 1 to 200 UTF-8 bytes, enforced by admission; JSON Schema\nlength counts characters. Holds at least one alphanumeric character,\nno control character, and no bidi control character (`U+061C`,\n`U+200E`, `U+200F`, `U+202A`-`U+202E`, `U+2066`-`U+2069`).",
       "maxLength": 200,
       "minLength": 1,
       "type": "string"
