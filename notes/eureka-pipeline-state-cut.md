@@ -408,6 +408,26 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
     Eureka skill.
   - **The third fix batch goes to Hands (Sonnet): F1 through F6, plus F7's
     prose.**
+  - **The third fix batch landed** (Sonnet), `7611d1b..7fc8ed3`, 77 tests.
+    - **F1:** separator-only fixture pairs `UNDERSCORE_INSTANCE` and
+      `DOTTED_INSTANCE`; D1L6/D1L7.
+    - **F2:** the boundary at a second `message_id` length; D20L6.
+    - **F3:** `open_items` refuses on three in-campaign faults: an orphan
+      receipt, an undecodable document, and a document written by two
+      receipts. S1 and S1d first anchored on `.views()?` and could not fail
+      for two of the three faults, because those faults arise in
+      `Reader::new`. Widened, and each now dies on all three.
+    - **F4 and F5:** prose corrected.
+    - **F6:** `require_grammatical_instance` on the read path.
+    - **F7:** prose corrected; the store is not sealed.
+    - Cut 10: 65 entries, 65 killed, M0 green. Cut 8 and Cut 9 were not rerun,
+      since only header text changed.
+    - **Flagged for Soul by Self:** F6's check is not in its owner. The slug
+      grammar (`Bounded`) is private to the `epiphany_pipeline` crate, so the
+      daemon wraps the declared name in a throwaway `PipelineInstance` and
+      calls `validate()` on it. That is a gap filled beside its owner, not in
+      it. It also applies only to the read path, while `require_instance` is
+      shared with admission. **Soul's pass dispatched** (Opus).
 - **The harness moved out of this repo, 2026-09-17.** The fourth of the
   process changes the operator approved on cost review. It now lives in the
   Eureka repo at `C:\Users\Meta\.claude\skills\eureka\tools\eureka-mutations.ps1`
