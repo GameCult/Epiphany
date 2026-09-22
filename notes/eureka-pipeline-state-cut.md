@@ -355,6 +355,59 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
   - **Count correction, Self's to make:** the entry count above was wrong.
     The suite held **53 entries at `44ed8a9`**, not 52, and holds **59 as of
     `202e5e3`**.
+- **Soul's pass on the Cut 10 second fix batch, 2026-09-22** (Opus). Held: 164
+  kills with none surviving (Cut 10 59, Cut 9 38, Cut 8 67), every M0 green,
+  every restore verified by hash, 74 tests. The boundary test passed 60 runs
+  out of 60 and is not flaky: `settled_session` absorbs the 1023-packet
+  transient. The open-items pin, the boundary pin and the case pin were each
+  killed here, and each survives the pre-batch suite. No false "unpinnable"
+  prose remains in the range. **Cut 10 does not close.**
+  - **F1, confirmed, medium: the instance check survives separator folding.**
+    `Slug` is dotted labels, so `_`, `-` and `.` are all legal, and
+    `thought-cage` and `thought_cage` are two different minds. Folding `_` or
+    `.` into `-` at `mind.rs:129` passes every suite. The failure: a batch that
+    declares `thought_cage` is admitted by `thought-cage`, which is a write
+    into the wrong mind. The cause is that the fixture instance `yggdrasil`
+    contains no separator.
+  - **F2, confirmed, low-medium: the size gate is pinned for one envelope
+    shape.** "Payload plus a fixed 231" survives, because every synthetic
+    reply uses `message_id` `m-0`. The reply echoes the client's id, so the
+    envelope's overhead is under the client's control. With a 40-byte id, a
+    reply up to about 36 bytes over the limit passes the gate, and the hub
+    then drops it silently.
+  - **F3, confirmed, low: the open-items pin drives one fault, and it sits
+    outside the campaign.** Two loosenings survive. One swallows an
+    `Unavailable` when the fault is inside the campaign asked about. The other
+    swallows every `Unavailable` except a missing receipt, so an undecodable
+    document (`docs.rs:46`) or a document written by two receipts
+    (`query.rs:145`) reads as "nothing open".
+  - **F4, low:** `fixtures.rs:33-34` describes `Label`'s grammar as though it
+    were the slug's grammar. That prose hides exactly the `.` equivalence F1
+    exploits.
+  - **F5, low:** the entries headers for Cuts 8, 9 and 10 still name the
+    deleted Epiphany harness path.
+  - **F6, plausible, low:** a declared name is never checked against the slug
+    grammar on the read path, so a fullwidth fold survives. It aliases a name
+    rather than colliding with one.
+  - **F7, informational: a second writer already existed.** The two
+    re-exports opened nothing new, but only because `MindStore`'s supertrait
+    `CacheBackingStore` and the public `compare_and_swap_batch` already let
+    non-test code outside the crate write rows. The line "No non-test code
+    outside this crate touches a row directly" (`store.rs:18-19`) is prose,
+    not structure. The re-export is also a derive macro as well as two
+    traits, because the macro and the trait share a name. The prose is
+    corrected in the third fix batch. **Follow-up, recorded: seal the store
+    so admission is its only write path.** That is its own cut: it changes
+    the public trait surface, and the Cut 9 header's "no behaviour this Body
+    can reach" rests on the same false premise.
+  - **F8, process, confirmed:** two checkouts sharing
+    `C:\Users\Meta\.cargo-target-codex` produce the same artifact hash. A plain
+    `cargo test` in the checkout whose sources are older does not rebuild, and
+    it ran the other checkout's last mutant binary. The harness is immune,
+    because it bumps the time on every file it writes. Became a rule in the
+    Eureka skill.
+  - **The third fix batch goes to Hands (Sonnet): F1 through F6, plus F7's
+    prose.**
 - **The harness moved out of this repo, 2026-09-17.** The fourth of the
   process changes the operator approved on cost review. It now lives in the
   Eureka repo at `C:\Users\Meta\.claude\skills\eureka\tools\eureka-mutations.ps1`
