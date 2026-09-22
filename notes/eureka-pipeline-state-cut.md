@@ -428,6 +428,47 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
       calls `validate()` on it. That is a gap filled beside its owner, not in
       it. It also applies only to the read path, while `require_instance` is
       shared with admission. **Soul's pass dispatched** (Opus).
+  - **Soul's pass on the third fix batch, 2026-09-22** (Opus). **Held:** 77
+    tests. Cut 10 65/65, Cut 9 38/38, Cut 8 67/67, so 170 killed, every M0
+    green, every restore verified by hash. The Cut 8 and Cut 9 diffs are
+    comments only. The code in the range does what the ledger says.
+    **Nothing blocking in the range**, but it carries an older defect.
+    - **N1, confirmed, medium-low, predates the range: nothing checks the
+      mind's own name, and a name can put the store outside the state root.**
+      `serve.rs:108` builds `Slug` straight from the command line.
+      `Mind::open` and `open_with` (`mind.rs:116,137`) never validate it.
+      `path_for` (`mind.rs:108-110`) joins it as written. A probe:
+      `Daemon::open(outer/inner, Slug("..\\..\\escaped"))` returned `Ok` and
+      created `outer/escaped/mind.redb`. It then refused its own name on every
+      read. Admission's A1 (`admission.rs:109`) never checks the grammar
+      either, so one fullwidth name gets `ForeignInstance` from `Admit` and
+      `InvalidFormat` from `Query`.
+    - **N2, F6 placement:** it is the same grammar, by construction, and
+      neither direction of disagreement can be reached. The refusal still
+      names `instance.instance`, a field the client never sent.
+    - **N3, low-medium:** four separator mutants survive all 77 tests:
+      folding `_` and `.` into each other, a fold on the mind's side only,
+      `trim_matches('-')`, and collapsing `--`. The fixture minds contain
+      neither `_` nor `.`.
+    - **N4, low:** an overhead mutant hard-coded for `view` survives, and so
+      does a coincidental slope. Every fixture pins the operation to `view`
+      and the runtime id to `huginn-yggdrasil`.
+    - **N5, low:** the ledger's claim that S1d "dies on all three" is false.
+      S1d exempts the orphan fault by construction.
+    - **N6, low:** the Cut 9 header contradicts itself at lines 18–25, points
+      the wrong way, and says V1–V23 where the entries run to V24L.
+  - **Self's ruling on the F6 fork, 2026-09-22: fill the gap in its owner.**
+    The leaf gets a public slug check, on the pattern of
+    `PipelineRef::validate_ref`. Huginn moves its pin to that commit and calls
+    the check from `require_instance`, so reads and A1 refuse identically, and
+    from `Mind::open`, before `path_for` touches the filesystem.
+    `require_grammatical_instance` and its daemon-side branch are deleted.
+    This rejects the interim option of moving the probe without a pin move,
+    because that would leave a workaround living beside its owner.
+    **Cut 10 stays open until the fourth fix batch lands** (Hands, Sonnet): N1
+    through the leaf check, one generated separator test for N3, fixtures that
+    vary the operation and the runtime id for N4, and the prose fixes for N5
+    and N6.
 - **The harness moved out of this repo, 2026-09-17.** The fourth of the
   process changes the operator approved on cost review. It now lives in the
   Eureka repo at `C:\Users\Meta\.claude\skills\eureka\tools\eureka-mutations.ps1`
