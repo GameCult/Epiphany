@@ -6439,3 +6439,19 @@ as the `schemars` dependency, now in `epiphany-pipeline`.
   - **Hand probes: 15 of 15 killed**, one per bidi point plus S-1, S-2 and S-4.
   - `composed_keys_cannot_collide` had assumed case-preserving keys and was corrected in the same commit, as part of the same structural change.
   - **Soul's pass dispatched.**
+- **Soul on the RS-L third fix, 2026-09-22** (Opus, on Yggdrasil). **RS-L closes on its stated invariants.**
+  - **Held, proven rather than asserted:**
+    - `Hash`, `Eq` and `Ord` all delegate to `identity()`, so agreement is total for every input.
+    - ASCII-only folding is airtight here, since the grammar is ASCII and non-ASCII case variants are refused first (probed with U+0130, U+212A, U+1E9E, U+00DF).
+    - Serde round-trips a map with both spellings to one entry.
+    - `identity()` is always itself valid, over all 16,384 two-character ASCII values and all 6,561 `.git`-window cases.
+    - All twelve bidi points and both separators die under per-point deletion.
+    - Nothing outside `is_control()` plus the fourteen named points is refused, across U+0000–U+2FFF.
+    - 37 tests, schema pin green, cargo-mutants 17 caught and 3 missed.
+  - **Closing fixes, ruled by Self:**
+    - **1 and 2:** every `OrgRepo` assertion compares values that should be equal, so `eq -> true`, `hash -> ()` and `cmp -> Equal` all survive. Add the unequal direction: `assert_ne!` on two different repos, different hashes, a non-`Equal` ordering, and `partial_cmp == Some(cmp)` for both equal and unequal pairs. That is S-3's lesson in a new shape.
+    - **3:** the `OrgRepo` schema description is about 1,100 characters of Rust-macro justification, published into nine contracts. Cut it to what a consumer needs: the grammar, the bound, and that identity is case-insensitive. The reasoning belongs in the source comment.
+    - **4:** `lib.rs:2868` says "eleven" above twelve fixtures. **Self's ruling made the same slip.** Say twelve.
+    - **6:** `campaign.repos` accepts both spellings of one repo and validates. Refuse duplicates **by identity**.
+  - **7, recorded, not fixed:** `identity()` allocates per comparison. Revisit only if a profile says so.
+  - **5, answered here so BP-2 does not rediscover it.** Stewardship and hand-off keys change for any repo with an uppercase letter, which would strand documents in an existing store. **BP-2 moves the leaf to epoch v2, and Huginn refuses a store from a previous epoch at open.** So the mismatch cannot happen silently: an old store is refused loudly, which is the designed migration. BP-2 states this rather than writing a key migration.
