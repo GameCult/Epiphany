@@ -1025,7 +1025,14 @@ still admits a bare leaf.
 **Depends:** the RS-L field types, the `L3` entry, the leaf's schema text, and
 every fixture that builds these kinds.
 
-**Q-RS2. May `huginn-mind`, the rule engine, link `cultnet-rs`?** Q13 A put the
+**Q-RS2: RULED A by the operator, 2026-09-22 ("A, for sure").** `huginn-mind`
+depends on the whole of `cultnet-rs`. Cut 8's standing check narrows from "no
+`cultnet`" to "no transport use in `huginn-mind`". RS-3 rewrites that check.
+**Follow-up recorded, FU-SelSplit (CultLib).** Make selection separable from
+the transport, either as a feature or as a small package. Trigger: a second
+consumer wants selection without CultNet's transport.
+
+*History, the question as asked:* **Q-RS2. May `huginn-mind`, the rule engine, link `cultnet-rs`?** Q13 A put the
 wire types in `huginn-mind`, and the substrate's `Selection` rides the wire. So
 `huginn-mind` must depend on the crate that defines `Selection`. That crate
 also carries CultNet's transport, crypto and sockets. Cut 8's standing check
