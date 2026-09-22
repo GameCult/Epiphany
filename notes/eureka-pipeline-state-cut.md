@@ -639,6 +639,47 @@ schema-ownership phase inside Epiphany, not because the campaign stops.
     - **Stale:** entry E1 in `tools/eureka-cut8-epiphany-mutations.psd1`
       still anchors on the v1 epoch string, so that historical suite cannot
       rerun. **Soul's pass dispatched**, and it includes E1.
+  - **Soul on RS-L, 2026-09-22** (Opus). **What held:**
+    - The `Title` bound counts bytes, and the empty title is refused.
+    - Epoch v2 covers all 13 ids.
+    - The two doors delegate to the grammar admission uses, and L1L/L2L are
+      real loosenings.
+    - The `runtime_spine` stand-in is harmless.
+    - Leaf 37 tests. Readside-leaf 6/6. Cut 10 leaf 5/5. Cut 6b 17/17,
+      6c 10/10, 6d 7/7, 6 10/10, 5 7/7. Restores identical by hash.
+
+    **Findings:**
+    - **F1:** a 1-byte title is accepted by no test. `len() < 2` survives.
+    - **F2:** titles of `" "`, `"\0"`, `"\n"`, U+200B and U+FEFF all pass as
+      non-empty. A single space is still a bare placeholder, which is the
+      thing Q-RS1 was ruled to prevent.
+    - **F3:** the published `Title` schema has no `minLength`, and its
+      description ("1 to 200 bytes, never empty") contradicts its own
+      keywords.
+    - **F4:** ruling history is copied into four published schema
+      descriptions.
+    - **F5:** Cut 8's E1 anchors on `epoch.v1`, so that suite aborts. A copy
+      re-anchored runs 7/7.
+    - **F6:** the readside-leaf header names the old harness path.
+    - **F7:** the `OrgRepo` grammar behind the new door accepts `../..`,
+      `a/..`, spaces, control bytes, NUL and non-ASCII. It predates RS-L, and
+      RS-3 reads the organ's `repo` through it.
+    - **F8:** the spec's Huginn anchor has drifted to `daemon.rs:369`,
+      trivially.
+  - **Self's rulings on RS-L, 2026-09-22 (fix batch):**
+    - **F2: a `Title` holds at least one non-whitespace character and no
+      control characters** (C0, C1, U+2028/9, zero-width and BOM). That is
+      what "not a bare placeholder" means. It is free inside epoch v2 and
+      would cost another epoch later. *Flagged for the operator's review.*
+    - **F7: `OrgRepo` becomes GitHub's grammar, in the same epoch v2.** Both
+      the owner and the repo are `[A-Za-z0-9._-]+`. The owner has no dot or
+      underscore, is at most 39 bytes, and has no leading or trailing
+      hyphen. A repo is at most 100 bytes and is never `.` or `..`. Exactly
+      one `/`.
+    - **F1, F3, F4, F5, F6 are fixed as found.** The schema carries
+      `minLength: 1`. The `description` states the byte rule truthfully, and
+      admission remains the enforcer (schemas README). Ruling history moves
+      out of the doc comment.
   - **The read-side consumer cut is mapped** at `notes/eureka-read-side-cut.md`
     (Imagination, Opus). Cuts in order:
     - **P-1 and P-2:** CultLib, before merge. Now folded into selection's
