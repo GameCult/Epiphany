@@ -6429,3 +6429,13 @@ as the `schemars` dependency, now in `epiphany-pipeline`.
   - **S-4:** refuse U+2028 and U+2029 as well as `is_control()`. Everything else stays allowed, so ZWJ and ZWNJ still work. Test both embedded.
   - **S-5:** restore the bytes-versus-characters caveat in the `Title` description.
   - **In Hands (Sonnet).**
+- **2026-09-22: the RS-L third fix landed** at `0631cbef` and `466628ac` (Sonnet, on Yggdrasil).
+  - **S-1:** `OrgRepo` is hand-written outside `bounded_text!`, with `PartialEq`, `Eq`, `Hash`, `PartialOrd` and `Ord` over `identity()`. Key derivation for Stewardship and HandOff escapes `repo.identity()`. Every other macro member is untouched.
+  - **S-2:** the `.git` refusal is case-insensitive.
+  - **S-3:** all twelve bidi code points are pinned with embedded fixtures. *Self's ruling said "eleven" and then listed twelve; Hands pinned twelve.*
+  - **S-4:** U+2028 and U+2029 are refused.
+  - **S-5:** the schema caveat is restored, nine schemas regenerated, and the byte-for-byte pin passes.
+  - Tests: 37/37, with assertions added to existing bodies.
+  - **Hand probes: 15 of 15 killed**, one per bidi point plus S-1, S-2 and S-4.
+  - `composed_keys_cannot_collide` had assumed case-preserving keys and was corrected in the same commit, as part of the same structural change.
+  - **Soul's pass dispatched.**
