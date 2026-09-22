@@ -6346,3 +6346,18 @@ as the `schemars` dependency, now in `epiphany-pipeline`.
   - Commits: `codex/eureka-pipeline-state` `0bc90b9c`, `main` `4d1113ef`, `codex/epiphany-shakedown-live` `075049b9`, `codex/epiphany-model-bridge` `ed3c7471`.
   - Clean build on Yggdrasil: 244/244 tests pass. Peak 4.36 GiB.
   - **Recorded, not fixed:** `codex/epiphany-model-bridge` has its own pre-existing break. It depends on `path = "../vendor/cultcache-rs"` and `"../vendor/cultnet-rs"`, which do not exist.
+- **2026-09-22: the RS fix batch landed** at Huginn `056db28` (Sonnet, verified on Yggdrasil).
+  - F1: reads go through `head`.
+  - F2: `open_with` is test-only, with a private `open_checked`.
+  - F3: R5b and R5c fixtures.
+  - F5: prose.
+  - Mind 70/70, daemon 18/18. The release check has no `test-support`.
+  - The mutation harness was retired mid-batch (operator ruling), so the `.psd1` edits were never committed.
+- **Soul on the RS fix, 2026-09-22**, the campaign's first **cargo-mutants** pass (Opus, on Yggdrasil).
+  - **RS-2 closes.**
+  - cargo-mutants over `92ac16c..056db28` produced 12 mutants: 6 caught, 0 missed, 6 unviable. The tool cannot delete a statement or reorder calls, so Soul's hand probes covered F1 (killed) and F3.
+  - **S1, blocking: the R5b and R5c fixtures are degenerate.** Their "foreign" type `epiphany.pipeline.campaign.v1` is a known type at the pinned leaf, so both gate-order mutants pass 70/70. A truly foreign id kills both.
+  - **S2:** `Mind::receipts()` is `pub` and skips `head`, an API gap rather than a wire gap.
+  - **S3:** `--all-targets` release builds unify `test-support` into the daemon.
+  - **S4:** prose.
+  - **Closing fixes are in Hands (Sonnet). RS-1 closes when S1 is fixed and proven by hand probe.**
