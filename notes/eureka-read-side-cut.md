@@ -6,11 +6,21 @@ section of `F:\Projects\Epiphany\notes\eureka-pipeline-state-cut.md`, the
 campaign that owns the read-side rulings, with a pointer from §12 of
 `F:\Projects\CultLib\docs\cultnet-selection-cut.md`.
 
-Status: cut map for five cuts and two CultLib prerequisites. **P-1** and **P-2**
-go to the selection campaign's next fix batch, before `cultnet/selection-cut1`
-merges. **RS-L** is the leaf (Epiphany). **RS-1**, **RS-2** and **RS-3** are
-Huginn. **BP-2** belongs to the body-plane map and is widened here by one
-mechanical clause. None is started. Two operator questions are open (§9).
+Status, 2026-09-29 (Self): **RS-L, RS-2 and RS-1 are landed and closed**
+(2026-09-22; the record is in `eureka-pipeline-state-cut.md`, "RS-L closes",
+"RS-2 and RS-1 are closed"). **P-1 and P-2** were folded into selection's R-G
+and R-M, and selection Cut 1 merged to CultLib `main` at `dbee044`
+(2026-09-23); the RS-3 brief confirms both are in that merge. **Both operator
+questions in §9 are ruled** (2026-09-22: Q-RS1 B, one non-empty `Title`;
+Q-RS2 A, `huginn-mind` links `cultnet-rs`). **Next:** BP-2 once BP-1 lands
+(BP-1 in Hands 2026-09-29), then **RS-3**. The Pins table below is as of
+2026-09-22 and stale; each brief re-takes its anchors.
+
+*As written 2026-09-22:* cut map for five cuts and two CultLib prerequisites.
+**P-1** and **P-2** go to the selection campaign's next fix batch, before
+`cultnet/selection-cut1` merges. **RS-L** is the leaf (Epiphany). **RS-1**,
+**RS-2** and **RS-3** are Huginn. **BP-2** belongs to the body-plane map and
+is widened here by one mechanical clause.
 
 **Rulings this map is written under.**
 

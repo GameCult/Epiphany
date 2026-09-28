@@ -9,9 +9,16 @@ CultMesh.
 
 Status: cut map for three cuts, **BP-1** (CultLib: the content plane in the
 Rust runtime), **BP-2** (the pin move that lets Huginn see it) and **BP-3**
-(Huginn: an oversize answer is deferred to the body plane). None is started.
-Two operator questions are open (section 8); BP-1 can start on the
-recommended answer to Q-BP1 and BP-3 needs Q-BP2.
+(Huginn: an oversize answer is deferred to the body plane).
+
+**2026-09-29 (Self):** both questions in section 8 are ruled (Q-BP1 A,
+Q-BP2 A, 2026-09-22). Selection Cut 1 merged to CultLib `main` at `dbee044`,
+so section 6's collision is gone. **BP-1 is in Hands** (Sonnet) on CultLib
+`cultmesh/rust-content-plane`, based on `268e0ef`, with two overrides to
+section 3: no committed mutation entries (the operator retired hand-written
+harnesses on 2026-09-22; each rule's test is shown red once by a scratch
+mutant instead), and verification on Yggdrasil through the stopgap rather
+than on the workstation. The Pins table below is as of 2026-09-22.
 
 **The ruling this map is written under** (operator, 2026-09-17, recorded in
 the Epiphany map at about line 368): an answer too large for the control
