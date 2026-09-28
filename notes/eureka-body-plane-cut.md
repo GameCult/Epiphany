@@ -20,6 +20,25 @@ harnesses on 2026-09-22; each rule's test is shown red once by a scratch
 mutant instead), and verification on Yggdrasil through the stopgap rather
 than on the workstation. The Pins table below is as of 2026-09-22.
 
+**BP-1 landed** (Sonnet, 2026-09-29) on `cultmesh/rust-content-plane` at
+`29c3e4c`, `11485fb` and `8a66b1d`. `cultnet-rs` went from 264 to 279 tests,
+plus 3 C# vector tests, and all 22 listed mutants went red. Size: +486 source
+lines against ~330 estimated, and +778 test lines against ~350.
+**Soul (Opus) will merge it after a fix batch, now in Hands:**
+- F1: a flood of zero-size chunks makes the client send unbounded requests;
+- F2: malformed requests are refused at decode, so a Rust server answers
+  nothing where the reference answers `found:false`. **This was the map's
+  defect**: section 3 ordered decode-time request validation, which
+  contradicts "a failure is an answer, never silence". Refusals belong to the
+  answer function;
+- F3: `BTreeMap` metadata breaks byte identity for keys that are not sorted;
+- F4: hashes are normalised only after requests have gone out;
+- F5: one error spelling differs from the reference;
+- F6: 8 surviving mutants.
+Held: byte identity in both directions beyond the fixture, verification,
+serving, validation order, and one path. The empty-body deviation (one
+zero-length chunk) is the reference's behaviour, so the spec was wrong there too.
+
 **The ruling this map is written under** (operator, 2026-09-17, recorded in
 the Epiphany map at about line 368): an answer too large for the control
 plane travels over CultMesh's content/body transfer. The control plane
