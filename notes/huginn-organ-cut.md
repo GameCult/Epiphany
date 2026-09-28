@@ -6,6 +6,36 @@ home is a section of `F:\Projects\Epiphany\notes\eureka-pipeline-state-cut.md`
 that replaces the old Cuts 11-15 (lines 5490-5853). Mark those lines as history
 the same day, so that no reader sees two live designs.
 
+**Operator rulings, 2026-09-29, each asked on its own:**
+
+- **Q-H1: B, wait for Idunn.** Cut 14's interim systemd unit is **not**
+  built. The organ deploys through Idunn after route continuity (Idunn
+  `docs/route-continuity-cut.md`) lands. Cut 14 is remapped as 14-I once that
+  campaign settles. A Rust runtime-presence implementation shared with Idunn,
+  rather than a third copy, is its prerequisite, and where it lives is a fork
+  to bring then. Cuts 11a, 11b, 13a and 13b proceed. They run against a
+  hand-started daemon in tests only.
+- **Q-H2: C, no backup yet.** Nothing on Yggdrasil is backed up today (the
+  authority backup unit was never installed). That is recorded as a
+  standing risk, not solved here.
+- **Q-H4: one mind, instance `eureka`.** The operator asked first: "Wouldn't
+  a single instance be bad for concurrency? ... can multiple Eureka instances
+  share a Mind on Huginn?" Self answered from the Body. The daemon is the
+  mind's only writer, and any number of sessions are its clients. Racing
+  admissions get typed refusals. Focus comes from scoped queries, not from
+  mind size. **Self's addition for Cut 13, from that exchange:** receipts
+  name the instance but not the session that admitted a batch. With several
+  sessions sharing one mind, the admitting session is recorded on the receipt
+  (declared attribution, like the instance).
+- **Q-H5: park Cut 12**, tag and note, not deleted.
+- **Q-H6: A, the hybrid, with a standing direction.** The operator: "every bit
+  of prose we're passing around should be viewed as a potential liability,
+  *especially* if it's too big to just shove the whole thing into context. We
+  should be looking for ways to turn what remains into typed state as well."
+  Every Imagination pass looks for the next prose surface that could become
+  typed (body facts, the model page, the subtraction ledger), and proposes it
+  rather than adding prose.
+
 **Objective (operator, 2026-09-29):** "Huginn wired in". Eureka's pipeline
 runs on Huginn's typed state. In scope: Cuts 11, 13, 14 and 15. Cut 12 is
 recommended for parking (see Q-H5). Out of scope: Cut 16 (the proof
