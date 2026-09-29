@@ -16,6 +16,19 @@ Q-RS2 A, `huginn-mind` links `cultnet-rs`). **Next:** BP-2 once BP-1 lands
 (BP-1 in Hands 2026-09-29), then **RS-3**. The Pins table below is as of
 2026-09-22 and stale; each brief re-takes its anchors.
 
+**2026-09-29: BP-2 and RS-3 landed and closed.** BP-2 is at Huginn `e770fb9` and leaf `4891f2e5`,
+with pins at CultLib `6251cbc`. RS-3 is at `511afa2`, `eb57bdb` and `9673ab8`: huginn-mind 91 tests,
+daemon 19, and nothing reimplemented. Soul closed it; in-force, the snapshot restriction and the
+single owner of repo identity all held under probe. Recorded:
+- one orphan record takes every read offline, failing closed on a corruption the single writer
+  cannot produce;
+- a cursor that dies with a restart is refused with the substrate's message about a "selection
+  digest". That is CultLib's wording to fix;
+- the selection `in_force=true` + `cited answers exists=false` misses a question reopened by a
+  withdrawal, because the withdrawn answer still cites it. Cut 15's recipes must say so;
+- header pages are bounded per header, not per page, and `ResponseTooLarge` stays reachable.
+**Next: BP-3**, in Hands.
+
 *As written 2026-09-22:* cut map for five cuts and two CultLib prerequisites.
 **P-1** and **P-2** go to the selection campaign's next fix batch, before
 `cultnet/selection-cut1` merges. **RS-L** is the leaf (Epiphany). **RS-1**,
