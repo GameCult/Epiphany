@@ -437,6 +437,15 @@ BP-3 ──► 11b  Huginn: semantic read (rank the hits through the one evaluat
 
 ## Cut 13b. The MCP surface, the build and the install
 
+- **Landed before it (2026-09-30, Self):** Cut 11b and its follow-ups merged to
+  `eureka/memory-organ` at `e3e0c38` and `ff39d80`. Cut 13a merged at `33641f4`
+  (Soul: no blocker; fixes at `3dc50ee`). 13a's client now has **two** errors:
+  `ClientError::Unavailable` (transport, timeout, out-of-protocol answer) and
+  `ClientError::Rejected { endpoint, code, detail }` (an envelope-level
+  `OperationFailure`). Its `timeout` bounds the whole call; answers are checked
+  against the request's id and operation; every call disconnects its session.
+  13b maps `Rejected` like `Unavailable`: a result with `isError: true` and the
+  typed body, so an MCP caller can tell a permanent mismatch from a down daemon.
 - **Repo/branch:** Huginn, after 13a.
 - **First:**
   1. Hands builds a 20-line scratch rmcp server whose tool schema carries a `$defs`-internal `$ref`, and confirms `claude mcp` lists and calls it. It is not committed.
