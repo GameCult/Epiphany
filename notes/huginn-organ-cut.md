@@ -353,7 +353,11 @@ BP-3 ──► 11b  Huginn: semantic read (rank the hits through the one evaluat
 - **The effective embedding bound is the model's context, not 16 KiB.**
   `qwen3-embedding:0.6b` takes 4096 tokens and Ollama truncates beyond that silently.
   Long documents rank on their first ~4k tokens.
-- **11a status:** Soul closed it on conditions. A fix batch is in Hands: pin the
+- **Model identity is re-checked on each flush.** A model re-pulled with the same
+  dimensions and a new digest must not mix vectors until a restart. An idle mind whose
+  collection is lost also stays `Current` until the next upsert fails. Found by Soul on
+  11a's closing batch; 11b owns both.
+- **11a merged** into `eureka/memory-organ`. It was: Soul closed it on conditions. A fix batch is in Hands: pin the
   backoff, reconcile again after any failure, label the collection with the mind's
   identity, and merge BP-3.
 
