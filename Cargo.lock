@@ -364,11 +364,11 @@ dependencies = [
 [[package]]
 name = "cultcache-rs"
 version = "0.2.0"
-source = "git+https://github.com/GameCult/CultLib.git?rev=a0813c6eed24d30bf88073ef615b633c77ebfcd6#a0813c6eed24d30bf88073ef615b633c77ebfcd6"
+source = "git+https://github.com/GameCult/CultLib.git?rev=6251cbcd37c12ef3f0c1cc50063a03369225b7ac#6251cbcd37c12ef3f0c1cc50063a03369225b7ac"
 dependencies = [
  "anyhow",
  "chrono",
- "cultcache-rs-derive",
+ "cultcache-rs-derive 0.1.0 (git+https://github.com/GameCult/CultLib.git?rev=6251cbcd37c12ef3f0c1cc50063a03369225b7ac)",
  "fs2",
  "redb",
  "rmp-serde",
@@ -377,6 +377,34 @@ dependencies = [
  "serde_json",
  "uuid",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "cultcache-rs"
+version = "0.2.0"
+source = "git+https://github.com/GameCult/CultLib.git?rev=a0813c6eed24d30bf88073ef615b633c77ebfcd6#a0813c6eed24d30bf88073ef615b633c77ebfcd6"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "cultcache-rs-derive 0.1.0 (git+https://github.com/GameCult/CultLib.git?rev=a0813c6eed24d30bf88073ef615b633c77ebfcd6)",
+ "fs2",
+ "redb",
+ "rmp-serde",
+ "serde",
+ "serde_bytes",
+ "serde_json",
+ "uuid",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "cultcache-rs-derive"
+version = "0.1.0"
+source = "git+https://github.com/GameCult/CultLib.git?rev=6251cbcd37c12ef3f0c1cc50063a03369225b7ac#6251cbcd37c12ef3f0c1cc50063a03369225b7ac"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -395,7 +423,7 @@ version = "0.1.0"
 source = "git+https://github.com/GameCult/CultLib.git?rev=a0813c6eed24d30bf88073ef615b633c77ebfcd6#a0813c6eed24d30bf88073ef615b633c77ebfcd6"
 dependencies = [
  "anyhow",
- "cultcache-rs",
+ "cultcache-rs 0.2.0 (git+https://github.com/GameCult/CultLib.git?rev=a0813c6eed24d30bf88073ef615b633c77ebfcd6)",
  "cultnet-rs",
  "serde",
 ]
@@ -409,7 +437,7 @@ dependencies = [
  "anyhow",
  "base64 0.22.1",
  "chrono",
- "cultcache-rs",
+ "cultcache-rs 0.2.0 (git+https://github.com/GameCult/CultLib.git?rev=a0813c6eed24d30bf88073ef615b633c77ebfcd6)",
  "ed25519-dalek",
  "hmac",
  "rand 0.9.5",
@@ -539,7 +567,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "ctrlc",
- "cultcache-rs",
+ "cultcache-rs 0.2.0 (git+https://github.com/GameCult/CultLib.git?rev=a0813c6eed24d30bf88073ef615b633c77ebfcd6)",
  "cultmesh-rs",
  "cultnet-rs",
  "ed25519-dalek",
@@ -565,7 +593,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "codex-connector",
- "cultcache-rs",
+ "cultcache-rs 0.2.0 (git+https://github.com/GameCult/CultLib.git?rev=a0813c6eed24d30bf88073ef615b633c77ebfcd6)",
  "serde",
  "serde_json",
  "sha2",
@@ -577,7 +605,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
- "cultcache-rs",
+ "cultcache-rs 0.2.0 (git+https://github.com/GameCult/CultLib.git?rev=a0813c6eed24d30bf88073ef615b633c77ebfcd6)",
  "epiphany-core",
  "epiphany-model-adapter",
  "epiphany-tool-adapter",
@@ -596,7 +624,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
- "cultcache-rs",
+ "cultcache-rs 0.2.0 (git+https://github.com/GameCult/CultLib.git?rev=6251cbcd37c12ef3f0c1cc50063a03369225b7ac)",
  "rmp-serde",
  "schemars",
  "serde",
@@ -611,7 +639,7 @@ dependencies = [
  "chrono",
  "codex-connector",
  "ctrlc",
- "cultcache-rs",
+ "cultcache-rs 0.2.0 (git+https://github.com/GameCult/CultLib.git?rev=a0813c6eed24d30bf88073ef615b633c77ebfcd6)",
  "cultnet-rs",
  "epiphany-core",
  "epiphany-model-adapter",
@@ -634,7 +662,7 @@ dependencies = [
 name = "epiphany-tool-adapter"
 version = "0.1.0"
 dependencies = [
- "cultcache-rs",
+ "cultcache-rs 0.2.0 (git+https://github.com/GameCult/CultLib.git?rev=a0813c6eed24d30bf88073ef615b633c77ebfcd6)",
  "serde",
  "serde_json",
 ]
@@ -645,7 +673,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
- "cultcache-rs",
+ "cultcache-rs 0.2.0 (git+https://github.com/GameCult/CultLib.git?rev=a0813c6eed24d30bf88073ef615b633c77ebfcd6)",
  "epiphany-core",
  "epiphany-tool-adapter",
  "http",
