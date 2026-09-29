@@ -446,6 +446,13 @@ BP-3 ──► 11b  Huginn: semantic read (rank the hits through the one evaluat
   against the request's id and operation; every call disconnects its session.
   13b maps `Rejected` like `Unavailable`: a result with `isError: true` and the
   typed body, so an MCP caller can tell a permanent mismatch from a down daemon.
+- **Built (2026-09-30):** `hands/cut13b` at `120e0a6`, green on Yggdrasil; Soul pass running. Windows
+  binary `C:\Users\Meta\.eureka\bin\eureka-state.exe` (from `63ac503`). **Registered by the operator**
+  (user scope), 2026-09-30. In Windows PowerShell the documented form
+  `claude mcp add ... -e K=V -- <exe>` fails with "missing required argument 'commandOrUrl'": the
+  variadic `-e` swallows the name and path. The form that worked puts positionals first:
+  `claude mcp add eureka-state <exe> --scope user -e EUREKA_INSTANCE=eureka -e HUGINN_ENDPOINT=rudp://10.77.0.1:17872`.
+  `whoami` answers `reachable: false` until Cut 14.
 - **Repo/branch:** Huginn, after 13a.
 - **First:**
   1. Hands builds a 20-line scratch rmcp server whose tool schema carries a `$defs`-internal `$ref`, and confirms `claude mcp` lists and calls it. It is not committed.
