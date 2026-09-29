@@ -343,6 +343,20 @@ BP-3 ──► 11b  Huginn: semantic read (rank the hits through the one evaluat
 
 ## Cut 11b. Semantic read
 
+**Added 2026-09-29 (Self), from Soul's pass on 11a:**
+- **The mind judges every hit.** The index never deletes points. Withdrawn and
+  superseded documents are indexed on purpose, and point payloads carry no status. So
+  Qdrant supplies candidate ids and scores, and every hit is joined back through the
+  mind: ids the mind doesn't hold are dropped (a restored mind, or a second store), and
+  the rest are filtered by RS-3's in-force derivation, through selection. A hit is
+  never shown on the index's word alone.
+- **The effective embedding bound is the model's context, not 16 KiB.**
+  `qwen3-embedding:0.6b` takes 4096 tokens and Ollama truncates beyond that silently.
+  Long documents rank on their first ~4k tokens.
+- **11a status:** Soul closed it on conditions. A fix batch is in Hands: pin the
+  backoff, reconcile again after any failure, label the collection with the mind's
+  identity, and merge BP-3.
+
 - **Repo/branch:** Huginn, after RS-3 and BP-3. Anchors are re-taken on their tip.
 - **Deletes first:**
   - the refusal "semantic query: the index is not wired (Cut 11)", at both sites (`query.rs:296-299`, and the daemon test at `daemon.rs:534-541`, re-taken);
