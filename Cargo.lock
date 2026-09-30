@@ -364,11 +364,11 @@ dependencies = [
 [[package]]
 name = "cultcache-rs"
 version = "0.2.0"
-source = "git+https://github.com/GameCult/CultLib.git?rev=6251cbcd37c12ef3f0c1cc50063a03369225b7ac#6251cbcd37c12ef3f0c1cc50063a03369225b7ac"
+source = "git+https://github.com/GameCult/CultLib.git?rev=8fc74c709444b884a2bd339e0c306bf9484d99d2#8fc74c709444b884a2bd339e0c306bf9484d99d2"
 dependencies = [
  "anyhow",
  "chrono",
- "cultcache-rs-derive 0.1.0 (git+https://github.com/GameCult/CultLib.git?rev=6251cbcd37c12ef3f0c1cc50063a03369225b7ac)",
+ "cultcache-rs-derive 0.1.0 (git+https://github.com/GameCult/CultLib.git?rev=8fc74c709444b884a2bd339e0c306bf9484d99d2)",
  "fs2",
  "redb",
  "rmp-serde",
@@ -400,7 +400,7 @@ dependencies = [
 [[package]]
 name = "cultcache-rs-derive"
 version = "0.1.0"
-source = "git+https://github.com/GameCult/CultLib.git?rev=6251cbcd37c12ef3f0c1cc50063a03369225b7ac#6251cbcd37c12ef3f0c1cc50063a03369225b7ac"
+source = "git+https://github.com/GameCult/CultLib.git?rev=8fc74c709444b884a2bd339e0c306bf9484d99d2#8fc74c709444b884a2bd339e0c306bf9484d99d2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -624,7 +624,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
- "cultcache-rs 0.2.0 (git+https://github.com/GameCult/CultLib.git?rev=6251cbcd37c12ef3f0c1cc50063a03369225b7ac)",
+ "cultcache-rs 0.2.0 (git+https://github.com/GameCult/CultLib.git?rev=8fc74c709444b884a2bd339e0c306bf9484d99d2)",
  "rmp-serde",
  "schemars",
  "serde",
@@ -896,7 +896,7 @@ dependencies = [
 [[package]]
 name = "ghostlight-persona-projection"
 version = "0.1.0"
-source = "git+https://github.com/GameCult/Ghostlight.git?rev=22281891cbf9258db80c15a9fd465e6fa251e7dd#22281891cbf9258db80c15a9fd465e6fa251e7dd"
+source = "git+https://github.com/GameCult/Ghostlight.git?rev=22937b71f056d2000dd7ea1f6af0c45825de495f#22937b71f056d2000dd7ea1f6af0c45825de495f"
 dependencies = [
  "serde",
  "sha2",
