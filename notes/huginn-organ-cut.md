@@ -13,6 +13,21 @@ deploys it under the operator's standing deployment authority, which replaces "t
 Q-H2 has moved on: authority backups now run to Raven (weekly tier added 2026-09-30), so Cut 14's backup items apply
 under Q-H2 A. Cut 15 follows once 14 is live. The Q-H1 B text below is history.
 
+**Cut 14 status, 2026-09-30 (Self).** Huginn is live on Yggdrasil: `huginn.service` on `10.77.0.1:17872/udp`,
+instance `eureka`, started 13:24 CEST.
+- The release is `0c4e410` (the `eureka/memory-organ` head), with binary sha256 `a02ae1f5...`.
+- gamecult-ops `a0320e4`/`14df7ce`, Huginn README `dcb85de`. The ufw rule admits Starfire only.
+- Checks 1, 2, 4, 5 (at the firewall counters) and 7 pass. Check 4 admitted the mind's identity document
+  `eureka:instance:self` (receipt `mind-commit-379a2a34...`), and it survived a restart.
+- Check 8 waits for the 04:00 CEST backup on 1 October. The map's freeze-loop script no longer exists. The
+  non-freezing state-backup producer covers `/var/lib/gamecult`, so no freeze loop was added.
+- **Check 3 fails, and Cut 15 is blocked on it.** `eureka-state` on Windows cannot reach the daemon. The
+  cultnet-rs client binds `127.0.0.1` by default (`cultmesh.rs:256`), and on Windows a loopback-bound socket cannot
+  send to `10.77.0.1` (os error 10051). This is CultLib's defect, and it is fixed there (`hands/rudp-client-bind`).
+  After that come Huginn's pin bump, the Windows rebuild of `eureka-state`, and a rerun of checks 3 and 6.
+- Self default: the derived Qdrant collection `huginn_mind_eureka` joins the backup's `QDRANT_SKIP`, because the
+  collection is disposable and the mind file is the truth.
+
 **Operator rulings, 2026-09-29, each asked on its own:**
 
 - **Q-H1: B, wait for Idunn.** Cut 14's interim systemd unit is **not**
