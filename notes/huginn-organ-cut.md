@@ -6,6 +6,13 @@ home is a section of `F:\Projects\Epiphany\notes\eureka-pipeline-state-cut.md`
 that replaces the old Cuts 11-15 (lines 5490-5853). Mark those lines as history
 the same day, so that no reader sees two live designs.
 
+**Q-H1 reversed, 2026-09-30 (operator).** Self laid out the five things 14-I still needs and recommended the
+interim unit. The operator: "So, what's blocking Huginn? I want us to be gathering evidence on Eureka ASAP" and then
+"Go for it." **Q-H1 is now A.** Cut 14 builds the interim unit as mapped, and its deletion line stays 14-I. Self
+deploys it under the operator's standing deployment authority, which replaces "the operator deploys" in Cut 14.
+Q-H2 has moved on: authority backups now run to Raven (weekly tier added 2026-09-30), so Cut 14's backup items apply
+under Q-H2 A. Cut 15 follows once 14 is live. The Q-H1 B text below is history.
+
 **Operator rulings, 2026-09-29, each asked on its own:**
 
 - **Q-H1: B, wait for Idunn.** Cut 14's interim systemd unit is **not**
