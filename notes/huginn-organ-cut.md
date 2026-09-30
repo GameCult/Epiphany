@@ -13,6 +13,18 @@ deploys it under the operator's standing deployment authority, which replaces "t
 Q-H2 has moved on: authority backups now run to Raven (weekly tier added 2026-09-30), so Cut 14's backup items apply
 under Q-H2 A. Cut 15 follows once 14 is live. The Q-H1 B text below is history.
 
+**Cut 15 merged, 2026-09-30 (Self).** GameCult/Eureka `main` is at `bdb9dfd` (`051e1fc`, `2a0e9f7`, `272f5ca`,
+`f0ff484`, `bdb9dfd`).
+- Soul took three passes. The first found the Soul brief had stopped reading operator rulings (High). That is fixed:
+  Soul claims against every cited ruling and every direction in force, independent of Hands' promises.
+- Live checks passed against the mind. `eureka-state` was redeployed on CultLib `8fc74c70`, and checks 3 and 6 now
+  pass from Starfire.
+- The substrate gaps are tabulated in `references/campaign-state.md`, and each becomes a `follow_up` in the first
+  campaign.
+- **Operator, on moving to typed state: "how are we going to move to Huginn mid-campaign? Methinks we don't."**
+  Campaigns already in flight finish in prose. The first typed campaign starts fresh in a new session: Idunn as a
+  watchdog that reports to the operator on Discord (store-recovery Q-R4).
+
 **Cut 14 status, 2026-09-30 (Self).** Huginn is live on Yggdrasil: `huginn.service` on `10.77.0.1:17872/udp`,
 instance `eureka`, started 13:24 CEST.
 - The release is `0c4e410` (the `eureka/memory-organ` head), with binary sha256 `a02ae1f5...`.
