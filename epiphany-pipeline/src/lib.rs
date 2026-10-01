@@ -2263,6 +2263,15 @@ mod tests {
         }
     }
 
+    /// A legal dotted local of exactly `length` bytes (`a.a.a`, each part a
+    /// label), for bounds wider than one label.
+    fn dotted_local(length: usize) -> String {
+        match length % 2 {
+            1 => format!("{}a", "a.".repeat(length / 2)),
+            _ => format!("{}aa", "a.".repeat(length / 2 - 1)),
+        }
+    }
+
     /// A resolution of `subject`, at `sequence`, keyed.
     fn resolved_at(kind: PipelineKind, subject: &str, sequence: u32) -> Result<String, PipelineRefusal> {
         let mut resolution = resolution_sample();
@@ -2315,7 +2324,7 @@ mod tests {
     #[test]
     fn an_id_local_is_bounded_by_its_kind() {
         let at = |kind: PipelineKind, length: usize| {
-            pipeline_id("probe", &format!("{CAMPAIGN}:{}:{}", kind.name(), "a".repeat(length)), kind).map(|_| ())
+            pipeline_id("probe", &format!("{CAMPAIGN}:{}:{}", kind.name(), dotted_local(length)), kind).map(|_| ())
         };
         assert_eq!(at(PipelineKind::Question, SUBJECT_LOCAL_MAX), Ok(()));
         assert!(at(PipelineKind::Question, SUBJECT_LOCAL_MAX + 1).is_err());
@@ -2444,7 +2453,7 @@ mod tests {
     #[test]
     fn a_composed_resolution_local_is_bounded_whole() {
         let overhead = "resolution.".len() + ".n1".len();
-        let subject = |length: usize| format!("{CAMPAIGN}:resolution:{}", "a".repeat(length));
+        let subject = |length: usize| format!("{CAMPAIGN}:resolution:{}", dotted_local(length));
         let at_max = resolved_at(PipelineKind::Resolution, &subject(RESOLUTION_LOCAL_MAX - overhead), 1)
             .expect("a 111-byte resolution local keys");
         assert_eq!(at_max.split(':').nth(2).map(str::len), Some(RESOLUTION_LOCAL_MAX));
