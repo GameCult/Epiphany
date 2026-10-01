@@ -146,7 +146,13 @@ fn label_text(field: &str, value: &str) -> Result<(), PipelineRefusal> {
 /// part must be a label, so `..`, a leading or trailing dot, and an empty part
 /// are all refused.
 fn dotted_text(field: &str, value: &str) -> Result<(), PipelineRefusal> {
-    if value.is_empty() || value.len() > 64 {
+    dotted_within(field, value, 64)
+}
+
+/// `dotted_text`'s grammar with the bound as a parameter: the one place a
+/// dotted segment is parsed, whoever owns the bound.
+fn dotted_within(field: &str, value: &str, max: usize) -> Result<(), PipelineRefusal> {
+    if value.is_empty() || value.len() > max {
         return Err(format_error(field, value));
     }
     for part in value.split('.') {
@@ -255,6 +261,17 @@ bounded_text! {
     FullSha = 40, |field, value| hex(field, value, 40..=40);
     /// A SHA-256 digest: exactly 64 lowercase hex characters.
     Sha256Hex = 64, |field, value| hex(field, value, 64..=64);
+}
+
+impl Sha {
+    /// The type's identity rule: two spellings name one commit when one is a
+    /// prefix of the other, so a 7-character abbreviation and the full id of
+    /// the same commit are equal here though not `==`. Both are already 7-40
+    /// lowercase hex. Two distinct commits that share a 7-character prefix are
+    /// git's ambiguity, not the mind's.
+    pub fn names_same_commit(&self, other: &Sha) -> bool {
+        self.0.starts_with(&other.0) || other.0.starts_with(&self.0)
+    }
 }
 
 impl Slug {
@@ -792,7 +809,7 @@ pipeline_kinds! {
 /// the same string, so this accepts exactly what `pipeline_key` derives:
 /// `<root>:<kind>:<local>`, three segments for every kind. The kind segment
 /// must equal `kind`'s name, the root is a `Slug`, and the local is `Label`s
-/// joined by `.` and bounded whole, so `..`, an empty part, spaces and trailing
+/// joined by `.` and bounded whole by `local_max(kind)`, so `..`, an empty part, spaces and trailing
 /// junk are all refused. Returns the root and the local; nothing is inferred
 /// from either, and no kind is read any other way.
 fn pipeline_id<'a>(
@@ -813,7 +830,7 @@ fn pipeline_id<'a>(
         return Err(format_error(field, id));
     }
     dotted_text(field, root)?;
-    dotted_text(field, local)?;
+    dotted_within(field, local, local_max(kind))?;
     Ok((root, local))
 }
 
@@ -871,10 +888,34 @@ fn key_segment(value: &str) -> String {
 /// root segment, so its local carries none; a reader never consults it.
 const ROOT_LOCAL: &str = "self";
 
-/// The bound on a composed local, whole, in UTF-8 bytes. It is the only depth
-/// limit on a chain of resolutions, and the depth test derives its expectation
-/// from this name rather than restating the number.
-const LOCAL_MAX: usize = 64;
+/// The bound on a composed local of every kind but a resolution, whole, in
+/// UTF-8 bytes. Every stored subject key is within it.
+const SUBJECT_LOCAL_MAX: usize = 64;
+
+/// The longest kind name a resolution can name as its subject (`stewardship`),
+/// checked against `PipelineKind::ALL` by a test.
+const LONGEST_KIND_NAME: usize = "stewardship".len();
+
+/// A `.n<sequence>` part at `u32::MAX`.
+const SEQUENCE_PART_MAX: usize = ".n".len() + "4294967295".len();
+
+/// The bound on a resolution's local: a depth-two chain over a maximal
+/// subject, `resolution.<kind>.<subject local>.n<seq>.n<seq>`, at `u32::MAX`
+/// sequences. Depth is capped at two by admission (Q19), and this bound admits
+/// exactly that for every subject, so no subject is born unresolvable. Derived
+/// from `SUBJECT_LOCAL_MAX` and the kind names, never written as a number.
+const RESOLUTION_LOCAL_MAX: usize = "resolution.".len() + LONGEST_KIND_NAME + ".".len() + SUBJECT_LOCAL_MAX + 2 * SEQUENCE_PART_MAX;
+
+// `<root>:<kind>:<local>` must fit a `Short` wherever an id is cited.
+const _: () = assert!(64 + ":".len() + LONGEST_KIND_NAME + ":".len() + RESOLUTION_LOCAL_MAX <= 200);
+
+/// The bound on a kind's composed local, chosen here and nowhere else.
+fn local_max(kind: PipelineKind) -> usize {
+    match kind {
+        PipelineKind::Resolution => RESOLUTION_LOCAL_MAX,
+        _ => SUBJECT_LOCAL_MAX,
+    }
+}
 
 /// The schema epoch every pipeline store is written at, owned here with the
 /// schemas it names. Evolution is additive and keeps it: a new named field
@@ -886,15 +927,15 @@ const LOCAL_MAX: usize = 64;
 pub const PIPELINE_SCHEMA_EPOCH: &str = "epiphany.pipeline.epoch.v2";
 
 /// Composes and validates a local: every part is a `Label`, and the join is
-/// bounded whole. Both rules live here because this is the only way a local is
+/// bounded whole by `local_max(kind)`. Both rules live here because this is the only way a local is
 /// built; `pipeline_key` has no other path to a key string. Parts are a slice,
 /// not a builder, so an arm's arity is written at its call site.
-fn local(field: &str, parts: &[&str]) -> Result<String, PipelineRefusal> {
+fn local(field: &str, kind: PipelineKind, parts: &[&str]) -> Result<String, PipelineRefusal> {
     for part in parts {
         label_text(field, part)?;
     }
     let joined = parts.join(".");
-    if joined.len() > LOCAL_MAX {
+    if joined.len() > local_max(kind) {
         return Err(format_error(field, &joined));
     }
     Ok(joined)
@@ -905,27 +946,29 @@ fn local(field: &str, parts: &[&str]) -> Result<String, PipelineRefusal> {
 /// through `local`, and the key is formatted here and nowhere else.
 pub fn pipeline_key(document: &PipelineDocument) -> Result<String, PipelineRefusal> {
     use PipelineDocument as D;
-    let kind = document.kind().name();
+    let document_kind = document.kind();
+    let kind = document_kind.name();
     let key_field = format!("{kind}.key");
     let campaign_field = format!("{kind}.campaign");
     let (root_field, root, composed) = match document {
-        D::Campaign(value) => ("campaign.slug", value.slug.0.as_str(), local(&key_field, &[ROOT_LOCAL])?),
-        D::Instance(value) => ("instance.instance", value.instance.0.as_str(), local(&key_field, &[ROOT_LOCAL])?),
+        D::Campaign(value) => ("campaign.slug", value.slug.0.as_str(), local(&key_field, document_kind, &[ROOT_LOCAL])?),
+        D::Instance(value) => ("instance.instance", value.instance.0.as_str(), local(&key_field, document_kind, &[ROOT_LOCAL])?),
         // A resolution is keyed inside its subject's root, with the subject's
         // kind and local as its own local and its per-subject sequence last, so
         // the subject's resolutions and only they share the prefix
         // `<root>:resolution:<kind>.<local>.n`. A resolution's own key is an
         // ordinary id, so it composes as a subject like any other; each nesting
         // prepends `resolution.` (11 bytes) and appends `.n<s>` (3 bytes for
-        // one digit), so a chain `n` deep over a depth-one local of `L` bytes
-        // composes `14 * (n - 1) + L` bytes against `LOCAL_MAX` in `local`,
-        // which is the only depth limit and needs no guard.
+        // one digit). Depth is capped at two by admission (Q19), and
+        // `RESOLUTION_LOCAL_MAX` admits exactly a depth-two chain over a
+        // maximal subject, so every subject resolves and its resolution can be
+        // withdrawn.
         D::Resolution(value) => {
             let field = "resolution.subject.id";
             let (subject_root, subject_local) = pipeline_id(field, &value.subject.id.0, value.subject.kind)?;
             let sequence = format!("n{}", value.sequence);
             let parts = std::iter::once(value.subject.kind.name()).chain(subject_local.split('.')).chain(std::iter::once(sequence.as_str())).collect::<Vec<_>>();
-            (field, subject_root, local(&key_field, &parts)?)
+            (field, subject_root, local(&key_field, document_kind, &parts)?)
         }
         // Stewardship and hand-off hang off an instance rather than a campaign.
         // The root is the whole difference; the key shape is the same.
@@ -935,7 +978,7 @@ pub fn pipeline_key(document: &PipelineDocument) -> Result<String, PipelineRefus
             (
                 "stewardship.instance",
                 value.instance.0.as_str(),
-                local(&key_field, &[&key_segment(&value.repo.identity()), &sequence])?,
+                local(&key_field, document_kind, &[&key_segment(&value.repo.identity()), &sequence])?,
             )
         }
         D::HandOff(value) => {
@@ -947,18 +990,19 @@ pub fn pipeline_key(document: &PipelineDocument) -> Result<String, PipelineRefus
                 value.from_instance.0.as_str(),
                 local(
                     &key_field,
+                    document_kind,
                     &[&key_segment(&value.to_instance.0), &key_segment(&value.repo.identity()), &value.handed_on.0],
                 )?,
             )
         }
-        D::Target(value) => (campaign_field.as_str(), value.campaign.0.as_str(), local(&key_field, &[&format!("r{}", value.revision)])?),
-        D::Question(value) => (campaign_field.as_str(), value.campaign.0.as_str(), local(&key_field, &[&value.label.0])?),
-        D::Ruling(value) => (campaign_field.as_str(), value.campaign.0.as_str(), local(&key_field, &[&value.label.0])?),
-        D::FollowUp(value) => (campaign_field.as_str(), value.campaign.0.as_str(), local(&key_field, &[&value.label.0])?),
+        D::Target(value) => (campaign_field.as_str(), value.campaign.0.as_str(), local(&key_field, document_kind, &[&format!("r{}", value.revision)])?),
+        D::Question(value) => (campaign_field.as_str(), value.campaign.0.as_str(), local(&key_field, document_kind, &[&value.label.0])?),
+        D::Ruling(value) => (campaign_field.as_str(), value.campaign.0.as_str(), local(&key_field, document_kind, &[&value.label.0])?),
+        D::FollowUp(value) => (campaign_field.as_str(), value.campaign.0.as_str(), local(&key_field, document_kind, &[&value.label.0])?),
         D::CutSpec(value) => (
             campaign_field.as_str(),
             value.campaign.0.as_str(),
-            local(&key_field, &[&format!("cut-{}", value.cut.0), &format!("r{}", value.revision)])?,
+            local(&key_field, document_kind, &[&format!("cut-{}", value.cut.0), &format!("r{}", value.revision)])?,
         ),
         D::CutReport(value) => {
             let spec = parent_local("cut_report.cut_spec", &value.cut_spec.0, &value.campaign.0, PipelineKind::CutSpec)?;
@@ -966,7 +1010,7 @@ pub fn pipeline_key(document: &PipelineDocument) -> Result<String, PipelineRefus
             (
                 campaign_field.as_str(),
                 value.campaign.0.as_str(),
-                local(&key_field, &[&format!("cut-{cut}"), &format!("h{}", value.attempt)])?,
+                local(&key_field, document_kind, &[&format!("cut-{cut}"), &format!("h{}", value.attempt)])?,
             )
         }
         D::Verdict(value) => {
@@ -975,14 +1019,14 @@ pub fn pipeline_key(document: &PipelineDocument) -> Result<String, PipelineRefus
             (
                 campaign_field.as_str(),
                 value.campaign.0.as_str(),
-                local(&key_field, &[&format!("cut-{cut}"), &format!("s{}", value.pass)])?,
+                local(&key_field, document_kind, &[&format!("cut-{cut}"), &format!("s{}", value.pass)])?,
             )
         }
         D::Finding(value) => {
             let verdict = parent_local("finding.verdict", &value.verdict.0, &value.campaign.0, PipelineKind::Verdict)?;
             parent_cut("finding.verdict", verdict, 's')?;
             let parts = verdict.split('.').chain(std::iter::once(value.label.0.as_str())).collect::<Vec<_>>();
-            (campaign_field.as_str(), value.campaign.0.as_str(), local(&key_field, &parts)?)
+            (campaign_field.as_str(), value.campaign.0.as_str(), local(&key_field, document_kind, &parts)?)
         }
     };
     dotted_text(root_field, root)?;
@@ -2112,13 +2156,8 @@ mod tests {
     /// subject like any other, and the key reads back to the inner key -- the
     /// whole inner key, sequence included, since the subject is recovered by
     /// stripping this resolution's own sequence from the end and the kind from
-    /// the front. Depth is bounded by the local alone: each nesting prepends
-    /// `resolution.` (11 bytes) and appends `.n<s>` (3 for one digit), so a
-    /// chain `n` deep over a depth-one local of `L` bytes composes
-    /// `14 * (n - 1) + L` bytes against `LOCAL_MAX`. The deepest chain that
-    /// keys is therefore `(LOCAL_MAX - L) / 14 + 1`, and it depends on the
-    /// subject: at 64, `ruling.A.n1` (11 bytes) and `question.Q1.n1` (14
-    /// bytes) both key four deep.
+    /// the front. The depth bound is tested per kind by
+    /// `every_resolvable_kind_resolves_two_deep`.
     #[test]
     fn a_resolution_of_a_resolution_reads_back() {
         let inner = resolution_of(PipelineKind::Question, &id("question", "Q1").0).expect("the inner keys");
@@ -2132,28 +2171,6 @@ mod tests {
         let (subject_kind, rest) = local.split_once('.').expect("the local names a subject");
         let (subject_local, _sequence) = rest.rsplit_once('.').expect("the local ends in this resolution's sequence");
         assert_eq!(format!("{root}:{subject_kind}:{subject_local}"), inner, "the recovered subject is the inner key");
-
-        let prefix = format!("{CAMPAIGN}:resolution:").len();
-        let nesting = "resolution.".len() + ".n1".len();
-        for (subject_kind, subject_id) in [(PipelineKind::Ruling, id("ruling", "A")), (PipelineKind::Question, id("question", "Q1"))] {
-            let mut key = resolution_of(subject_kind, &subject_id.0).expect("the depth-one resolution keys");
-            let depth_one = key.len() - prefix;
-            let deepest = (LOCAL_MAX - depth_one) / nesting + 1;
-            for depth in 2..=deepest {
-                key = resolution_of(PipelineKind::Resolution, &key)
-                    .unwrap_or_else(|error| panic!("{subject_id:?} depth {depth}: {error}"));
-                assert_eq!(key.len() - prefix, nesting * (depth - 1) + depth_one, "{key}: depth {depth} local length");
-            }
-            assert!(key.len() - prefix <= LOCAL_MAX, "{key}: the deepest chain fits the local");
-            assert!(
-                matches!(
-                    resolution_of(PipelineKind::Resolution, &key),
-                    Err(PipelineRefusal::InvalidFormat { field, .. }) if field == "resolution.key"
-                ),
-                "{key}: nesting {} is refused on the local bound",
-                deepest + 1
-            );
-        }
     }
 
     /// Each level of a nesting carries its own sequence, and only its own: the
@@ -2246,6 +2263,143 @@ mod tests {
         }
     }
 
+    /// A legal dotted local of exactly `length` bytes (`a.a.a`, each part a
+    /// label), for bounds wider than one label.
+    fn dotted_local(length: usize) -> String {
+        match length % 2 {
+            1 => format!("{}a", "a.".repeat(length / 2)),
+            _ => format!("{}aa", "a.".repeat(length / 2 - 1)),
+        }
+    }
+
+    /// A resolution of `subject`, at `sequence`, keyed.
+    fn resolved_at(kind: PipelineKind, subject: &str, sequence: u32) -> Result<String, PipelineRefusal> {
+        let mut resolution = resolution_sample();
+        resolution.subject = PipelineRef { kind, id: Short(subject.into()) };
+        resolution.sequence = sequence;
+        pipeline_key(&PipelineDocument::Resolution(resolution))
+    }
+
+    /// every-subject-resolvable: for each kind that can be a subject, at the
+    /// widest subject local (64) and `u32::MAX` sequences, depth one and depth
+    /// two key and read back through `pipeline_id`; depth three is refused on
+    /// the local bound.
+    #[test]
+    fn every_resolvable_kind_resolves_two_deep() {
+        let wide = "a".repeat(SUBJECT_LOCAL_MAX);
+        let mut widest = 0;
+        for kind in PipelineKind::ALL.iter().copied().filter(|kind| *kind != PipelineKind::Resolution) {
+            let subject = format!("{CAMPAIGN}:{}:{wide}", kind.name());
+            assert_eq!(pipeline_id("subject", &subject, kind), Ok((CAMPAIGN, wide.as_str())), "{kind:?}: the subject parses");
+            let one = resolved_at(kind, &subject, u32::MAX).unwrap_or_else(|error| panic!("{kind:?} depth one: {error}"));
+            let two = resolved_at(PipelineKind::Resolution, &one, u32::MAX)
+                .unwrap_or_else(|error| panic!("{kind:?} depth two: {error}"));
+            for key in [&one, &two] {
+                assert!(key.len() <= 200, "{key}: an id fits a Short");
+                let (root, local) = pipeline_id("read_back", key, PipelineKind::Resolution)
+                    .unwrap_or_else(|error| panic!("{kind:?}: {key} does not read back: {error}"));
+                assert_eq!(root, CAMPAIGN);
+                assert!(local.len() <= RESOLUTION_LOCAL_MAX);
+            }
+            widest = widest.max(two.len() - format!("{CAMPAIGN}:resolution:").len());
+            assert!(
+                matches!(
+                    resolved_at(PipelineKind::Resolution, &two, u32::MAX),
+                    Err(PipelineRefusal::InvalidFormat { field, .. }) if field == "resolution.key"
+                ),
+                "{kind:?}: depth three is refused on the local bound"
+            );
+        }
+        assert_eq!(widest, RESOLUTION_LOCAL_MAX, "the bound is exactly the widest depth-two chain");
+        assert_eq!(RESOLUTION_LOCAL_MAX, 111);
+    }
+
+    #[test]
+    fn the_longest_kind_name_is_the_longest() {
+        let longest = PipelineKind::ALL.iter().map(|kind| kind.name().len()).max();
+        assert_eq!(longest, Some(LONGEST_KIND_NAME));
+    }
+
+    /// The parser bounds an id's local by kind, exactly where the composer does.
+    #[test]
+    fn an_id_local_is_bounded_by_its_kind() {
+        let at = |kind: PipelineKind, length: usize| {
+            pipeline_id("probe", &format!("{CAMPAIGN}:{}:{}", kind.name(), dotted_local(length)), kind).map(|_| ())
+        };
+        assert_eq!(at(PipelineKind::Question, SUBJECT_LOCAL_MAX), Ok(()));
+        assert!(at(PipelineKind::Question, SUBJECT_LOCAL_MAX + 1).is_err());
+        assert_eq!(at(PipelineKind::Resolution, RESOLUTION_LOCAL_MAX), Ok(()));
+        assert!(at(PipelineKind::Resolution, RESOLUTION_LOCAL_MAX + 1).is_err());
+    }
+
+    #[test]
+    fn sha_names_same_commit() {
+        let full = Sha("5f98228d1c2b3a4f5e6d7c8b9a0f1e2d3c4b5a69".into());
+        assert!(full.names_same_commit(&Sha("5f98228".into())));
+        assert!(Sha("5f98228".into()).names_same_commit(&full));
+        assert!(full.names_same_commit(&full));
+        assert!(!full.names_same_commit(&Sha("5f98229".into())));
+        assert!(!Sha("5f98228".into()).names_same_commit(&Sha("5f98229".into())));
+        assert!(!Sha("5f98228a".into()).names_same_commit(&Sha("5f98228b".into())), "equal length, differing");
+    }
+
+    /// stored-documents-valid, on the real mind. `HUGINN_MIND_SNAPSHOT` is a
+    /// writable copy of a state root holding `minds/eureka/mind.redb` (the
+    /// store opens read-write). Read through cultcache-rs's own store.
+    #[test]
+    #[ignore = "needs HUGINN_MIND_SNAPSHOT, a writable copy of a Huginn state root"]
+    fn stored_documents_read_back() {
+        use cultcache_rs::{CacheBackingStore, OwnedRedbMessagePackBackingStore};
+        let root = std::env::var("HUGINN_MIND_SNAPSHOT").expect("HUGINN_MIND_SNAPSHOT names the snapshot state root");
+        let store = OwnedRedbMessagePackBackingStore::new(Path::new(&root).join("minds").join("eureka").join("mind.redb"))
+            .expect("the snapshot opens");
+        let envelopes = store.pull_all().expect("the snapshot reads");
+        let mut stored = Vec::new();
+        for envelope in &envelopes {
+            match PipelineDocument::decode(envelope) {
+                Ok(document) => {
+                    assert_eq!(document.validate(), Ok(()), "{}: valid", envelope.key);
+                    assert_eq!(pipeline_key(&document).as_deref(), Ok(envelope.key.as_str()), "{}: key derives byte for byte", envelope.key);
+                    stored.push((document.kind(), envelope.key.clone()));
+                }
+                Err(PipelineRefusal::ForeignStore { .. }) => {}
+                Err(error) => panic!("{}: does not decode: {error}", envelope.key),
+            }
+        }
+        assert!(stored.len() > 200, "{} pipeline documents read", stored.len());
+        let mut subjects = 0;
+        let resolvable = |kind: &PipelineKind| !matches!(kind, PipelineKind::Resolution | PipelineKind::Campaign | PipelineKind::Instance);
+        for (kind, key) in stored.iter().filter(|(kind, _)| resolvable(kind)) {
+            let one = resolved_at(*kind, key, 1).unwrap_or_else(|error| panic!("{key}: no resolution keys: {error}"));
+            let two = resolved_at(PipelineKind::Resolution, &one, 1).unwrap_or_else(|error| panic!("{key}: no withdrawal keys: {error}"));
+            for derived in [&one, &two] {
+                pipeline_id("read_back", derived, PipelineKind::Resolution).unwrap_or_else(|error| panic!("{derived}: does not parse: {error}"));
+            }
+            subjects += 1;
+        }
+        for (_, key) in stored.iter().filter(|(kind, _)| *kind == PipelineKind::Resolution) {
+            resolved_at(PipelineKind::Resolution, key, 1).unwrap_or_else(|error| panic!("{key}: cannot be withdrawn: {error}"));
+        }
+        // The six findings that could not be resolved before this cut.
+        let stuck = [
+            "cut-bifrost-retire-alarm.s2.verb-default-accepts-malformed",
+            "cut-ops-notice-deploy.s2.pinned-bifrost-predates-retry",
+            "cut-bifrost-notice-retry.s1.unknown-test-ignores-backoff",
+            "cut-bifrost-notice-retry.s2.closed-unknown-retry-unpinned",
+            "cut-bifrost-notice-retry.s2.flapping-clock-retries-every-tick",
+            "cut-idunn-topology-lock.s2.boot-reconcile-skipped-on-contention",
+        ];
+        for label in stuck {
+            let found = stored
+                .iter()
+                .find(|(kind, key)| *kind == PipelineKind::Finding && key.ends_with(label))
+                .unwrap_or_else(|| panic!("{label}: not in the snapshot"));
+            let one = resolved_at(PipelineKind::Finding, &found.1, 1).unwrap_or_else(|error| panic!("{label}: still stuck: {error}"));
+            assert!(one.split(':').nth(2).is_some_and(|local| local.len() > SUBJECT_LOCAL_MAX), "{label}: the old bound refused it");
+        }
+        eprintln!("read back {} pipeline documents, {subjects} subjects", stored.len());
+    }
+
     /// The total bound, in the one place it lives: parts that are each a legal
     /// label compose a local wider than 64 bytes and are refused as a whole.
     #[test]
@@ -2294,22 +2448,37 @@ mod tests {
         }
     }
 
+    /// The resolution side of the bound: 111 keys and 112 is refused on
+    /// `resolution.key`, filled by a resolution subject (`resolution.<L>.n1`).
+    #[test]
+    fn a_composed_resolution_local_is_bounded_whole() {
+        let overhead = "resolution.".len() + ".n1".len();
+        let subject = |length: usize| format!("{CAMPAIGN}:resolution:{}", dotted_local(length));
+        let at_max = resolved_at(PipelineKind::Resolution, &subject(RESOLUTION_LOCAL_MAX - overhead), 1)
+            .expect("a 111-byte resolution local keys");
+        assert_eq!(at_max.split(':').nth(2).map(str::len), Some(RESOLUTION_LOCAL_MAX));
+        assert!(matches!(
+            resolved_at(PipelineKind::Resolution, &subject(RESOLUTION_LOCAL_MAX - overhead + 1), 1),
+            Err(PipelineRefusal::InvalidFormat { field, value }) if field == "resolution.key" && value.len() == RESOLUTION_LOCAL_MAX + 1
+        ));
+    }
+
     /// R2, on the composer every kind goes through: no local part carries the
     /// separator, the head included. The live case is a hand-off with a dotted
     /// receiver, which keys to an escaped label rather than a wider local.
     #[test]
     fn no_local_part_carries_the_separator() {
         assert_eq!(
-            local("probe", &["a.b"]),
+            local("probe", PipelineKind::Question, &["a.b"]),
             Err(PipelineRefusal::InvalidFormat { field: "probe".into(), value: "a.b".into() }),
             "the head may not carry the separator"
         );
         assert_eq!(
-            local("probe", &["a", "b.c"]),
+            local("probe", PipelineKind::Question, &["a", "b.c"]),
             Err(PipelineRefusal::InvalidFormat { field: "probe".into(), value: "b.c".into() }),
             "a tail part may not carry the separator"
         );
-        assert_eq!(local("probe", &["a", "b", "c"]), Ok("a.b.c".into()));
+        assert_eq!(local("probe", PipelineKind::Question, &["a", "b", "c"]), Ok("a.b.c".into()));
 
         let mut dotted = hand_off_sample();
         dotted.to_instance = slug("thought-cage.GameCult");
