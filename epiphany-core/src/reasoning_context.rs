@@ -1572,7 +1572,16 @@ pub(crate) fn commit_external_typed_observation_mind_mutation(
     )
 }
 
-fn commit_authorized_mind_mutation(
+/// The one owner of a Mind receipt commit. It resolves the Mind backing store
+/// once per commit from `store_path` and uses that one store for the cache
+/// load, the batch CAS, and the conflict re-read, so no path in this function
+/// can target a second store.
+///
+/// Order is load-bearing and fail-closed: identities must be unique, the store
+/// must open (which refuses a foreign epoch), and every write must validate,
+/// all before a stored receipt may answer a replay. A batch the current
+/// validator refuses is refused, not answered from the store.
+pub(crate) fn commit_authorized_mind_mutation(
     store_path: &Path,
     authority: EpiphanyMindCommitAuthority,
     invariant_owner: &str,
@@ -1588,9 +1597,6 @@ fn commit_authorized_mind_mutation(
     if writes.is_empty() {
         return Err(anyhow!("Mind mutation requires at least one write"));
     }
-    for write in &writes {
-        crate::mind_documents::validate_mind_write_envelope(write)?;
-    }
     validate_unique_envelope_identities(&strong_reads, "strong read")?;
     validate_unique_envelope_identities(&writes, "write")?;
     validate_unique_envelope_identities(&companions, "companion")?;
@@ -1602,8 +1608,12 @@ fn commit_authorized_mind_mutation(
         .iter()
         .map(|entry| (entry.r#type.clone(), entry.key.clone()))
         .collect::<BTreeSet<_>>();
-    let mut cache = runtime_spine_cache(store_path)?;
+    let backing_store = runtime_spine_backing_store(store_path)?;
+    let mut cache = crate::runtime_spine::open_runtime_spine_cache(backing_store.clone())?;
     cache.pull_all_backing_stores()?;
+    for write in &writes {
+        crate::mind_documents::validate_mind_write_envelope(write)?;
+    }
     let mut companion_expected = Vec::new();
     let mut companion_replacements = Vec::new();
     for companion in companions {
@@ -1666,10 +1676,10 @@ fn commit_authorized_mind_mutation(
     replacements.push(cache.prepare_entry(&receipt_id, &receipt)?.0);
     let mut expected = strong_reads.clone();
     expected.extend(companion_expected);
-    if runtime_spine_backing_store(store_path)?.compare_and_swap_batch(&expected, replacements)? {
+    if backing_store.compare_and_swap_batch(&expected, replacements)? {
         return Ok(EpiphanyMindCommitOutcome::Committed(receipt));
     }
-    let current = runtime_spine_backing_store(store_path)?.pull_all()?;
+    let current = backing_store.pull_all()?;
     let mut conflicts = strong_reads
         .iter()
         .filter(|expected| {
@@ -2474,6 +2484,386 @@ mod tests {
         assert_eq!(
             SingleFileMessagePackBackingStore::new(&store).pull_all()?,
             before
+        );
+        Ok(())
+    }
+
+    /// An envelope the Mind validator refuses: its key is not the value's
+    /// semantic identity.
+    fn refused_mind_write(store: &Path) -> Result<CultCacheEnvelope> {
+        let value = crate::EpiphanyObservation {
+            id: "right-id".into(),
+            summary: "one".into(),
+            source_kind: "test".into(),
+            status: "accepted".into(),
+            code_refs: Vec::new(),
+            evidence_ids: Vec::new(),
+        };
+        Ok(runtime_spine_cache(store)?
+            .prepare_entry("wrong-key", &crate::EpiphanyMindObservationDocument { value })?
+            .0)
+    }
+
+    /// Ruling 12, and Soul's finding S6: every write is validated before a
+    /// stored receipt may answer a replay, so a replay of a batch the current
+    /// validator refuses is refused rather than answered from the store.
+    #[test]
+    fn mind_commit_validates_before_answering_a_replay() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("mind.cc");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "mind-replay-test".into(),
+                display_name: "Mind replay test".into(),
+                created_at: "2026-09-15T00:00:00Z".into(),
+            },
+        )?;
+        let refused = refused_mind_write(&store)?;
+        let provenance = EpiphanyMindDocumentVersion::from_envelope("epiphany-organ", &refused)?;
+        let authority = EpiphanyMindCommitAuthority::TypedOrganProvenance {
+            organ: "test-organ".into(),
+            provenance: provenance.clone(),
+        };
+        let writes = vec![EpiphanyMindDocumentVersion::from_envelope(
+            "epiphany-mind",
+            &refused,
+        )?];
+        // Plant exactly the receipt this batch would produce, so a replay check
+        // that ran first would have a stored answer to hand back.
+        let receipt_id = mind_commit_receipt_id(&authority, "test-owner", &[], &writes)?;
+        let planted = EpiphanyMindCommitReceipt {
+            schema_version: MIND_COMMIT_RECEIPT_SCHEMA_VERSION.to_string(),
+            receipt_id: receipt_id.clone(),
+            authority,
+            invariant_owner: "test-owner".into(),
+            strong_reads: Vec::new(),
+            writes,
+            committed_at: "2026-09-15T00:00:01Z".into(),
+        };
+        planted.validate()?;
+        let mut planting = runtime_spine_cache(&store)?;
+        planting.pull_all_backing_stores()?;
+        planting.put(&receipt_id, &planted)?;
+        let before = std::fs::read(&store)?;
+        let error = commit_external_typed_observation_mind_mutation(
+            &store,
+            "test-organ",
+            provenance,
+            "test-owner",
+            Vec::new(),
+            vec![refused],
+            "2026-09-15T00:00:02Z",
+        )
+        .unwrap_err();
+        assert!(
+            error.to_string().contains("semantic identity"),
+            "a refused batch must be refused, not answered with the stored receipt: {error}"
+        );
+        assert_eq!(std::fs::read(&store)?, before);
+        Ok(())
+    }
+
+    /// Every write in the batch is validated, not just the first. A batch of
+    /// two distinct writes whose second is refused is refused whole, with
+    /// nothing written.
+    #[test]
+    fn mind_commit_validates_every_write_in_the_batch() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("mind.cc");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "mind-batch-validation-test".into(),
+                display_name: "Mind batch validation test".into(),
+                created_at: "2026-09-15T00:00:00Z".into(),
+            },
+        )?;
+        let value = crate::EpiphanyObservation {
+            id: "first".into(),
+            summary: "one".into(),
+            source_kind: "test".into(),
+            status: "accepted".into(),
+            code_refs: Vec::new(),
+            evidence_ids: Vec::new(),
+        };
+        let accepted = runtime_spine_cache(&store)?
+            .prepare_entry("first", &crate::EpiphanyMindObservationDocument { value })?
+            .0;
+        let refused = refused_mind_write(&store)?;
+        assert_ne!(
+            (&accepted.r#type, &accepted.key),
+            (&refused.r#type, &refused.key),
+            "the two writes carry distinct identities, so uniqueness cannot answer first"
+        );
+        let provenance = EpiphanyMindDocumentVersion::from_envelope("epiphany-organ", &accepted)?;
+        let before = std::fs::read(&store)?;
+        let error = commit_external_typed_observation_mind_mutation(
+            &store,
+            "test-organ",
+            provenance,
+            "test-owner",
+            Vec::new(),
+            vec![accepted, refused],
+            "2026-09-15T00:00:01Z",
+        )
+        .unwrap_err();
+        assert!(
+            error.to_string().contains("semantic identity"),
+            "the second write is validated too: {error}"
+        );
+        assert_eq!(
+            std::fs::read(&store)?,
+            before,
+            "a refused batch writes nothing, including its valid writes"
+        );
+        Ok(())
+    }
+
+    /// Ruling 12 again: identity uniqueness is checked before write validation,
+    /// so a batch that repeats an identity reports the repeat, not the
+    /// validator's refusal. The order is fail-closed either way; this pins
+    /// which refusal the caller is told about.
+    #[test]
+    fn mind_commit_refuses_repeated_write_identities_before_validating() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("mind.cc");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "mind-uniqueness-test".into(),
+                display_name: "Mind uniqueness test".into(),
+                created_at: "2026-09-15T00:00:00Z".into(),
+            },
+        )?;
+        let refused = refused_mind_write(&store)?;
+        let provenance = EpiphanyMindDocumentVersion::from_envelope("epiphany-organ", &refused)?;
+        let before = std::fs::read(&store)?;
+        let error = commit_external_typed_observation_mind_mutation(
+            &store,
+            "test-organ",
+            provenance,
+            "test-owner",
+            Vec::new(),
+            vec![refused.clone(), refused],
+            "2026-09-15T00:00:01Z",
+        )
+        .unwrap_err();
+        assert!(
+            error.to_string().contains("repeats write identity"),
+            "uniqueness is checked before the writes are validated: {error}"
+        );
+        assert_eq!(std::fs::read(&store)?, before);
+        Ok(())
+    }
+
+    /// The owner resolves one backing store from the path and uses that one for
+    /// the cache load, the batch CAS and the conflict re-read. A commit that
+    /// wrote anywhere else would leave a second store beside this one, and a
+    /// replay read from anywhere else would not find the receipt.
+    ///
+    /// The file assertions below cannot see a handle re-derived from the *same*
+    /// path, because a handle carries nothing but its path. The resolution
+    /// count can, and that is the shape the map's redb plan makes load-bearing:
+    /// redb permits one writable handle per path, so a second derivation is a
+    /// second handle there.
+    #[test]
+    fn mind_commit_reads_and_writes_one_store() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("mind.cc");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "mind-one-store-test".into(),
+                display_name: "Mind one store test".into(),
+                created_at: "2026-09-15T00:00:00Z".into(),
+            },
+        )?;
+        let value = crate::EpiphanyObservation {
+            id: "first".into(),
+            summary: "one".into(),
+            source_kind: "test".into(),
+            status: "accepted".into(),
+            code_refs: Vec::new(),
+            evidence_ids: Vec::new(),
+        };
+        let write = runtime_spine_cache(&store)?
+            .prepare_entry("first", &crate::EpiphanyMindObservationDocument { value })?
+            .0;
+        let provenance = EpiphanyMindDocumentVersion::from_envelope("epiphany-organ", &write)?;
+        let commit = |at: &str| {
+            commit_external_typed_observation_mind_mutation(
+                &store,
+                "test-organ",
+                provenance.clone(),
+                "test-owner",
+                Vec::new(),
+                vec![write.clone()],
+                at,
+            )
+        };
+        let resolutions_before =
+            crate::runtime_store_backend::backing_store_resolutions(&store);
+        let EpiphanyMindCommitOutcome::Committed(receipt) = commit("2026-09-15T00:00:01Z")? else {
+            panic!("the first Mind write must commit");
+        };
+        assert_eq!(
+            crate::runtime_store_backend::backing_store_resolutions(&store) - resolutions_before,
+            1,
+            "the commit resolves the backing store once and reuses that handle"
+        );
+        let mut files = std::fs::read_dir(temp.path())?
+            .map(|entry| Ok(entry?.file_name().to_string_lossy().into_owned()))
+            .collect::<Result<Vec<_>>>()?;
+        files.sort();
+        assert_eq!(
+            files,
+            vec!["mind.cc".to_string(), "mind.cc.lock".to_string()],
+            "the commit writes exactly the store it was given, and locks that one"
+        );
+        let stored = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
+        assert!(
+            stored.iter().any(|entry| entry.key == receipt.receipt_id),
+            "the receipt lands in the store the owner read"
+        );
+        assert_eq!(
+            commit("2026-09-15T00:00:09Z")?,
+            EpiphanyMindCommitOutcome::Committed(receipt),
+            "the replay is answered from that same store"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn mind_commit_refuses_a_foreign_epoch_store() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("mind.cc");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "mind-epoch-test".into(),
+                display_name: "Mind epoch test".into(),
+                created_at: "2026-09-15T00:00:00Z".into(),
+            },
+        )?;
+        let cache = runtime_spine_cache(&store)?;
+        let backing = runtime_spine_backing_store(&store)?;
+        let current = backing
+            .pull_all()?
+            .into_iter()
+            .find(|entry| entry.r#type == crate::EpiphanyMindIdentity::TYPE)
+            .expect("an initialized store carries its Mind identity");
+        let foreign = crate::EpiphanyMindIdentity {
+            schema_epoch: "epiphany.mind.epoch.foreign".into(),
+            runtime_id: "mind-epoch-test".into(),
+        };
+        let foreign = cache.prepare_entry(&current.key, &foreign)?.0;
+        assert!(backing.compare_and_swap_batch(&[current], vec![foreign])?);
+        let value = crate::EpiphanyObservation {
+            id: "foreign".into(),
+            summary: "foreign".into(),
+            source_kind: "test".into(),
+            status: "accepted".into(),
+            code_refs: Vec::new(),
+            evidence_ids: Vec::new(),
+        };
+        let write = cache
+            .prepare_entry("foreign", &crate::EpiphanyMindObservationDocument { value })?
+            .0;
+        let provenance = EpiphanyMindDocumentVersion::from_envelope("epiphany-organ", &write)?;
+        let before = std::fs::read(&store)?;
+        let error = commit_external_typed_observation_mind_mutation(
+            &store,
+            "test-organ",
+            provenance,
+            "test-owner",
+            Vec::new(),
+            vec![write],
+            "2026-09-15T00:00:01Z",
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("unsupported writable schema epoch"));
+        assert_eq!(std::fs::read(&store)?, before);
+        Ok(())
+    }
+
+    #[test]
+    fn mind_commit_keeps_validation_receipts_replay_and_conflicts() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("mind.cc");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "mind-commit-keeps-test".into(),
+                display_name: "Mind commit keeps test".into(),
+                created_at: "2026-09-15T00:00:00Z".into(),
+            },
+        )?;
+        let cache = runtime_spine_cache(&store)?;
+        let observation = |key: &str, id: &str, summary: &str| -> Result<CultCacheEnvelope> {
+            let value = crate::EpiphanyObservation {
+                id: id.into(),
+                summary: summary.into(),
+                source_kind: "test".into(),
+                status: "accepted".into(),
+                code_refs: Vec::new(),
+                evidence_ids: Vec::new(),
+            };
+            Ok(cache
+                .prepare_entry(key, &crate::EpiphanyMindObservationDocument { value })?
+                .0)
+        };
+        let provenance = EpiphanyMindDocumentVersion::from_envelope(
+            "epiphany-organ",
+            &observation("provenance", "provenance", "organ")?,
+        )?;
+        let commit = |reads: Vec<CultCacheEnvelope>,
+                      writes: Vec<CultCacheEnvelope>,
+                      at: &str| {
+            commit_external_typed_observation_mind_mutation(
+                &store,
+                "test-organ",
+                provenance.clone(),
+                "test-owner",
+                reads,
+                writes,
+                at,
+            )
+        };
+        let before = std::fs::read(&store)?;
+        let error = commit(
+            Vec::new(),
+            vec![observation("wrong-key", "right-id", "x")?],
+            "2026-09-15T00:00:01Z",
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("semantic identity"));
+        assert_eq!(std::fs::read(&store)?, before);
+        let first = observation("first", "first", "one")?;
+        let EpiphanyMindCommitOutcome::Committed(receipt) =
+            commit(Vec::new(), vec![first.clone()], "2026-09-15T00:00:02Z")?
+        else {
+            panic!("the first Mind write must commit");
+        };
+        assert!(receipt.writes.iter().all(|version| version.store_id == "epiphany-mind"));
+        assert_eq!(
+            receipt.receipt_id,
+            "mind-commit-sha256:415283192ba888e99ce011b5e7a2d2ff82e93d9cbf9b5c8af96eebc57acc281e"
+        );
+        assert_eq!(
+            commit(Vec::new(), vec![first.clone()], "2026-09-15T00:00:30Z")?,
+            EpiphanyMindCommitOutcome::Committed(receipt),
+            "exact replay returns the stored receipt"
+        );
+        assert_eq!(
+            commit(
+                vec![observation("first", "first", "stale")?],
+                vec![observation("second", "second", "two")?],
+                "2026-09-15T00:00:03Z",
+            )?,
+            EpiphanyMindCommitOutcome::Conflict {
+                document_identities: vec![(first.r#type.clone(), "first".into())],
+            }
         );
         Ok(())
     }

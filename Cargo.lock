@@ -363,12 +363,30 @@ dependencies = [
 
 [[package]]
 name = "cultcache-rs"
-version = "0.1.0"
-source = "git+https://github.com/GameCult/CultLib.git?rev=e171eca32329baa928f4a1d810401a8b4c857029#e171eca32329baa928f4a1d810401a8b4c857029"
+version = "0.2.0"
+source = "git+https://github.com/GameCult/CultLib.git?rev=8fc74c709444b884a2bd339e0c306bf9484d99d2#8fc74c709444b884a2bd339e0c306bf9484d99d2"
 dependencies = [
  "anyhow",
  "chrono",
- "cultcache-rs-derive",
+ "cultcache-rs-derive 0.1.0 (git+https://github.com/GameCult/CultLib.git?rev=8fc74c709444b884a2bd339e0c306bf9484d99d2)",
+ "fs2",
+ "redb",
+ "rmp-serde",
+ "serde",
+ "serde_bytes",
+ "serde_json",
+ "uuid",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "cultcache-rs"
+version = "0.2.0"
+source = "git+https://github.com/GameCult/CultLib.git?rev=a0813c6eed24d30bf88073ef615b633c77ebfcd6#a0813c6eed24d30bf88073ef615b633c77ebfcd6"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "cultcache-rs-derive 0.1.0 (git+https://github.com/GameCult/CultLib.git?rev=a0813c6eed24d30bf88073ef615b633c77ebfcd6)",
  "fs2",
  "redb",
  "rmp-serde",
@@ -382,7 +400,17 @@ dependencies = [
 [[package]]
 name = "cultcache-rs-derive"
 version = "0.1.0"
-source = "git+https://github.com/GameCult/CultLib.git?rev=e171eca32329baa928f4a1d810401a8b4c857029#e171eca32329baa928f4a1d810401a8b4c857029"
+source = "git+https://github.com/GameCult/CultLib.git?rev=8fc74c709444b884a2bd339e0c306bf9484d99d2#8fc74c709444b884a2bd339e0c306bf9484d99d2"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
+name = "cultcache-rs-derive"
+version = "0.1.0"
+source = "git+https://github.com/GameCult/CultLib.git?rev=a0813c6eed24d30bf88073ef615b633c77ebfcd6#a0813c6eed24d30bf88073ef615b633c77ebfcd6"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -392,10 +420,10 @@ dependencies = [
 [[package]]
 name = "cultmesh-rs"
 version = "0.1.0"
-source = "git+https://github.com/GameCult/CultLib.git?rev=e171eca32329baa928f4a1d810401a8b4c857029#e171eca32329baa928f4a1d810401a8b4c857029"
+source = "git+https://github.com/GameCult/CultLib.git?rev=a0813c6eed24d30bf88073ef615b633c77ebfcd6#a0813c6eed24d30bf88073ef615b633c77ebfcd6"
 dependencies = [
  "anyhow",
- "cultcache-rs",
+ "cultcache-rs 0.2.0 (git+https://github.com/GameCult/CultLib.git?rev=a0813c6eed24d30bf88073ef615b633c77ebfcd6)",
  "cultnet-rs",
  "serde",
 ]
@@ -403,13 +431,13 @@ dependencies = [
 [[package]]
 name = "cultnet-rs"
 version = "0.1.0"
-source = "git+https://github.com/GameCult/CultLib.git?rev=e171eca32329baa928f4a1d810401a8b4c857029#e171eca32329baa928f4a1d810401a8b4c857029"
+source = "git+https://github.com/GameCult/CultLib.git?rev=a0813c6eed24d30bf88073ef615b633c77ebfcd6#a0813c6eed24d30bf88073ef615b633c77ebfcd6"
 dependencies = [
  "aes-gcm",
  "anyhow",
  "base64 0.22.1",
  "chrono",
- "cultcache-rs",
+ "cultcache-rs 0.2.0 (git+https://github.com/GameCult/CultLib.git?rev=a0813c6eed24d30bf88073ef615b633c77ebfcd6)",
  "ed25519-dalek",
  "hmac",
  "rand 0.9.5",
@@ -503,6 +531,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 
 [[package]]
+name = "dyn-clone"
+version = "1.0.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
+
+[[package]]
 name = "ed25519"
 version = "2.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -533,7 +567,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "ctrlc",
- "cultcache-rs",
+ "cultcache-rs 0.2.0 (git+https://github.com/GameCult/CultLib.git?rev=a0813c6eed24d30bf88073ef615b633c77ebfcd6)",
  "cultmesh-rs",
  "cultnet-rs",
  "ed25519-dalek",
@@ -559,7 +593,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "codex-connector",
- "cultcache-rs",
+ "cultcache-rs 0.2.0 (git+https://github.com/GameCult/CultLib.git?rev=a0813c6eed24d30bf88073ef615b633c77ebfcd6)",
  "serde",
  "serde_json",
  "sha2",
@@ -571,7 +605,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
- "cultcache-rs",
+ "cultcache-rs 0.2.0 (git+https://github.com/GameCult/CultLib.git?rev=a0813c6eed24d30bf88073ef615b633c77ebfcd6)",
  "epiphany-core",
  "epiphany-model-adapter",
  "epiphany-tool-adapter",
@@ -585,6 +619,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "epiphany-pipeline"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "cultcache-rs 0.2.0 (git+https://github.com/GameCult/CultLib.git?rev=8fc74c709444b884a2bd339e0c306bf9484d99d2)",
+ "rmp-serde",
+ "schemars",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "epiphany-release-bundle"
 version = "0.1.0"
 dependencies = [
@@ -592,7 +639,7 @@ dependencies = [
  "chrono",
  "codex-connector",
  "ctrlc",
- "cultcache-rs",
+ "cultcache-rs 0.2.0 (git+https://github.com/GameCult/CultLib.git?rev=a0813c6eed24d30bf88073ef615b633c77ebfcd6)",
  "cultnet-rs",
  "epiphany-core",
  "epiphany-model-adapter",
@@ -615,7 +662,7 @@ dependencies = [
 name = "epiphany-tool-adapter"
 version = "0.1.0"
 dependencies = [
- "cultcache-rs",
+ "cultcache-rs 0.2.0 (git+https://github.com/GameCult/CultLib.git?rev=a0813c6eed24d30bf88073ef615b633c77ebfcd6)",
  "serde",
  "serde_json",
 ]
@@ -626,7 +673,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
- "cultcache-rs",
+ "cultcache-rs 0.2.0 (git+https://github.com/GameCult/CultLib.git?rev=a0813c6eed24d30bf88073ef615b633c77ebfcd6)",
  "epiphany-core",
  "epiphany-tool-adapter",
  "http",
@@ -849,7 +896,7 @@ dependencies = [
 [[package]]
 name = "ghostlight-persona-projection"
 version = "0.1.0"
-source = "git+https://github.com/GameCult/Ghostlight.git?rev=22281891cbf9258db80c15a9fd465e6fa251e7dd#22281891cbf9258db80c15a9fd465e6fa251e7dd"
+source = "git+https://github.com/GameCult/Ghostlight.git?rev=22937b71f056d2000dd7ea1f6af0c45825de495f#22937b71f056d2000dd7ea1f6af0c45825de495f"
 dependencies = [
  "serde",
  "sha2",
@@ -1558,6 +1605,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "ref-cast"
+version = "1.0.27"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7e440fb4e4b4147295338efb76001ab9e4efc0e5839df2c47fc5ac2381d365c3"
+dependencies = [
+ "ref-cast-impl",
+]
+
+[[package]]
+name = "ref-cast-impl"
+version = "1.0.27"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92ecd8964f8453721699a1ed72037b0db49ce2f5a5138486ee89bed6f67cdf3a"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.3",
+]
+
+[[package]]
 name = "regex-automata"
 version = "0.4.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1811,6 +1878,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "schemars"
+version = "1.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "687274d293b6cdc6e73e0fee520bf2049650090d7164f87672d212a3c530cf4a"
+dependencies = [
+ "dyn-clone",
+ "ref-cast",
+ "schemars_derive",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "schemars_derive"
+version = "1.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d98c67716b46af2f0b8cf752abc930f6f9aecfbf671ecfb531db8a31dbe4e2ba"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "serde_derive_internals",
+ "syn 3.0.3",
+]
+
+[[package]]
 name = "security-framework"
 version = "3.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1877,6 +1969,17 @@ name = "serde_derive"
 version = "1.0.229"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e7a5d71263a5a7d47b41f6b3f06ba276f10cc18b0931f1799f710578e2309348"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.3",
+]
+
+[[package]]
+name = "serde_derive_internals"
+version = "0.30.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f852137cce035d6a4df67ccce505ff6b3e9fd3a10e3e52b24dc71e650bb1a9bd"
 dependencies = [
  "proc-macro2",
  "quote",

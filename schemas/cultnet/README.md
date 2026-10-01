@@ -25,6 +25,24 @@ hand-maintained JSON registry.
 
 - `gamecult.persona_state.v0`: portable public Persona state.
 - `epiphany.work_organ_state.v0`: portable state for lean work organs.
+- `epiphany.pipeline.*.v2`: Eureka pipeline state (campaign, target, question,
+  ruling, cut spec, cut report, verdict, finding, follow-up, resolution, plus
+  instance, stewardship and hand-off), stored in an instance's mind and owned by
+  the Huginn memory organ. A store is canonical to exactly one instance, so the
+  instance document carries the identity, stewardship records which repos that
+  instance is assigned, and a hand-off records a reassignment in both minds.
+
+Pipeline wire note: each document payload is `[value]`, a one-element
+MessagePack array whose element is the named map the schema describes. These
+contracts cross to the Huginn organ and its `eureka-state` client. The files are
+derived from the Rust value types and checked byte-for-byte by
+`epiphany-pipeline`'s `pipeline_published_schemas_match_derivation`; text bounds are UTF-8 bytes and
+enforced by admission, not by the schema. Evolution is additive: a new named
+field with a serde default keeps `epiphany.pipeline.epoch.v2`, and so does
+widening an enum such as `PipelineKind`, because these readers are ours and each
+ships with the variants it knows -- one that meets a kind it has never heard of
+refuses it on the kind, not on the epoch. A breaking change bumps the epoch, and
+the new binary refuses the old store.
 
 Provider request contracts are owned by their provider boundary. The shared
 Codex contract lives in `GameCult/CodexConnector`; Epiphany's closed durable

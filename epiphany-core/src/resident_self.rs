@@ -797,22 +797,22 @@ fn state_cache(path: &Path) -> Result<CultCache> {
         }
         match envelope.r#type.as_str() {
             ResidentSelfState::TYPE => {
-                cache.load_envelope::<ResidentSelfState>(envelope)?;
+                cache.put_envelope::<ResidentSelfState>(envelope)?;
             }
             ResidentSelfPressure::TYPE => {
-                cache.load_envelope::<ResidentSelfPressure>(envelope)?;
+                cache.put_envelope::<ResidentSelfPressure>(envelope)?;
             }
             ResidentSelfGrant::TYPE => {
-                cache.load_envelope::<ResidentSelfGrant>(envelope)?;
+                cache.put_envelope::<ResidentSelfGrant>(envelope)?;
             }
             ResidentSelfTerminalReceipt::TYPE => {
-                cache.load_envelope::<ResidentSelfTerminalReceipt>(envelope)?;
+                cache.put_envelope::<ResidentSelfTerminalReceipt>(envelope)?;
             }
             ResidentSelfChildClaim::TYPE => {
-                cache.load_envelope::<ResidentSelfChildClaim>(envelope)?;
+                cache.put_envelope::<ResidentSelfChildClaim>(envelope)?;
             }
             ResidentSelfRetentionHead::TYPE => {
-                cache.load_envelope::<ResidentSelfRetentionHead>(envelope)?;
+                cache.put_envelope::<ResidentSelfRetentionHead>(envelope)?;
             }
             _ => unreachable!("owned resident Self type was matched above"),
         };
@@ -2727,6 +2727,45 @@ mod pressure_replay_tests {
         let error = load_resident_self_state(&store).unwrap_err();
         assert!(error.to_string().contains("obsolete writable state epoch"));
         assert_eq!(std::fs::read(&store)?, before);
+        Ok(())
+    }
+
+    #[test]
+    fn state_cache_reads_without_writing_the_store() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("resident.cc");
+        let cache = state_cache(&store)?;
+        SingleFileMessagePackBackingStore::new(&store).push(
+            &cache
+                .prepare_entry(RESIDENT_SELF_STATE_KEY, &ResidentSelfState::default())?
+                .0,
+        )?;
+        let past = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_000_000_000);
+        std::fs::File::options()
+            .write(true)
+            .open(&store)?
+            .set_modified(past)?;
+        let listing = || -> Result<Vec<(std::ffi::OsString, u64, std::time::SystemTime)>> {
+            let mut entries = std::fs::read_dir(temp.path())?
+                .map(|entry| {
+                    let entry = entry?;
+                    let metadata = entry.metadata()?;
+                    Ok((entry.file_name(), metadata.len(), metadata.modified()?))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            entries.sort();
+            Ok(entries)
+        };
+        let before = listing()?;
+        let names = before.iter().map(|entry| entry.0.clone()).collect::<Vec<_>>();
+        assert_eq!(names, ["resident.cc", "resident.cc.lock"]);
+        let reopened = state_cache(&store)?;
+        assert!(
+            reopened
+                .get::<ResidentSelfState>(RESIDENT_SELF_STATE_KEY)?
+                .is_some()
+        );
+        assert_eq!(listing()?, before, "a read attached or wrote a store");
         Ok(())
     }
 

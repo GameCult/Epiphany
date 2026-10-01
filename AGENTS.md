@@ -2,7 +2,10 @@
 
 ## Project Purpose
 
-This repo is the forge-temple of Epiphany: an opinionated Codex fork where
+This repo is the forge-temple of Epiphany: an opinionated agent harness, born
+as a Codex fork and now backend-agnostic. Codex, Claude, and OpenAI-compatible
+APIs speak to it through connectors that share one standardized
+Epiphany-facing CultNet API, the same one Ghostlight uses. It is the harness where
 external typed state, explicit mental maps, bounded scratch work, verifier
 evidence, and anti-churn discipline are wired into the blessed harness instead
 of taped onto the chat transcript like a purity seal over a cracked reactor.

@@ -133,7 +133,7 @@ pub fn close_state_branch(
 fn state_ledger_cache(store_path: &Path) -> Result<CultCache> {
     let mut cache = CultCache::new();
     cache.register_entry_type::<EpiphanyStateLedgerEntry>()?;
-    cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(store_path));
+    cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(store_path))?;
     Ok(cache)
 }
 

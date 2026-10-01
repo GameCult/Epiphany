@@ -640,11 +640,15 @@ pub struct RuntimeSpineHeartbeatJobOptions {
 }
 
 pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
-    let store_path = store_path.as_ref();
-    let backing_store = runtime_spine_backing_store(store_path)?;
+    open_runtime_spine_cache(runtime_spine_backing_store(store_path.as_ref())?)
+}
+
+pub(crate) fn open_runtime_spine_cache(
+    backing_store: SingleFileMessagePackBackingStore,
+) -> Result<CultCache> {
     validate_runtime_store_epoch(&backing_store.pull_all()?)?;
     let mut cache = runtime_spine_schema_cache()?;
-    cache.add_generic_backing_store(backing_store);
+    cache.add_generic_backing_store(backing_store)?;
     Ok(cache)
 }
 
@@ -8655,7 +8659,7 @@ pub(crate) mod tests {
         let mut historical = CultCache::new();
         historical.register_entry_type::<crate::EpiphanyMindIdentity>()?;
         historical.register_entry_type::<EpiphanyRuntimeIdentity>()?;
-        historical.add_generic_backing_store(runtime_spine_backing_store(&store)?);
+        historical.add_generic_backing_store(runtime_spine_backing_store(&store)?)?;
         historical.put(
             "epiphany.mind.epoch.v1",
             &crate::EpiphanyMindIdentity {
@@ -8691,7 +8695,7 @@ pub(crate) mod tests {
         let mut archive_v0 = CultCache::new();
         archive_v0.register_entry_type::<crate::EpiphanyMindIdentity>()?;
         archive_v0.register_entry_type::<EpiphanyRuntimeIdentity>()?;
-        archive_v0.add_generic_backing_store(runtime_spine_backing_store(&archive_v0_store)?);
+        archive_v0.add_generic_backing_store(runtime_spine_backing_store(&archive_v0_store)?)?;
         archive_v0.put(
             crate::MIND_SCHEMA_EPOCH,
             &crate::EpiphanyMindIdentity {
@@ -8720,7 +8724,7 @@ pub(crate) mod tests {
         responses_only.register_entry_type::<crate::EpiphanyMindIdentity>()?;
         responses_only.register_entry_type::<EpiphanyRuntimeIdentity>()?;
         responses_only
-            .add_generic_backing_store(runtime_spine_backing_store(&responses_only_store)?);
+            .add_generic_backing_store(runtime_spine_backing_store(&responses_only_store)?)?;
         responses_only.put(
             crate::MIND_SCHEMA_EPOCH,
             &crate::EpiphanyMindIdentity {
@@ -8744,6 +8748,58 @@ pub(crate) mod tests {
             runtime_spine_backing_store(&responses_only_store)?.pull_all()?,
             responses_only_before
         );
+        Ok(())
+    }
+
+    /// A stand-in for a document of the Eureka pipeline, which
+    /// `epiphany-pipeline` owns and this package deliberately does not depend
+    /// on. The rule under test is the spine registry's, not the document's:
+    /// what the spine cache sees is a type id it never registered, and that is
+    /// all this needs to carry.
+    #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+    #[cultcache(
+        type = "epiphany.pipeline.campaign.v1",
+        schema = "EpiphanyPipelineCampaignDocument"
+    )]
+    struct ForeignPipelineDocument {
+        #[cultcache(key = 0)]
+        slug: String,
+    }
+
+    /// Soul F4: the spine store and a pipeline store are different stores, and
+    /// the spine cache refuses the latter *by type* — it registers its own
+    /// types and nothing else. The epoch checks beside this one cannot stand in
+    /// for it: a pipeline store carries no runtime or Mind identity at all, so
+    /// `validate_runtime_store_epoch` returns `Ok` and the registry is the only
+    /// thing left refusing.
+    #[test]
+    fn runtime_spine_cache_refuses_a_pipeline_store() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("pipeline.cc");
+        let mut pipeline = CultCache::new();
+        pipeline.register_entry_type::<ForeignPipelineDocument>()?;
+        let envelope = pipeline
+            .prepare_entry_named(
+                "eureka-state",
+                &ForeignPipelineDocument { slug: "eureka-state".into() },
+            )?
+            .0;
+        assert!(
+            envelope.r#type.starts_with("epiphany.pipeline."),
+            "the sample is a pipeline document: {}",
+            envelope.r#type
+        );
+        let mut backing = runtime_spine_backing_store(&store)?;
+        backing.push(&envelope)?;
+
+        assert!(
+            validate_runtime_store_epoch(&runtime_spine_backing_store(&store)?.pull_all()?).is_ok(),
+            "the epoch check passes a pipeline store, so only the registry refuses it"
+        );
+        let error = runtime_spine_cache(&store)
+            .and_then(|mut runtime| runtime.pull_all_backing_stores())
+            .unwrap_err();
+        assert!(error.to_string().contains("epiphany.pipeline."), "{error:#}");
         Ok(())
     }
 

@@ -979,7 +979,7 @@ fn sanitized_git_command() -> Command {
     sanitize_git_command(&mut command);
     command
 }
-fn repository_git_command(repo: &Path) -> Result<Command> {
+pub(crate) fn repository_git_command(repo: &Path) -> Result<Command> {
     let canonical = std::fs::canonicalize(repo)
         .with_context(|| format!("failed to canonicalize Git repository {}", repo.display()))?;
     let mut command = sanitized_git_command();
