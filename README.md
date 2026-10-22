@@ -23,6 +23,19 @@ enough to act honestly.
 This is not a faster autocomplete costume. It is the beginning of governed
 human/agent labor.
 
+## Front Door
+
+- **Value:** the shared typed Mind for agent work: governed project state, role lanes for research, modeling, implementation, verification, planning and Persona, and receipts for commands, edits and commits, so work stays coherent past one prompt, one agent or one session.
+- **Problem:** global coherence collapse. Agents keep producing plausible local progress after the project has lost a valid global model; Epiphany turns understanding into inspectable state instead of a longer prompt.
+- **Entry points:**
+  - `AGENTS.md`: operating law and re-entry rites. Read it before touching the machine.
+  - `epiphany-core/`: the typed domain organs (`src/runtime_spine.rs` job, worker, model and tool documents; `src/substrate_gate.rs`; `src/state_model.rs`; `src/mind_documents.rs`).
+  - `cargo run --bin epiphany-state -- status`: the steward CLI for direct Mind inspection (other native binaries are declared in `Cargo.toml`).
+  - `schemas/cultnet/`, `state/map.yaml` (canonical project map), `notes/epiphany-current-algorithmic-map.md` (live control flow).
+  - `docs/positioning.md`: what is claimed and what is not yet earned.
+- **Live:** a supervised engineering alpha: durable typed state and prompt projection, update/proposal/promotion/review paths, runtime-spine documents, operator status and coordinator commands, heartbeat and Persona-state machinery, and the Hands, Eyes, Soul, Mind, Continuity and Substrate Gate receipt families.
+- **Planned:** sustained autonomous GameCult production, complete Bifrost attribution, and a longitudinal fleet of one Epiphany organism per project Body. See What Exists Now.
+
 ## The GameCult Bet
 
 GameCult is building infrastructure for coordinated work between humans,
